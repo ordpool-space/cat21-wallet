@@ -62,21 +62,21 @@ const browserSpecificConfig = {
   },
 };
 
-/**
- * @type {Manifest} manifest
- */
+/* HACK -- Cat21: all brand strings + identity in this manifest are Cat21 Wallet.
+ * Do not merge from upstream blindly. Conflicts on author/description/name/action.default_title/commands._execute_browser_action.description are expected and intentional.
+ * `nativeMessaging` permission is required by ADR-5 (MCP server bridge via Chrome NMH). */
 const manifest = {
   manifest_version: 3,
-  author: 'Leather Wallet, LLC',
-  description: 'Leather Bitcoin Wallet - Your Bitcoin Wallet for DeFi, NFTs, and dApps',
-  permissions: ['contextMenus', 'storage', 'unlimitedStorage', 'notifications'],
+  author: 'ordpool-space',
+  description: 'Cat21 Wallet — hot wallet for active CAT-21 cat trading. BTC L1 mainnet only.',
+  permissions: ['contextMenus', 'storage', 'unlimitedStorage', 'notifications', 'nativeMessaging'],
   commands: {
     _execute_browser_action: {
       suggested_key: {
         default: 'Ctrl+Shift+B',
         mac: 'MacCtrl+Shift+B',
       },
-      description: 'Opens Stacks App',
+      description: 'Opens Cat21 Wallet',
     },
   },
   host_permissions: ['*://*/*'],
@@ -85,7 +85,7 @@ const manifest = {
   },
   web_accessible_resources: [{ resources: ['inpage.js'], matches: ['*://*/*'] }],
   action: {
-    default_title: 'Leather',
+    default_title: 'Cat21 Wallet',
     default_popup: 'action-popup.html',
     default_icon: defaultIconEnvironment[WALLET_ENVIRONMENT],
   },
@@ -104,10 +104,10 @@ const manifest = {
 };
 
 const devManifest = {
-  name: 'Leather Dev',
+  name: 'Cat21 Wallet Dev',
 };
 
-const name = PREVIEW_RELEASE ? 'Leather Preview' : 'Leather';
+const name = PREVIEW_RELEASE ? 'Cat21 Wallet Preview' : 'Cat21 Wallet';
 
 const prodManifest = {
   name,
