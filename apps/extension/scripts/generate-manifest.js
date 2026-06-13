@@ -12,9 +12,9 @@ const TARGET_BROWSER = process.env.TARGET_BROWSER ?? 'chromium';
 
 function generateImageAssetUrlsWithSuffix(suffix = '') {
   return {
-    128: `assets/icons/leather-icon-128${suffix}.png`,
-    256: `assets/icons/leather-icon-256${suffix}.png`,
-    512: `assets/icons/leather-icon-512${suffix}.png`,
+    128: `assets/icons/cat21-icon-128${suffix}.png`,
+    256: `assets/icons/cat21-icon-256${suffix}.png`,
+    512: `assets/icons/cat21-icon-512${suffix}.png`,
   };
 }
 
@@ -39,8 +39,8 @@ const contentSecurityPolicyEnvironment = {
 };
 
 const defaultIconEnvironment = {
-  development: 'assets/icons/leather-icon-128-dev.png',
-  production: 'assets/icons/leather-icon-128.png',
+  development: 'assets/icons/cat21-icon-128-dev.png',
+  production: 'assets/icons/cat21-icon-128.png',
 };
 
 const browserSpecificConfig = {
@@ -113,7 +113,7 @@ const prodManifest = {
   name,
   icons: generateImageAssetUrlsWithSuffix(PREVIEW_RELEASE ? '-preview' : ''),
   action: {
-    default_icon: `assets/icons/leather-icon-128${PREVIEW_RELEASE ? '-preview' : ''}.png`,
+    default_icon: `assets/icons/cat21-icon-128${PREVIEW_RELEASE ? '-preview' : ''}.png`,
   },
 };
 

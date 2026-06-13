@@ -3,17 +3,17 @@ import { Link, HeadProvider as ReactHeadProvider, Title } from 'react-head';
 export function HeadProvider() {
   return (
     <ReactHeadProvider>
-      <LeatherMetaTags />
+      <Cat21MetaTags />
     </ReactHeadProvider>
   );
 }
 
-function LeatherMetaTags() {
+function Cat21MetaTags() {
   const suffix = process.env.WALLET_ENVIRONMENT === 'development' ? '-dev' : '';
   return (
     <>
-      <Title>Leather</Title>
-      <Link rel="icon" href={`/assets/icons/leather-icon-128${suffix}.png`} />
+      <Title>Cat21 Wallet</Title>
+      <Link rel="icon" href={`/assets/icons/cat21-icon-128${suffix}.png`} />
     </>
   );
 }
