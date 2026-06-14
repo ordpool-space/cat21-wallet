@@ -1,6 +1,14 @@
-import { Stack, styled } from 'leather-styles/jsx';
+import { Flex, Stack, styled } from 'leather-styles/jsx';
 
-import { ArrowLeftIcon } from '@leather.io/ui';
+import {
+  ArrowLeftIcon,
+  DropdownMenu,
+  EllipsisVIcon,
+  ExternalLinkIcon,
+  Flag,
+  IconButton,
+  PaperPlaneIcon,
+} from '@leather.io/ui';
 
 import { Header } from '@app/components/layout/headers/header';
 import { HeaderActionButton } from '@app/components/layout/headers/header-action-button';
@@ -24,17 +32,67 @@ function CollectibleTitle({ title, subtitle }: CollectibleTitleProps) {
   );
 }
 
+interface CollectibleOptionsMenuProps {
+  onSend?(): void;
+  onViewOriginal?(): void;
+}
+
+/* HACK -- Cat21: options menu revived per ADR-12 (restored from leather-io
+ * mono@a6460b4d). The upstream version also had a `onToggleProtection` action
+ * — that doesn't apply to cats. Cat-bearing UTXOs are always protected from
+ * the BTC send flow by construction; there is no per-cat protect/unprotect
+ * decision a user can make. */
+function CollectibleOptionsMenu({ onSend, onViewOriginal }: CollectibleOptionsMenuProps) {
+  return (
+    <Flex alignItems="center">
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <IconButton
+            _focus={{ outline: 'focus' }}
+            _hover={{ bg: 'ink.component-background-hover' }}
+            color="ink.action-primary-default"
+            icon={<EllipsisVIcon />}
+            data-testid="collectible-details-options"
+          />
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content align="end" side="bottom" sideOffset={4}>
+          {onSend && (
+            <DropdownMenu.Item onClick={onSend} data-testid="collectible-send-menu-item">
+              <Flag img={<PaperPlaneIcon />} width="100%">
+                <styled.span textStyle="label.02">Send</styled.span>
+              </Flag>
+            </DropdownMenu.Item>
+          )}
+          {onViewOriginal && (
+            <DropdownMenu.Item onClick={onViewOriginal} data-testid="view-original-menu-item">
+              <Flag img={<ExternalLinkIcon />} width="100%">
+                <styled.span textStyle="label.02">View original</styled.span>
+              </Flag>
+            </DropdownMenu.Item>
+          )}
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
+    </Flex>
+  );
+}
+
 interface CollectibleDetailsHeaderProps {
   title: string;
   subtitle?: string;
   onBack(): void;
+  onSend?(): void;
+  onViewOriginal?(): void;
 }
 
 export function CollectibleDetailsHeader({
   title,
   subtitle,
   onBack,
+  onSend,
+  onViewOriginal,
 }: CollectibleDetailsHeaderProps) {
+  const hasMenuActions = onSend || onViewOriginal;
+
   return (
     <Header px={{ base: 'space.04', md: 'space.00' }}>
       <HeaderGrid
@@ -46,6 +104,13 @@ export function CollectibleDetailsHeader({
           />
         }
         centerCol={<CollectibleTitle title={title} subtitle={subtitle} />}
+        rightCol={
+          hasMenuActions ? (
+            <Flex justifyContent="flex-end">
+              <CollectibleOptionsMenu onSend={onSend} onViewOriginal={onViewOriginal} />
+            </Flex>
+          ) : null
+        }
       />
     </Header>
   );
