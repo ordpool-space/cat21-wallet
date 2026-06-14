@@ -18,7 +18,9 @@ import {
   MintInvariantError,
   enforceMintInvariants,
 } from './invariants/mint-invariants';
+import { enforceTransferInvariants } from './invariants/transfer-invariants';
 import { buildMintPsbt } from './builders/mint-builder';
+import { TransferUtxo, buildTransferPsbt } from './builders/transfer-builder';
 
 /**
  * Funding UTXO shape accepted by every cat21 builder. The wallet's
@@ -76,6 +78,11 @@ export interface Cat21RpcDeps {
     | { allowed: false; reason: string; detail?: string };
   /** Picks one funding UTXO sufficient for `requiredSats`. Throws if none. */
   pickFundingUtxo(requiredSats: number): Cat21FundingUtxo;
+  /**
+   * Looks up the wallet's UTXO that carries the given cat. Throws if the
+   * active account does not own this cat (cat21-ord lookup mismatch).
+   */
+  resolveCatUtxo(catId: string): TransferUtxo;
   /** Manual-mode signer: opens the cat21-themed popup, awaits user click. */
   signWithConfirmation(psbt: Uint8Array, intent: Cat21Intent): Promise<SignedTx>;
   /** Autonomous-mode signer: signs without prompting. */
@@ -186,13 +193,85 @@ export class Cat21RpcService {
     return { ok: true, value: { txid: result.txid, channel: result.channel } };
   }
 
-  transfer(
+  async transfer(
     intent: Cat21TransferIntent,
     transport: Cat21Transport
   ): Promise<Cat21RpcResult> {
-    void intent;
-    void transport;
-    return Promise.reject(new Error('Not implemented — iteration 5'));
+    const accountCtx = this.deps.getAccountContext();
+
+    let validated: Validated<Cat21TransferIntent>;
+    try {
+      validated = enforceTransferInvariants(intent, accountCtx.network);
+    } catch (err) {
+      return denied('intent-invariant-violated', errorDetail(err));
+    }
+
+    let mode: 'autonomous' | 'manual';
+    try {
+      mode = resolveSigningMode({
+        intent: validated,
+        transport,
+        agentMode: this.deps.agentMode,
+        evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
+      });
+    } catch (err) {
+      if (err instanceof ModeResolverError) {
+        return denied(modeResolverReasonToRpcReason(err.rejection), err.detail);
+      }
+      return denied('intent-invariant-violated', errorDetail(err));
+    }
+
+    let catUtxo: TransferUtxo;
+    try {
+      catUtxo = this.deps.resolveCatUtxo(validated.catId);
+    } catch (err) {
+      return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
+    }
+
+    const estimatedFee = Math.ceil(validated.feeRate * 220);
+    const requiredSats = 546 + estimatedFee;
+    let fundingUtxo: Cat21FundingUtxo | TransferUtxo;
+    if (catUtxo.value >= requiredSats) {
+      fundingUtxo = catUtxo;
+    } else {
+      try {
+        fundingUtxo = this.deps.pickFundingUtxo(requiredSats - catUtxo.value);
+      } catch (err) {
+        return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+      }
+    }
+
+    let built;
+    try {
+      built = buildTransferPsbt({
+        intent: validated,
+        catUtxo,
+        fundingUtxo,
+        paymentAddress: accountCtx.paymentAddress,
+        network: accountCtx.network,
+      });
+    } catch (err) {
+      return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
+    }
+
+    let signed: SignedTx;
+    try {
+      signed = mode === 'manual'
+        ? await this.deps.signWithConfirmation(built.psbt, validated)
+        : await this.deps.signSilently(built.psbt);
+    } catch (err) {
+      return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
+    }
+
+    let result: BroadcastResult;
+    try {
+      result = await this.deps.broadcast(signed);
+    } catch (err) {
+      return denied('broadcast-failed', errorDetail(err));
+    }
+
+    this.deps.recordSpend(546 + built.fee);
+    return { ok: true, value: { txid: result.txid, channel: result.channel } };
   }
 
   createOffer(
