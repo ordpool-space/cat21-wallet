@@ -87,7 +87,19 @@ export type HttpCacheKey =
   | 'velar-sdk-get-computed-amount'
 
   // EmilyApiClient
-  | 'emily-api-get-sbtc-limits';
+  | 'emily-api-get-sbtc-limits'
+
+  /* HACK -- Cat21: cat21-ord cache keys per ADR-12. cat21-ord is the wallet's
+   * sole source of truth for cat data (ADR-9). TTLs picked deliberately:
+   * - address-inscriptions: short, because new mints land at the user's address
+   *   on every block;
+   * - inscription: long, because per-cat metadata is essentially immutable once
+   *   indexed (genesis tx, sat, content hash never change);
+   * - status: short, because the operator hides operational outages behind it. */
+  | 'cat21-ord-address-inscriptions'
+  | 'cat21-ord-inscription'
+  | 'cat21-ord-output'
+  | 'cat21-ord-status';
 
 export const httpCacheConfig: Record<HttpCacheKey, HttpCacheOptions> = {
   'bns-v2-api-name': { ttl: minutesInMs(2) },
@@ -165,4 +177,10 @@ export const httpCacheConfig: Record<HttpCacheKey, HttpCacheOptions> = {
   'velar-sdk-get-computed-amount': { ttl: secondsInMs(30) },
 
   'emily-api-get-sbtc-limits': { ttl: hoursInMs(12) },
+
+  /* HACK -- Cat21: cat21-ord TTLs per ADR-12. See key declarations above. */
+  'cat21-ord-address-inscriptions': { ttl: secondsInMs(30) },
+  'cat21-ord-inscription': { ttl: hoursInMs(1) },
+  'cat21-ord-output': { ttl: secondsInMs(30) },
+  'cat21-ord-status': { ttl: secondsInMs(10) },
 };

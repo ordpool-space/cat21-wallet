@@ -3,4 +3,8 @@ export const Types = {
   SettingsService: Symbol.for('SettingsService'),
   Environment: Symbol.for('Environment'),
   AuthSessionService: Symbol.for('AuthSessionService'),
+  /* HACK -- Cat21: Cat21OrdApiClient + InscriptionsService DI symbols per
+   * ADR-12. Symbols are reserved here for consumers that resolve by string. */
+  Cat21OrdApiClient: Symbol.for('Cat21OrdApiClient'),
+  InscriptionsService: Symbol.for('InscriptionsService'),
 } as const;

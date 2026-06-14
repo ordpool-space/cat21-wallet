@@ -8,6 +8,11 @@ export * from './balances/btc-balances.service';
 export * from './balances/sip10-balances.service';
 export * from './balances/stx-balances.service';
 export * from './bns/bns.service';
+/* HACK -- Cat21: revived collectibles surface per ADR-12. */
+export * from './collectibles/inscriptions.service';
+export * from './infrastructure/api/cat21-ord/cat21-ord-api.client';
+export * from './infrastructure/api/cat21-ord/cat21-ord-api.schema';
+export * from './infrastructure/api/cat21-ord/cat21-ord-api.utils';
 export * from './coin-selection/bitcoin-coin-selection.service';
 export * from './fees/bitcoin-transaction-fees.service';
 export * from './fees/stacks-transaction-fees.service';
