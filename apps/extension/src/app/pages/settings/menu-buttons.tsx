@@ -4,11 +4,12 @@ import { SettingsSelectors } from '@tests/selectors/settings.selectors';
 import { Flex, styled } from 'leather-styles/jsx';
 
 import { LEATHER_GITBOOK_DEVS, LEATHER_GUIDES_URL } from '@leather.io/constants';
+/* HACK -- Cat21: GlobeTiltedIcon import dropped — only consumer was the Network
+ * settings button hidden below per ADR-7 (mainnet only). */
 import {
   BellAlarmIcon,
   BellIcon,
   CodeIcon,
-  GlobeTiltedIcon,
   KeyIcon,
   MegaphoneIcon,
   SunInCloudIcon,
@@ -59,16 +60,18 @@ export function MenuButtons() {
         icon={<SunInCloudIcon />}
       />
 
-      <SettingsButton
-        data-testid={SettingsSelectors.ChangeNetworkAction}
-        variant="chevron"
-        title="Network"
-        onClick={() => {
-          analytics.track('click_change_network_menu_item');
-          void navigate(RouteUrls.SelectNetwork);
-        }}
-        icon={<GlobeTiltedIcon />}
-      />
+      {/* HACK -- Cat21: Network settings button hidden per ADR-7. Cat21 Wallet
+          is mainnet only; users do not switch networks. Original:
+          <SettingsButton
+            data-testid={SettingsSelectors.ChangeNetworkAction}
+            variant="chevron"
+            title="Network"
+            onClick={() => {
+              analytics.track('click_change_network_menu_item');
+              void navigate(RouteUrls.SelectNetwork);
+            }}
+            icon={<GlobeTiltedIcon />}
+          /> */}
 
       <SettingsButton
         data-testid={SettingsSelectors.ToggleNotifications}

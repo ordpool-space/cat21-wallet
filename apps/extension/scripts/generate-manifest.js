@@ -1,7 +1,6 @@
+import deepMerge from 'deepmerge';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-
-import deepMerge from 'deepmerge';
 
 /* HACK -- Cat21: dev extension public key pinned for stable chrome-extension://<id>/
  * The matching private key lives in .keys/cat21-wallet-dev.pem (gitignored).
