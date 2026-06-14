@@ -51,8 +51,8 @@ the locktime through, and the cat was lost. We do not repeat this.
 
 ## HARD RULE #2: Cat-bearing UTXOs are never spent by the BTC send flow
 
-Per ADR-9 + Phase 3.0 safety. A UTXO holding a cat lives in the
-`protected` bucket; the BTC send coin-selection only ever sees `available`.
+A UTXO holding a cat lives in the `protected` bucket; the BTC send
+coin-selection only ever sees `available`.
 The probe lives in `packages/services/src/utxos/utxos.service.ts` and
 queries cat21-ord's `/output/<txid>:<vout>` per UTXO.
 

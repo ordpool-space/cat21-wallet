@@ -65,25 +65,58 @@ that the wallet handles (see `packages/services/src/index.ts` and
 - `signMessage`
 - `sendTransfer`
 
-Stacks RPCs are NOT registered (Phase 1.1 hide pass dropped them). Calls
-to `stx_*` methods get a typed `METHOD_NOT_FOUND` response, not a hang.
+Stacks RPCs are NOT registered. Calls to `stx_*` methods get a typed
+`METHOD_NOT_FOUND` response, not a hang.
 
-## Cat21-specific tools (planned for SDK exposure)
+## MCP host tools (read-only, ships today)
 
-These belong to the Cat21 Wallet's MCP host surface today
-(`tools/src/mcp-host/`) and will be exposed to ordpool-sdk via the same
-provider once the agent-mode confirmation path lands in the UI:
+The Cat21 Wallet's MCP host surface at `tools/src/mcp-host/` exposes
+exactly three tools to local MCP clients (Claude Desktop, Cursor):
 
 - `list_cats` → returns the cats held by the active account
 - `cat21_ord_status` → forwards cat21-ord's `/status` response
 - `wallet_status` → reachability probe
 
-For mint and offer flows (Phase 3/4), the SDK should call standard
-`signPsbt` with a Cat21-built PSBT (see
-`packages/bitcoin/src/transactions/generate-cat21-mint-transaction.ts`
-and `generate-cat21-buy-offer-psbt.ts`) — these are pure builders, no
-provider call needed; the SDK can produce the PSBT and ask the wallet to
-sign it.
+All three are read-only. Mutating actions reach the wallet through the
+standard `signPsbt` RPC on `window.Cat21Provider` — the MCP host does
+NOT expose mint, buy, or sell tools, and will not in v1.
+
+## SDK-side surface that consumers build with
+
+The pieces that used to live in the wallet now ship in ordpool-sdk and
+are what dapps / bots / cat21.space integrate against. Wallet doesn't
+build PSBTs; the SDK does, and the wallet signs what the SDK delivers.
+
+| SDK module | Exports | Purpose |
+|---|---|---|
+| `src/cat21-mint/cat21.service.helper.ts` | `createInput`, `createTransaction` | Per-wallet sequence (Cat21 Wallet → 0xfffffffd RBF-signaling, others → 0xfffffffe non-RBF), lockTime=21 |
+| `src/cat21-offer/cat21-offer.helper.ts` | `buildCat21BuyOfferPsbt`, `validateCat21BuyOfferPsbt`, `CAT21_OFFER_POSTAGE_SATS` | ord-style buyer-initiated offer + seller-side validator (defence in depth) |
+| `src/cat21-broadcast/broadcast.helper.ts` | `broadcastCat21`, `decideBroadcastChannel`, `STANDARD_TX_WEIGHT_LIMIT` | Weight-based mempool/Slipstream dispatcher |
+| `src/cat21-broadcast/slipstream.helper.ts` | `submitToSlipstream`, `SLIPSTREAM_DEFAULT_BASE_URL` | Marathon direct-to-miner submission with `fetch + AbortController` |
+| `src/agent-mode/agent-policy.helper.ts` | `evaluateAgentPolicy`, types | Pure-functional autonomous-action gate (per-action cap, daily cap, fee ceiling, floor price, counterparty allowlist) |
+
+See [ordpool-sdk README](https://github.com/ordpool-space/ordpool-sdk#readme)
+for the per-module API examples and the layered security model that
+governs which validation step belongs where.
+
+## Layered security: the wallet is the last dumb step
+
+CAT-21 safety is enforced **upstream** of the wallet. The five-step chain:
+
+1. Agent / dapp DECLARES intent (e.g. `AgentActionContext { kind: 'buy', spendSats, counterparty }`)
+2. `evaluateAgentPolicy(policy, action)` gates the declared intent
+3. SDK builds the PSBT from the validated intent (`buildCat21BuyOfferPsbt`)
+4. SDK consumer optionally re-validates the PSBT matches intent (`validateCat21BuyOfferPsbt`) before handing bytes to the wallet
+5. Wallet shows Leather's standard signPsbt confirmation UI, user clicks, wallet signs
+
+The wallet does NOT inspect PSBT bytes to figure out intent. By the time
+bytes reach the wallet, the security gate is already closed upstream.
+See `cat21-wallet/CLAUDE.md` HARD RULE #6 for the wallet-side framing.
+
+What the wallet IS responsible for (NOT intent inference):
+
+- Cat-bearing UTXO protection (BTC send never picks a UTXO holding a cat)
+- nLockTime preservation through RBF (replacement carries original locktime verbatim, hard-assert)
 
 ## Versioning
 
