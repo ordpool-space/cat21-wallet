@@ -117,7 +117,53 @@ review can flag it. Otherwise: leave it.
 
 ---
 
-## HARD RULE #6: Identity separation (workspace-level)
+## HARD RULE #6: The wallet does not guess intent from PSBT bytes
+
+The wallet is the **last** step in the signing chain, not the security
+gate. Security happens upstream:
+
+```
+1. Agent / dapp DECLARES intent (build a buy-offer for cat X at price Y)
+2. ordpool-sdk's agent-policy gates the DECLARED intent against user policy
+3. ordpool-sdk constructs the PSBT from the validated intent
+4. SDK consumer (cat21.space, a bot) optionally re-validates the PSBT
+   matches the declared intent via validateCat21BuyOfferPsbt etc.
+5. signPsbt RPC reaches the wallet → wallet shows Leather's standard
+   confirmation UI (inputs, outputs, fee) → user confirms → wallet signs
+```
+
+The wallet does NOT:
+
+- Inspect PSBT bytes to figure out "this is a buy-offer" vs "this is a
+  transfer" vs "this is something I don't recognise".
+- Run a Cat21-specific validator on signPsbt input before showing the
+  standard prompt.
+- Carry a classifier (`isCat21OfferShape`, `classifyCat21Psbt`, …) that
+  reverse-engineers caller intent from raw bytes.
+
+Why: PSBT-shape detection is a Sisyphean fight against ever-more-creative
+crafting. Every heuristic eventually gets bypassed. Putting the smarts in
+the wallet duplicates work that the agent-policy + SDK-consumer-side
+validator already do better and earlier. The wallet's job is to show the
+user the bytes it's about to sign and ask for a click. That's it.
+
+What the wallet IS responsible for (these are NOT intent-guessing —
+they are conservative structural defaults):
+
+- **Cat-bearing UTXO protection** (`utxos.service.ts`). The BTC send
+  coin-selection never picks a UTXO that holds a cat. No intent is
+  inferred; we simply refuse to consider those UTXOs as available.
+- **nLockTime preservation through RBF** (`use-btc-increase-fee.ts`).
+  Any replacement tx carries the original locktime through verbatim.
+  No intent is inferred; we preserve a structural property.
+
+If you find yourself writing code in this repo that tries to figure out
+what a PSBT means — stop. That code belongs in ordpool-sdk or in a
+specific SDK consumer (cat21.space, a bot), not here.
+
+---
+
+## HARD RULE #7: Identity separation (workspace-level)
 
 Reproduced here for emphasis — full rule lives at
 `/Users/johanneshoppe/Work/ordpool/CLAUDE.md`:
