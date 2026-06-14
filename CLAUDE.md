@@ -206,7 +206,7 @@ The local repo already has user.name + user.email set; verify with
 
 ---
 
-## HARD RULE #8: Process discipline — plan first, small diffs, independent review
+## HARD RULE #8: Process discipline — plan first, independent review
 
 The maintainer watched Claude Code build ~1200 LOC in the wrong repo,
 re-suggest the wrong architecture three times after correction, and
@@ -224,12 +224,7 @@ repo (more than a one-line bugfix):
    shapes can't model, raise it explicitly — do not silently
    redesign.
 
-2. **Tiny diffs.** Hard ceiling: 200 lines changed per implementation
-   commit (excluding the spec-stub commit and any generated lockfile
-   churn). If the change is genuinely larger, split it into multiple
-   reviewable commits, each behind its own stub-commit.
-
-3. **Independent review of every implementation commit.** Spawn a
+2. **Independent review of every implementation commit.** Spawn a
    review agent (`Agent` tool, `general-purpose` subagent) that has
    no context from the current session, hand it the diff
    (`git diff HEAD~1..HEAD`) plus this `CLAUDE.md`, ask it to list
@@ -238,16 +233,21 @@ repo (more than a one-line bugfix):
    away. Review-agent output goes into the next commit message
    verbatim (so future sessions can see what was caught).
 
-4. **`__architecture__/architecture.spec.ts` is law.** It encodes
+3. **`__architecture__/architecture.spec.ts` is law.** It encodes
    the rules in this file as executable Vitest checks. When a HARD
    RULE changes, the spec changes in the same commit. When a code
    change violates the spec, CI rejects the merge. The maintainer
    does not need to remember the rules; the spec does.
 
-5. **`.husky/cat21-architecture-guard.js` is the second gate.**
+4. **`.husky/cat21-architecture-guard.js` is the second gate.**
    Same checks as the spec, but at pre-commit time on the dev
    machine. Bypasses (`--no-verify`) are disallowed without an
    explicit, written justification in the commit message.
+
+Diff size is not capped. Larger slices land as one commit when
+splitting would obscure the change — a single coherent feature is
+easier to review than three artificial chunks. The independent-review
+mechanism is what catches drift, not commit size.
 
 Drift catches: if any of these mechanisms catches a violation, the
 violation is fixed in the same commit. Do not "merge it and fix
