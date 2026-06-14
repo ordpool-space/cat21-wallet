@@ -62,7 +62,15 @@ export function BitcoinTransactionItem({ transaction }: BitcoinTransactionItemPr
 
   const isTxInbound = isBitcoinTxInbound(isCorrespondingAddressFn, transaction);
 
-  const isFeeIncreaseEnabled = !isTxInbound && !transaction.status.confirmed;
+  /* HACK -- Cat21: a tx with nLockTime === 21 is a CAT-21 mint. The mint
+   * builder sets every input sequence to 0xfffffffe so the original tx does
+   * not signal BIP-125 RBF; the mempool refuses any replacement. Showing
+   * "Increase fee" on such a tx leads to a broadcast error at best and a
+   * dead cat at worst (if a future Bitcoin policy change permits some other
+   * acceleration path that strips locktime). Hide the button outright. */
+  const isCat21MintTx = transaction.locktime === 21;
+  const isFeeIncreaseEnabled =
+    !isTxInbound && !transaction.status.confirmed && !isCat21MintTx;
 
   const txCaption = (
     <HStack gap="space.02">
