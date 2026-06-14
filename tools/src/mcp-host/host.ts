@@ -35,6 +35,29 @@ const decoder = new NmhMessageDecoder();
 const extensionState = new Map<string, unknown>();
 let extensionConnected = false;
 
+/**
+ * Pending mutating-tool requests, keyed by correlation id. The host writes
+ * an NMH message with `id` matching the MCP request id; the extension
+ * replies with `{ type: '<tool>:result', id, payload: Cat21RpcResult }`
+ * and we resolve the pending promise. Stale entries are cleared by the
+ * timeout below.
+ */
+const pendingMutations = new Map<
+  string,
+  { resolve: (payload: unknown) => void; timer: NodeJS.Timeout }
+>();
+
+/**
+ * Per-call ceiling for mutating-tool round-trips. The wallet may pop a
+ * confirmation dialog before signing (manual mode), so the user has to
+ * click in time. 60 s default; override with CAT21_MCP_TIMEOUT_MS.
+ */
+const MUTATION_TIMEOUT_MS = (() => {
+  const raw = process.env.CAT21_MCP_TIMEOUT_MS;
+  const n = raw ? Number(raw) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : 60_000;
+})();
+
 /* ------------------------------ NMH side ------------------------------ */
 
 process.stdin.on('data', (chunk: Buffer) => {
@@ -54,12 +77,23 @@ function sendToExtension(message: unknown) {
 
 function handleExtensionMessage(msg: unknown) {
   if (typeof msg !== 'object' || msg === null) return;
-  const m = msg as { type?: string; payload?: unknown };
+  const m = msg as { type?: string; id?: string; payload?: unknown };
   if (!m.type) return;
   extensionConnected = true;
   if (m.type === 'hello') {
     sendToExtension({ type: 'ack', payload: { mcpReady: true } });
     return;
+  }
+  // Mutating-tool reply: '<tool>:result' with the same id we sent. Resolve
+  // the pending promise so handleMutatingToolCall can return.
+  if (typeof m.id === 'string' && m.type.endsWith(':result')) {
+    const pending = pendingMutations.get(m.id);
+    if (pending) {
+      clearTimeout(pending.timer);
+      pendingMutations.delete(m.id);
+      pending.resolve(m.payload);
+      return;
+    }
   }
   extensionState.set(m.type, m.payload);
 }
@@ -73,7 +107,7 @@ function handleExtensionMessage(msg: unknown) {
  * can be run with `MCP_STDIN_DIRECT=1` to skip the NMH decoder and consume
  * stdin as MCP JSON-RPC directly.
  */
-function handleMcpRequest(req: McpJsonRpcRequest): McpJsonRpcResponse {
+async function handleMcpRequest(req: McpJsonRpcRequest): Promise<McpJsonRpcResponse> {
   if (req.method === 'tools/list') {
     return {
       jsonrpc: '2.0',
@@ -91,11 +125,11 @@ function handleMcpRequest(req: McpJsonRpcRequest): McpJsonRpcResponse {
   return jsonRpcError(req.id, -32601, `unknown method ${req.method}`);
 }
 
-function handleToolCall(
+async function handleToolCall(
   id: number | string,
   name: string,
   _args: Record<string, unknown>
-): McpJsonRpcResponse {
+): Promise<McpJsonRpcResponse> {
   if (name === 'wallet_status') {
     return {
       jsonrpc: '2.0',
@@ -155,23 +189,40 @@ function handleToolCall(
  * Translate a cat21_* MCP tool call into an NMH message for the extension,
  * await the typed Cat21RpcResult, and surface it back to the MCP client.
  *
- * Implementation lands in 8b. The stubs commit returns "not implemented"
- * so end-to-end testing harnesses (Claude Desktop's tool listing) see the
- * tool surface but no destructive action fires.
+ * The extension's background dispatcher (iter 9) takes the NMH message,
+ * routes the typed intent through Cat21RpcService (Path 3 — mcp-nmh
+ * transport, autonomous mode honored), and replies with `{ type:
+ * '<tool>:result', id, payload: Cat21RpcResult }`.
  */
-function handleMutatingToolCall(
+async function handleMutatingToolCall(
   id: number | string,
   name: Cat21MutatingTool,
-  _args: Record<string, unknown>
-): McpJsonRpcResponse {
+  args: Record<string, unknown>
+): Promise<McpJsonRpcResponse> {
   if (!extensionConnected) {
     return jsonRpcError(id, -32603, 'extension not connected');
   }
-  return jsonRpcError(
+
+  // Correlation id is always a string on the wire (NMH JSON.parse round-
+  // trips numbers as numbers, but the pendingMutations key uses string).
+  const corrId = String(id);
+
+  const rpcResult = await new Promise<unknown>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingMutations.delete(corrId);
+      reject(new Error(`${name} timed out after ${MUTATION_TIMEOUT_MS}ms`));
+    }, MUTATION_TIMEOUT_MS);
+    pendingMutations.set(corrId, { resolve, timer });
+    sendToExtension({ id: corrId, type: name, payload: args });
+  }).catch(err => ({ ok: false, value: { reason: 'broadcast-failed', detail: String(err) } }));
+
+  return {
+    jsonrpc: '2.0',
     id,
-    -32603,
-    `${name} not yet implemented in this NMH build (iter 8b)`
-  );
+    result: {
+      content: [{ type: 'text', text: JSON.stringify(rpcResult) }],
+    },
+  };
 }
 
 function jsonRpcError(id: number | string, code: number, message: string): McpJsonRpcResponse {
@@ -195,8 +246,10 @@ if (process.env.MCP_STDIN_DIRECT === '1') {
       if (!line.trim()) continue;
       try {
         const req = JSON.parse(line) as McpJsonRpcRequest;
-        const res = handleMcpRequest(req);
-        process.stdout.write(`${JSON.stringify(res)}\n`);
+        void handleMcpRequest(req).then(
+          res => process.stdout.write(`${JSON.stringify(res)}\n`),
+          err => log(`MCP handler error: ${String(err)}`)
+        );
       } catch (err) {
         log(`MCP parse error: ${String(err)}`);
       }
