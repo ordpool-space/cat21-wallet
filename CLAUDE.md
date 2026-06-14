@@ -225,10 +225,14 @@ cats from cat21-ord, refuse to spend cat-bearing UTXOs from the BTC
 send flow (UTXO protection), preserve `nLockTime` through any tx the
 wallet builds — most notably RBF replacement (HARD RULE #1).
 
-The MCP host (`tools/src/mcp-host/`) exposes a read-only tool surface
-(`list_cats`, `wallet_status`, `cat21_ord_status`) to local MCP
-clients. The mutating Cat21 actions go through the typed `cat21_*`
-RPC methods on `window.Cat21Provider`, not the MCP tool surface.
+The MCP host (`tools/src/mcp-host/`) is the agent's interface for
+Path 3: it exposes the four mutating actions
+(`cat21_mint`, `cat21_transfer`, `cat21_create_offer`,
+`cat21_accept_offer`) plus three read-only probes
+(`list_cats`, `wallet_status`, `cat21_ord_status`). Mutating tool
+calls share the same handler that serves Path 1+2 via
+`window.Cat21Provider.request(...)` — the security pipeline is the
+same regardless of transport.
 
 ### What stays in ordpool-sdk
 
@@ -281,21 +285,25 @@ section justifying it.
 
 ### Methods (typed, intent-declared)
 
+The same four methods are exposed through two transports — JS-side
+RPC for Path 1+2 (`window.Cat21Provider.request(name, args)`) and
+MCP-side tools for Path 3 (`tools/call name=… arguments=…`). Same
+name, same Zod schema, same handler.
+
 | Method | Intent shape (summary) |
 |---|---|
 | `cat21_mint` | `{ recipient, feeRate, tip?, mode? }` |
 | `cat21_transfer` | `{ catId, recipient, feeRate, mode? }` |
-| `cat21_createOffer` | `{ catId, priceSats, paymentAddress, mode? }` |
-| `cat21_acceptOffer` | `{ offerPsbt, expectedCatId, expectedPriceSats, expectedSellerUtxo, mode? }` |
+| `cat21_create_offer` | `{ catId, priceSats, paymentAddress, mode? }` |
+| `cat21_accept_offer` | `{ offerPsbt, expectedCatId, expectedPriceSats, expectedSellerUtxo, mode? }` |
 
 `mode` defaults to `'manual'` when omitted. `'autonomous'` is honored
 only when all four mode-resolution guards pass.
 
 ### Naming
 
-Always `cat21_<verb>` prefix. No `cat_*`, no `mintCat21`, no `:` or
-`.` separators. Methods get camelCase verbs (`createOffer`, not
-`create_offer`).
+Always `cat21_<verb>` prefix, snake_case throughout (matches MCP-tool
+convention, reads identically in JS).
 
 ### Pipeline (same for every method)
 
@@ -368,13 +376,31 @@ Any new outbound endpoint added to the wallet is a HARD RULE
 question: does it live on infrastructure we control, or does the
 operator depend on a third party's goodwill?
 
-8. **MCP host scope (unchanged)**: read-only tools only
-   (`list_cats`, `wallet_status`, `cat21_ord_status`). Mutating
-   actions for Path 3 go through the typed `cat21_*` RPC methods
-   over the NMH bridge, not as MCP tools. Reason: the wallet's
-   typed-RPC signing flow is the security boundary; piping a
-   second mutating surface through the MCP tool schema duplicates
-   work and creates an alternate attack surface to defend.
+8. **MCP host exposes everything**: the agent speaks MCP — that is
+   the entire reason the MCP host exists. Forcing a Path 3 bot to
+   learn a second protocol over the same NMH pipe would be absurd.
+   Therefore the MCP tool registry includes **all four mutating
+   actions plus the three read-only probes**:
+
+   - `cat21_mint`
+   - `cat21_transfer`
+   - `cat21_create_offer`
+   - `cat21_accept_offer`
+   - `list_cats`, `wallet_status`, `cat21_ord_status`
+
+   The tool schemas mirror the `window.Cat21Provider.request(...)`
+   intent params exactly — same name, same fields, same Zod
+   validation. The MCP-host process translates `tools/call name=…`
+   into an NMH message to the extension background, where the
+   handler is the same `Cat21RpcService` that serves
+   `window.Cat21Provider.request(...)`. **One pipeline, two
+   transports.**
+
+   The security boundary is still the pipeline (invariants → mode
+   → policy → build → assert → sign), not the transport. The
+   mode-resolver uses transport (NMH vs content-script) only to
+   decide whether `mode: 'autonomous'` is honored — not to gate
+   surface visibility.
 
 ### Layout
 

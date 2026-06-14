@@ -67,21 +67,28 @@ which Chrome instance opened the stdio pipe — Chrome enforces the
 `allowed_origins` match before spawning the host. The defense lives at
 the Chrome layer, by Chrome's design.
 
-## 4. MCP tool surface is read-only
+## 4. MCP tool calls route through the same security pipeline as JS-side RPC
 
-**Status:** verified.
+**Status:** spec'd; implementation in progress.
 
-`tools/src/mcp-host/protocol.ts` declares `CAT21_MCP_TOOLS`. The list
-contains exactly:
+The MCP host exposes seven tools:
 
-- `list_cats` — query for cats held in the active account.
-- `wallet_status` — extension reachability probe.
-- `cat21_ord_status` — forwarded `/status` from cat21-ord.
+- read-only probes: `list_cats`, `wallet_status`, `cat21_ord_status`
+- mutating Cat21 actions: `cat21_mint`, `cat21_transfer`,
+  `cat21_create_offer`, `cat21_accept_offer`
 
-No tool in this list can spend, sign, or otherwise mutate state.
-Mutating actions reach the wallet through the existing `signPsbt` RPC
-on `window.Cat21Provider`, which routes through the standard user-
-confirmation UX. The MCP host cannot bypass that path.
+The four mutating tools share the same `Cat21RpcService` handler that
+serves Path 1+2 calls via `window.Cat21Provider.request(...)`. The
+host process translates `tools/call name=… arguments=…` into an NMH
+message to the extension background, which dispatches to the typed
+handler exactly as if the call had come from a content-script.
+
+The security boundary is therefore the pipeline (intent parse → hard
+invariants → mode resolver → agent-policy gate → SDK PSBT build →
+post-build asserts → sign → broadcast), not the transport. The
+mode-resolver uses transport (NMH vs content-script) only to decide
+whether the caller may request `mode: 'autonomous'` — read access vs
+mutating access is NOT gated by transport.
 
 ## 5. No hardcoded secrets in source
 
