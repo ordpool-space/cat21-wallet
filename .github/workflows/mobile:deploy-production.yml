@@ -5,17 +5,9 @@ permissions:
 defaults:
   run:
     shell: bash
-on:
-  workflow_dispatch:
-    inputs:
-      platform:
-        description: 'Platform(s) to build and submit'
-        type: choice
-        default: all
-        options:
-          - all
-          - ios
-          - android
+# HACK -- Cat21: was auto-triggered upstream. Disabled in our fork: this workflow either pushes to leather-io destinations (npm, Chrome Web Store, deploy) or covers surface we do not ship (mobile, web). Manual trigger only.
+on: workflow_dispatch
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
