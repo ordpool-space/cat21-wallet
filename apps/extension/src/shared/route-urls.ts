@@ -42,6 +42,10 @@ export enum RouteUrls {
   ViewSecretKey = '/view-secret-key',
   Settings = '/settings',
 
+  /* HACK -- Cat21: CAT-21 mint + offer routes per Phase 3.1 + Phase 4 */
+  Cat21Mint = '/cat21-mint',
+  Cat21Offer = '/cat21-offer',
+
   // nested routes must have relative paths
   Activity = '/activity',
   Collectibles = '/collectibles',
