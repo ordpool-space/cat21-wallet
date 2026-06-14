@@ -72,9 +72,29 @@ export type Cat21Intent =
 
 /* ----------------------------- Result types ---------------------------- */
 
-export interface Cat21RpcSuccess {
+/**
+ * Discriminated success union. Mint, transfer, and accept-offer return a
+ * `broadcast` outcome (txid + channel). `cat21_create_offer` returns a
+ * `listing` outcome — it does NOT broadcast, it emits a structured listing
+ * the agent can publish to a marketplace. Buyers later send back a
+ * buy-offer PSBT, which the seller signs+broadcasts via cat21_accept_offer.
+ */
+export type Cat21RpcSuccess = Cat21RpcBroadcastSuccess | Cat21RpcListingSuccess;
+
+export interface Cat21RpcBroadcastSuccess {
+  kind: 'broadcast';
   txid: string;
   channel: 'mempool' | 'slipstream';
+}
+
+export interface Cat21RpcListingSuccess {
+  kind: 'listing';
+  listing: {
+    catId: string;
+    sellerUtxo: { txid: string; vout: number };
+    priceSats: number;
+    paymentAddress: string;
+  };
 }
 
 /**

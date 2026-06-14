@@ -190,7 +190,7 @@ export class Cat21RpcService {
     }
 
     this.deps.recordSpend(546 + tipValue + built.fee);
-    return { ok: true, value: { txid: result.txid, channel: result.channel } };
+    return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
 
   async transfer(
@@ -271,16 +271,33 @@ export class Cat21RpcService {
     }
 
     this.deps.recordSpend(546 + built.fee);
-    return { ok: true, value: { txid: result.txid, channel: result.channel } };
+    return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
 
+  /**
+   * `cat21_create_offer` — publishes a structured listing for an owned
+   * cat. Does NOT broadcast a Bitcoin transaction. Pipeline:
+   *
+   *   1. enforceCreateOfferInvariants(intent, network)
+   *   2. resolveSigningMode(...)
+   *   3. resolveCatUtxo(catId) — proves wallet owns the cat
+   *   4. buildListing({ intent, sellerUtxo })
+   *   5. signListing? — manual mode shows a confirmation popup so the
+   *      user clicks "Publish listing"; autonomous mode skips. Either
+   *      way no key material is needed since the listing is data, not
+   *      a PSBT. (A future hardening commit may add BIP-322 sign-the-
+   *      listing-JSON; punted to its own iteration.)
+   *   6. Return `{ ok: true, value: { kind: 'listing', listing: { ... } } }`.
+   *
+   * Implementation lands in the iteration-6 implementation commit.
+   */
   createOffer(
     intent: Cat21CreateOfferIntent,
     transport: Cat21Transport
   ): Promise<Cat21RpcResult> {
     void intent;
     void transport;
-    return Promise.reject(new Error('Not implemented — iteration 6'));
+    return Promise.reject(new Error('Not implemented — iteration 6 (stubs commit)'));
   }
 
   acceptOffer(

@@ -10,7 +10,12 @@ import {
   Cat21RpcService,
   SignedTx,
 } from './cat21-rpc.service';
-import type { Cat21Intent, Cat21MintIntent, Cat21TransferIntent } from './types';
+import type {
+  Cat21CreateOfferIntent,
+  Cat21Intent,
+  Cat21MintIntent,
+  Cat21TransferIntent,
+} from './types';
 
 const publicKey = hex.decode('030000000000000000000000000000000000000000000000000000000000000001');
 const p2wpkhMainnet = btc.p2wpkh(publicKey, btc.NETWORK);
@@ -105,9 +110,11 @@ describe('Cat21RpcService.mint', () => {
     it('mints in manual mode through popup-confirm signer', async () => {
       const result = await service.mint(makeIntent(), 'popup');
       expect(result.ok).toBe(true);
-      if (result.ok) {
+      if (result.ok && result.value.kind === 'broadcast') {
         expect(result.value.txid).toBe('tx-abc');
         expect(result.value.channel).toBe('mempool');
+      } else {
+        throw new Error('expected broadcast success');
       }
       expect(deps.signWithConfirmation).toHaveBeenCalled();
       expect(deps.signSilently).not.toHaveBeenCalled();
@@ -343,7 +350,11 @@ describe('Cat21RpcService.transfer', () => {
     it('transfers in manual mode through popup-confirm signer', async () => {
       const result = await service.transfer(makeTransferIntent(), 'popup');
       expect(result.ok).toBe(true);
-      if (result.ok) expect(result.value.txid).toBe('tx-abc');
+      if (result.ok && result.value.kind === 'broadcast') {
+        expect(result.value.txid).toBe('tx-abc');
+      } else {
+        throw new Error('expected broadcast success');
+      }
       expect(deps.signWithConfirmation).toHaveBeenCalled();
       expect(deps.signSilently).not.toHaveBeenCalled();
     });
@@ -546,5 +557,47 @@ describe('Cat21RpcService.transfer', () => {
       mode: 'autonomous',
       catId: VALID_CAT_ID,
     });
+  });
+});
+
+describe('Cat21RpcService.createOffer (iteration 6, stubs only)', () => {
+
+  let service: Cat21RpcService;
+
+  beforeEach(() => {
+    service = new Cat21RpcService(makeDeps());
+  });
+
+  function makeCreateOfferIntent(
+    overrides: Partial<Cat21CreateOfferIntent> = {}
+  ): Cat21CreateOfferIntent {
+    return {
+      catId: VALID_CAT_ID,
+      priceSats: 100_000,
+      paymentAddress: p2wpkhMainnet.address!,
+      mode: undefined,
+      ...overrides,
+    };
+  }
+
+  it.todo('returns a listing success on the happy path (manual mode, popup)');
+  it.todo('returns a listing success on the happy path (autonomous mode, mcp-nmh)');
+  it.todo('returns "transport-not-trusted-for-autonomous" when autonomous over popup');
+  it.todo('returns "agent-disabled" when autonomous but agent mode off');
+  it.todo('returns "policy-denied" when policy gate denies');
+  it.todo('returns "intent-invariant-violated" on malformed catId');
+  it.todo('returns "intent-invariant-violated" on bad payment address');
+  it.todo('returns "intent-invariant-violated" on price below dust');
+  it.todo('returns "intent-invariant-violated" when wallet does not own the cat');
+  it.todo('runs invariants BEFORE consulting the agent policy');
+  it.todo('does NOT call broadcast (listing never broadcasts)');
+  it.todo('does NOT call signWithConfirmation in autonomous mode');
+  it.todo('passes a Cat21CreateOfferIntent to evaluateAgentPolicy');
+  it.todo('listing.catId, .sellerUtxo, .priceSats, .paymentAddress all populated');
+
+  it('rejects with Not-Implemented until iter-6 impl commit lands', async () => {
+    await expect(service.createOffer(makeCreateOfferIntent(), 'popup')).rejects.toThrow(
+      /Not implemented/
+    );
   });
 });
