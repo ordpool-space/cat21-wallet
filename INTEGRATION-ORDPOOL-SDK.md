@@ -22,7 +22,7 @@ function getCat21Wallet(): Provider | undefined {
   if (typeof window === 'undefined') return undefined;
   // 1. Direct slot. Always present when Cat21 Wallet is installed.
   const direct = (window as any).Cat21Provider;
-  if (direct?.isLeather) return direct;
+  if (direct?.isCat21) return direct;
   // 2. WBIP004 lookup. Survives Cat21 Wallet sharing a page with other
   //    Bitcoin extensions.
   const list = (window as any).btc_providers as { id: string }[] | undefined;
@@ -32,7 +32,7 @@ function getCat21Wallet(): Provider | undefined {
 
 Do NOT assume `window.LeatherProvider === Cat21 Wallet`. If real Leather is
 co-installed, `LeatherProvider` is real Leather. Cat21 Wallet always lives
-at `window.Cat21Provider`.
+at `window.Cat21Provider` and identifies itself with `isCat21: true`.
 
 ## Politeness model
 
@@ -92,15 +92,16 @@ sign it.
 ```ts
 {
   version: string;
-  name: 'Leather'; // unchanged for backwards compat in upstream code path
+  name: 'Cat21 Wallet';
   meta: { tag: string; commit: string };
 }
 ```
 
-The SDK should NOT key behaviour off `name`. Use `isLeather: true` plus the
-discovery rules above. Future versions may return `name: 'Cat21'` once the
-provider package is forked off the Leather identifier; the contract here
-will say so before that happens.
+The provider object carries `isCat21: true` and (because Cat21 Wallet is
+forked from Leather and reuses the Leather RPC contract for the Bitcoin
+methods) also `isLeather: true`. SDKs should key off `isCat21` for
+positive identification, not `isLeather` — `isLeather: true` would also
+match real Leather, while `isCat21: true` would not.
 
 ## Verifying a Cat21 Wallet build
 

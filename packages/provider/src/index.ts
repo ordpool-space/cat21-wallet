@@ -24,18 +24,24 @@ export function initInpageProvider({ onDispatch, env }: initInpageProviderArgs) 
   addLeatherToProviders();
 
   interface LeatherProviderOverrides extends Omit<StacksProvider, 'profileUpdateRequest'> {
+    /* HACK -- Cat21: kept for dapps that key off the Leather identity when
+     * we're filling the LeatherProvider slot in real Leather's absence. */
     isLeather: true;
+    /* HACK -- Cat21: positive identification of the Cat21 Wallet provider.
+     * Dapps should branch on this rather than `isLeather` to disambiguate. */
+    isCat21: true;
   }
 
   const provider: LeatherProviderOverrides = {
     isLeather: true,
+    isCat21: true,
 
     ...getLegacyRequests(env.platform),
 
     getProductInfo() {
       return {
         version: env.version,
-        name: 'Leather',
+        name: 'Cat21 Wallet',
         meta: {
           tag: env.branch,
           commit: env.commitSha,
