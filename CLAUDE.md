@@ -117,58 +117,76 @@ review can flag it. Otherwise: leave it.
 
 ---
 
-## HARD RULE #6: Intent is always declared, never inferred from PSBT bytes
+## HARD RULE #6: The browser surface is Leather. cat21_* is internal.
 
-Two RPC surfaces, two distinct paths into the wallet — both share the
-"intent is declared" rule but they declare it differently:
+There are exactly **two surfaces** that can reach the wallet:
 
-### Path 1 — generic `signPsbt` (third-party-wallet dapps via cat21.space)
+### Browser surface (`window.Cat21Provider`) — Leather-compatible RPCs only
 
-The wallet behaves exactly like upstream Leather: standard signPsbt
-confirmation UI showing inputs / outputs / fee, user clicks, wallet
-signs. The intent was declared upstream by cat21.space when it built
-the PSBT; the wallet is a dumb signer here.
+In the browser the wallet looks like Leather. `window.Cat21Provider`
+exposes the same JSON-RPC contract as the upstream Leather provider:
+`signPsbt`, `sendTransfer`, `getAddresses`, `signMessage`, `getInfo`,
+`supportedMethods`, `open`, `openSwap`. Nothing else. Dapps that want
+to do CAT-21 things call `signPsbt` with PSBT bytes that cat21.space
+(or any other SDK consumer) built and validated.
 
-### Path 2 + 3 — typed `cat21_*` RPC methods (cat21-wallet's own surface)
+**The wallet does NOT expose `cat21_mint`, `cat21_transfer`,
+`cat21_create_offer`, or `cat21_accept_offer` to dapps.** Exposing
+typed cat-flow methods through the browser provider would create a
+second mutating attack surface that we'd have to defend forever, for
+no UX benefit — cat21.space already owns the in-browser Cat21 UI.
 
-The wallet exposes typed methods (`cat21_mint`, `cat21_transfer`,
-`cat21_createOffer`, `cat21_acceptOffer`) where the **caller passes
-the intent as structured parameters**, not as opaque PSBT bytes. The
-wallet then:
+### Internal surface (Cat21RpcService) — typed cat21_* actions
 
-1. enforces unbypassable invariants on the intent itself (pure
-   functions, easy to audit, 100% test coverage required),
-2. builds the PSBT from the intent using ordpool-sdk (wallet owns
-   the bytes it will sign),
-3. post-build, re-asserts that the bytes match the intent (defence
-   in depth against SDK drift),
-4. either prompts the user (Path 2 manual mode) or signs silently
-   (Path 3 autonomous mode, when all four mode-resolution guards pass
-   — see "Cat21 RPC architecture" below).
+Inside the wallet, a `Cat21RpcService` (background-side) exposes the
+four typed actions:
 
-The wallet NEVER:
+- `cat21_mint`
+- `cat21_transfer`
+- `cat21_create_offer`
+- `cat21_accept_offer`
 
-- Inspects PSBT bytes to *figure out* what kind of action they
-  represent. The action kind is encoded in the RPC method name.
-- Carries a classifier (`isCat21OfferShape`, `classifyCat21Psbt`)
-  that reverse-engineers caller intent from raw bytes.
-- Runs cat21-shape detection on generic `signPsbt` input. If the
-  dapp wants the wallet to use cat21-specific UX or safe-guards,
-  it must call a `cat21_*` method. Else: dumb signer.
+The caller passes the intent as structured parameters; the service
+enforces unbypassable invariants, builds the PSBT via ordpool-sdk,
+re-asserts the bytes match the intent, then signs (with or without a
+prompt). **Two transports reach this internal surface, neither is the
+browser provider:**
 
-PSBT-shape detection is a Sisyphean fight against ever-more-creative
-crafting. Every heuristic eventually gets bypassed. The fix is
-typed-RPC: the caller declares the action, the wallet enforces.
+- **Path 2 — wallet popup UI.** The user clicks a Cat21 action button
+  inside cat21-wallet's own popup, fills in the form, clicks Confirm.
+  The popup messages the background extension page over Chrome's
+  internal `chrome.runtime` channel; background dispatches to
+  `Cat21RpcService`.
+- **Path 3 — MCP via NMH.** An external MCP-aware agent (Claude
+  Desktop, Cursor, custom bot) calls `tools/call name=cat21_mint
+  arguments=…` against our NMH host process; the host forwards the
+  call over Chrome's Native Messaging pipe to the same
+  `Cat21RpcService` in the background page.
 
-What the wallet IS responsible for outside the RPC surface (these are
+The MCP tool registry and the wallet's popup UI are different
+transports for the same internal handler. **The browser is never one
+of them.**
+
+### PSBT-shape inference is forbidden
+
+For the generic `signPsbt` RPC (browser surface), the wallet shows
+Leather's standard inputs/outputs/fee confirmation and signs. It does
+NOT try to figure out whether the inbound PSBT is a cat-mint vs an
+offer vs something else, because that's a Sisyphean fight against
+ever-more-creative crafting.
+
+For the typed `cat21_*` actions (internal surface), the action kind
+is encoded in the method name and the intent is fully declared by the
+caller. The wallet enforces invariants on the declared intent, not on
+the bytes it constructs from the intent.
+
+What the wallet IS responsible for outside both surfaces (these are
 NOT intent-guessing — they are conservative structural defaults):
 
 - **Cat-bearing UTXO protection** (`utxos.service.ts`). The BTC send
-  coin-selection never picks a UTXO that holds a cat. No intent is
-  inferred; we simply refuse to consider those UTXOs as available.
+  coin-selection never picks a UTXO that holds a cat.
 - **nLockTime preservation through RBF** (`use-btc-increase-fee.ts`).
   Any replacement tx carries the original locktime through verbatim.
-  No intent is inferred; we preserve a structural property.
 
 ---
 
@@ -229,10 +247,11 @@ The MCP host (`tools/src/mcp-host/`) is the agent's interface for
 Path 3: it exposes the four mutating actions
 (`cat21_mint`, `cat21_transfer`, `cat21_create_offer`,
 `cat21_accept_offer`) plus three read-only probes
-(`list_cats`, `wallet_status`, `cat21_ord_status`). Mutating tool
-calls share the same handler that serves Path 1+2 via
-`window.Cat21Provider.request(...)` — the security pipeline is the
-same regardless of transport.
+(`list_cats`, `wallet_status`, `cat21_ord_status`). The same
+`Cat21RpcService` handler also serves Path 2 via Chrome's internal
+`chrome.runtime` channel from the wallet popup UI. **Neither path
+goes through `window.Cat21Provider`** — the browser surface stays
+Leather-compatible (signPsbt, sendTransfer, etc.) by design.
 
 ### What stays in ordpool-sdk
 
@@ -285,10 +304,12 @@ section justifying it.
 
 ### Methods (typed, intent-declared)
 
-The same four methods are exposed through two transports — JS-side
-RPC for Path 1+2 (`window.Cat21Provider.request(name, args)`) and
-MCP-side tools for Path 3 (`tools/call name=… arguments=…`). Same
-name, same Zod schema, same handler.
+The same four methods are exposed through two **internal** transports
+— never the browser provider. Path 2 reaches them via the wallet's
+popup UI sending an internal `chrome.runtime` message. Path 3 reaches
+them via MCP tool calls from a bot, translated by the NMH host into
+the same internal message shape. Same name, same Zod schema, same
+handler.
 
 | Method | Intent shape (summary) |
 |---|---|
@@ -376,11 +397,7 @@ Any new outbound endpoint added to the wallet is a HARD RULE
 question: does it live on infrastructure we control, or does the
 operator depend on a third party's goodwill?
 
-8. **MCP host exposes everything**: the agent speaks MCP — that is
-   the entire reason the MCP host exists. Forcing a Path 3 bot to
-   learn a second protocol over the same NMH pipe would be absurd.
-   Therefore the MCP tool registry includes **all four mutating
-   actions plus the three read-only probes**:
+8. **MCP host exposes the four mutating actions plus three read-only probes**:
 
    - `cat21_mint`
    - `cat21_transfer`
@@ -388,19 +405,20 @@ operator depend on a third party's goodwill?
    - `cat21_accept_offer`
    - `list_cats`, `wallet_status`, `cat21_ord_status`
 
-   The tool schemas mirror the `window.Cat21Provider.request(...)`
-   intent params exactly — same name, same fields, same Zod
-   validation. The MCP-host process translates `tools/call name=…`
-   into an NMH message to the extension background, where the
-   handler is the same `Cat21RpcService` that serves
-   `window.Cat21Provider.request(...)`. **One pipeline, two
-   transports.**
+   The agent speaks MCP because that's the protocol it's designed
+   for. The MCP-host process translates `tools/call name=…` into a
+   Native Messaging message → forwarded to the extension background
+   → dispatched to `Cat21RpcService`. Path 2 (the wallet's popup UI)
+   reaches the same `Cat21RpcService` via Chrome's internal
+   `chrome.runtime` channel. **One internal handler, two internal
+   transports. Browser dapps don't see these methods.**
 
-   The security boundary is still the pipeline (invariants → mode
-   → policy → build → assert → sign), not the transport. The
-   mode-resolver uses transport (NMH vs content-script) only to
-   decide whether `mode: 'autonomous'` is honored — not to gate
-   surface visibility.
+   The security boundary is the pipeline (intent parse → invariants
+   → mode → policy → build → assert → sign), not the transport.
+   The mode-resolver uses transport (NMH vs popup) to decide whether
+   `mode: 'autonomous'` may be honored — not to gate surface
+   visibility (the surface is invisible from outside the wallet
+   regardless).
 
 ### Layout
 

@@ -78,17 +78,22 @@ The MCP host exposes seven tools:
   `cat21_create_offer`, `cat21_accept_offer`
 
 The four mutating tools share the same `Cat21RpcService` handler that
-serves Path 1+2 calls via `window.Cat21Provider.request(...)`. The
-host process translates `tools/call name=… arguments=…` into an NMH
-message to the extension background, which dispatches to the typed
-handler exactly as if the call had come from a content-script.
+serves Path 2 via the wallet popup UI over Chrome's internal
+`chrome.runtime` channel. The MCP-host process translates
+`tools/call name=… arguments=…` into a Native Messaging message,
+which the extension background dispatches to the same handler.
 
-The security boundary is therefore the pipeline (intent parse → hard
+**Neither transport is the browser provider.** `window.Cat21Provider`
+stays Leather-compatible (signPsbt, sendTransfer, etc.) — typed
+cat21_* methods are NOT exposed to dapps. cat21.space and other
+dapps build PSBTs via ordpool-sdk and call the standard signPsbt RPC,
+identical to how they reach Xverse / Leather / Unisat.
+
+The security boundary is the internal pipeline (intent parse → hard
 invariants → mode resolver → agent-policy gate → SDK PSBT build →
 post-build asserts → sign → broadcast), not the transport. The
-mode-resolver uses transport (NMH vs content-script) only to decide
-whether the caller may request `mode: 'autonomous'` — read access vs
-mutating access is NOT gated by transport.
+mode-resolver uses transport (NMH vs popup) only to decide whether
+the caller may request `mode: 'autonomous'`.
 
 ## 5. No hardcoded secrets in source
 
