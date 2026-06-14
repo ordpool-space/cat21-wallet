@@ -47,18 +47,13 @@ export interface ValidateAcceptOfferArgs {
 }
 
 /**
- * Thin orchestration wrapper around the SDK validator. The implementation
- * commit fills in the body that:
- *
- *   1. Builds the SDK's `ValidateCat21BuyOfferArgs` shape from the local args.
- *   2. Delegates to the dep-injected `validateBuyOfferPsbt` callback.
- *   3. Cross-checks the SDK's `pricePaidSats` against the intent's
- *      `expectedPriceSats` — equality, not just ≥ floor. The wallet's
- *      contract is "the intent's expected values pin the deal"; any
- *      mismatch surfaces as `wrong-price` even if the SDK accepted it
- *      against a lower `floorPriceSats`.
- *
- * Implementation lands in the iteration-7 implementation commit.
+ * Thin orchestration wrapper around the SDK validator. Builds the SDK's
+ * `ValidateCat21BuyOfferArgs` shape from the local args, delegates to the
+ * injected callback, then cross-checks the SDK's `pricePaidSats` against
+ * the intent's `expectedPriceSats` — equality, not just ≥ floor. The
+ * wallet's contract is "the intent's expected values pin the deal"; any
+ * mismatch surfaces as `wrong-price` even if the SDK accepted it against
+ * a lower `floorPriceSats`.
  */
 export function validateAcceptOffer(
   args: ValidateAcceptOfferArgs,
@@ -70,7 +65,23 @@ export function validateAcceptOffer(
     network: 'mainnet' | 'testnet';
   }) => Cat21OfferValidation
 ): Cat21OfferValidation {
-  void args;
-  void delegate;
-  throw new Error('Not implemented — iteration 7 (stubs commit)');
+  const sdkResult = delegate({
+    psbt: args.psbtBytes,
+    expectedSellerUtxo: args.intent.expectedSellerUtxo,
+    floorPriceSats: args.intent.expectedPriceSats,
+    expectedSellerPaymentAddress: args.expectedSellerPaymentAddress,
+    network: args.network,
+  });
+
+  if (!sdkResult.ok) return sdkResult;
+
+  if (sdkResult.pricePaidSats !== args.intent.expectedPriceSats) {
+    return {
+      ok: false,
+      reason: 'wrong-price',
+      detail: `intent.expectedPriceSats=${args.intent.expectedPriceSats}, psbt pays ${sdkResult.pricePaidSats}`,
+    };
+  }
+
+  return sdkResult;
 }

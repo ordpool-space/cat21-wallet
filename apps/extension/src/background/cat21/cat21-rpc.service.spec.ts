@@ -11,11 +11,13 @@ import {
   SignedTx,
 } from './cat21-rpc.service';
 import type {
+  Cat21AcceptOfferIntent,
   Cat21CreateOfferIntent,
   Cat21Intent,
   Cat21MintIntent,
   Cat21TransferIntent,
 } from './types';
+import type { Cat21OfferValidation } from './builders/accept-offer-validator';
 
 const publicKey = hex.decode('030000000000000000000000000000000000000000000000000000000000000001');
 const p2wpkhMainnet = btc.p2wpkh(publicKey, btc.NETWORK);
@@ -72,6 +74,7 @@ interface SpyDeps extends Cat21RpcDeps {
   pickFundingUtxo: ReturnType<typeof vi.fn> & Cat21RpcDeps['pickFundingUtxo'];
   resolveCatUtxo: ReturnType<typeof vi.fn> & Cat21RpcDeps['resolveCatUtxo'];
   confirmListingPublication: ReturnType<typeof vi.fn> & Cat21RpcDeps['confirmListingPublication'];
+  validateBuyOfferPsbt: ReturnType<typeof vi.fn> & Cat21RpcDeps['validateBuyOfferPsbt'];
   signWithConfirmation: ReturnType<typeof vi.fn> & Cat21RpcDeps['signWithConfirmation'];
   signSilently: ReturnType<typeof vi.fn> & Cat21RpcDeps['signSilently'];
   broadcast: ReturnType<typeof vi.fn> & Cat21RpcDeps['broadcast'];
@@ -88,6 +91,9 @@ function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
     pickFundingUtxo: vi.fn(() => defaultUtxo()),
     resolveCatUtxo: vi.fn(() => defaultCatUtxo()),
     confirmListingPublication: vi.fn(() => Promise.resolve()),
+    validateBuyOfferPsbt: vi.fn(
+      (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 100_000, postageSats: 546 })
+    ),
     signWithConfirmation: vi.fn(() => Promise.resolve(signedTx)),
     signSilently: vi.fn(() => Promise.resolve(signedTx)),
     broadcast: vi.fn(() => Promise.resolve(broadcastResult)),
@@ -787,6 +793,261 @@ describe('Cat21RpcService.createOffer', () => {
       catId: VALID_CAT_ID,
       priceSats: 250_000,
       mode: 'autonomous',
+    });
+  });
+});
+
+describe('Cat21RpcService.acceptOffer', () => {
+
+  let deps: SpyDeps;
+  let service: Cat21RpcService;
+
+  // Build a real PSBT with the seller's cat input at index 0 and a
+  // payment output at index 1 matching the wallet's payment address.
+  function buildRealOfferPsbt(): string {
+    const tx = new btc.Transaction({ allowUnknownInputs: true });
+    tx.addInput({
+      txid: 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
+      index: 0,
+      witnessUtxo: { script: p2wpkhMainnet.script, amount: 546n },
+      sighashType: btc.SigHash.ALL,
+    });
+    tx.addOutputAddress(p2wpkhMainnet.address!, 546n, btc.NETWORK);
+    tx.addOutputAddress(p2wpkhMainnet.address!, 100_000n, btc.NETWORK);
+    return hex.encode(tx.toPSBT());
+  }
+
+  function makeAcceptOfferIntent(
+    overrides: Partial<Cat21AcceptOfferIntent> = {}
+  ): Cat21AcceptOfferIntent {
+    return {
+      offerPsbt: buildRealOfferPsbt(),
+      expectedCatId: VALID_CAT_ID,
+      expectedPriceSats: 100_000,
+      expectedSellerUtxo: {
+        txid: 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
+        vout: 0,
+      },
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    deps = makeDeps();
+    service = new Cat21RpcService(deps);
+  });
+
+  describe('happy paths', () => {
+
+    it('accepts an offer in manual mode through popup-confirm signer', async () => {
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(true);
+      if (result.ok && result.value.kind === 'broadcast') {
+        expect(result.value.txid).toBe('tx-abc');
+      } else {
+        throw new Error('expected broadcast success');
+      }
+      expect(deps.signWithConfirmation).toHaveBeenCalled();
+      expect(deps.signSilently).not.toHaveBeenCalled();
+    });
+
+    it('accepts an offer in autonomous mode through silent signer', async () => {
+      const result = await service.acceptOffer(
+        makeAcceptOfferIntent({ mode: 'autonomous' }),
+        'mcp-nmh'
+      );
+      expect(result.ok).toBe(true);
+      expect(deps.signSilently).toHaveBeenCalled();
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('records spend=0 (seller receives BTC, does not spend)', async () => {
+      await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(deps.recordSpend).toHaveBeenCalledWith(0);
+    });
+  });
+
+  describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
+
+    it('returns "transport-not-trusted-for-autonomous" on popup transport', async () => {
+      const result = await service.acceptOffer(
+        makeAcceptOfferIntent({ mode: 'autonomous' }),
+        'popup'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.reason).toBe('transport-not-trusted-for-autonomous');
+    });
+
+    it('returns "agent-disabled" when autonomous but agent mode off', async () => {
+      deps = makeDeps({ agentMode: { enabled: false } });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(
+        makeAcceptOfferIntent({ mode: 'autonomous' }),
+        'mcp-nmh'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.reason).toBe('agent-disabled');
+    });
+
+    it('returns "policy-denied" when policy gate denies', async () => {
+      deps = makeDeps({
+        evaluateAgentPolicy: vi.fn(() => ({
+          allowed: false as const,
+          reason: 'counterparty-not-allowlisted',
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(
+        makeAcceptOfferIntent({ mode: 'autonomous' }),
+        'mcp-nmh'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.reason).toBe('policy-denied');
+    });
+  });
+
+  describe('intent-invariant violations bubble up as typed denials', () => {
+
+    it('returns "intent-invariant-violated" on malformed expectedCatId', async () => {
+      const result = await service.acceptOffer(
+        makeAcceptOfferIntent({ expectedCatId: 'bad' }),
+        'popup'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.detail).toContain('expected-cat-id-malformed');
+      }
+    });
+
+    it('returns "intent-invariant-violated" on a payload that is not a parseable PSBT', async () => {
+      const result = await service.acceptOffer(
+        makeAcceptOfferIntent({ offerPsbt: 'deadbeef' }),
+        'popup'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.detail).toContain('offer-psbt-not-parseable');
+    });
+
+    it('returns "intent-invariant-violated" when wallet cannot resolve the cat UTXO', async () => {
+      deps = makeDeps({
+        resolveCatUtxo: vi.fn(() => {
+          throw new Error('cat not owned');
+        }),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.detail).toContain('cat-utxo-resolve-failed');
+    });
+  });
+
+  describe('inbound-offer-mismatch', () => {
+
+    it('returns "inbound-offer-mismatch" when cat21-ord disagrees with intent.expectedSellerUtxo', async () => {
+      deps = makeDeps({
+        resolveCatUtxo: vi.fn(() => ({
+          txid: '00'.repeat(32),
+          vout: 9,
+          value: 546,
+          scriptPubKey: p2wpkhMainnet.script,
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('inbound-offer-mismatch');
+        expect(result.value.detail).toContain('disagrees with on-chain cat location');
+      }
+    });
+
+    it('returns "inbound-offer-mismatch" when SDK validator rejects the PSBT', async () => {
+      deps = makeDeps({
+        validateBuyOfferPsbt: vi.fn(
+          (): Cat21OfferValidation => ({
+            ok: false,
+            reason: 'payment-output-wrong-address',
+            detail: 'expected bc1qfoo, got bc1qbar',
+          })
+        ),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('inbound-offer-mismatch');
+        expect(result.value.detail).toContain('payment-output-wrong-address');
+      }
+    });
+
+    it('returns "inbound-offer-mismatch" with reason=wrong-price when SDK accepts but pricePaid differs from expected', async () => {
+      deps = makeDeps({
+        validateBuyOfferPsbt: vi.fn(
+          (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 110_000, postageSats: 546 })
+        ),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('inbound-offer-mismatch');
+        expect(result.value.detail).toContain('wrong-price');
+      }
+    });
+  });
+
+  describe('signer / broadcast failures', () => {
+
+    it('returns "broadcast-failed" on signer throw', async () => {
+      deps = makeDeps({
+        signWithConfirmation: vi.fn(() => Promise.reject(new Error('user cancelled'))),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('broadcast-failed');
+        expect(result.value.detail).toContain('user cancelled');
+      }
+    });
+
+    it('returns "broadcast-failed" on broadcaster throw', async () => {
+      deps = makeDeps({
+        broadcast: vi.fn(() => Promise.reject(new Error('mempool rejected'))),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.reason).toBe('broadcast-failed');
+    });
+  });
+
+  describe('pipeline ordering', () => {
+
+    it('runs invariants BEFORE consulting the agent policy', async () => {
+      await service.acceptOffer(makeAcceptOfferIntent({ expectedCatId: 'bad' }), 'popup');
+      expect(deps.evaluateAgentPolicy).not.toHaveBeenCalled();
+    });
+
+    it('resolves mode BEFORE resolving the cat UTXO', async () => {
+      await service.acceptOffer(
+        makeAcceptOfferIntent({ mode: 'autonomous' }),
+        'popup' // wrong transport
+      );
+      expect(deps.resolveCatUtxo).not.toHaveBeenCalled();
+    });
+
+    it('cat-UTXO resolution + SDK validation run BEFORE signing', async () => {
+      deps = makeDeps({
+        validateBuyOfferPsbt: vi.fn(
+          (): Cat21OfferValidation => ({ ok: false, reason: 'sighash-not-all' })
+        ),
+      });
+      service = new Cat21RpcService(deps);
+      await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+      expect(deps.broadcast).not.toHaveBeenCalled();
     });
   });
 });

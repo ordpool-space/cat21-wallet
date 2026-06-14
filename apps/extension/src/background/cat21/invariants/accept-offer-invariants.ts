@@ -1,3 +1,5 @@
+import { base64, hex } from '@scure/base';
+
 import type { Cat21AcceptOfferIntent, Validated } from '../types';
 
 /**
@@ -25,6 +27,17 @@ export const ACCEPT_OFFER_PRICE_SANITY_CEILING_SATS = 21_000_000_000;
  */
 export const ACCEPT_OFFER_PSBT_MAX_BYTES = 128 * 1024;
 
+/**
+ * 64-char hex pattern for an outpoint txid.
+ */
+const TXID_PATTERN = /^[0-9a-fA-F]{64}$/;
+
+/**
+ * PSBT magic bytes: ASCII `psbt` + 0xff terminator. We assert these on
+ * the decoded payload before the validator runs the heavy parser.
+ */
+const PSBT_MAGIC = new Uint8Array([0x70, 0x73, 0x62, 0x74, 0xff]);
+
 export type AcceptOfferInvariantViolation =
   | 'expected-cat-id-malformed'
   | 'expected-price-below-dust'
@@ -42,23 +55,113 @@ export class AcceptOfferInvariantError extends Error {
 }
 
 /**
+ * Branded intent with the decoded PSBT bytes attached. The validator
+ * caller pulls the bytes off the brand instead of decoding twice.
+ */
+export type ValidatedAcceptOffer = Validated<Cat21AcceptOfferIntent> & {
+  readonly psbtBytes: Uint8Array;
+};
+
+/**
  * Hard, unbypassable safety checks on a raw `Cat21AcceptOfferIntent`.
  *
- * The intent carries the buyer's PSBT plus three "expected" values that
- * pin what the seller thinks the deal is. The invariants gate here is
- * structural — well-formed catId, sensible price range, parseable PSBT
- * payload. The cryptographic checks (input 0 references seller's UTXO,
- * SIGHASH_ALL on every input, output 1 amount/address) are delegated to
- * the SDK's `validateCat21BuyOfferPsbt` — that runs *after* this gate, in
- * the RPC service.
- *
- * Implementation lands in the iteration-7 implementation commit.
+ * Order: expectedCatId → expectedPrice → expectedSellerUtxo → offerPsbt.
+ * The catId / price / utxo checks are cheap; the PSBT decode is
+ * potentially expensive (up to 128 KiB of input), so it runs last.
  */
 export function enforceAcceptOfferInvariants(
   intent: Cat21AcceptOfferIntent,
   _network: 'mainnet' | 'testnet'
-): Validated<Cat21AcceptOfferIntent> {
-  void intent;
+): ValidatedAcceptOffer {
   void _network;
-  throw new Error('Not implemented — iteration 7 (stubs commit)');
+
+  if (
+    typeof intent.expectedCatId !== 'string' ||
+    !ACCEPT_OFFER_CAT_ID_PATTERN.test(intent.expectedCatId)
+  ) {
+    throw new AcceptOfferInvariantError('expected-cat-id-malformed', String(intent.expectedCatId));
+  }
+
+  if (
+    !Number.isFinite(intent.expectedPriceSats) ||
+    intent.expectedPriceSats < ACCEPT_OFFER_PRICE_MIN_SATS
+  ) {
+    throw new AcceptOfferInvariantError(
+      'expected-price-below-dust',
+      `${intent.expectedPriceSats} < ${ACCEPT_OFFER_PRICE_MIN_SATS}`
+    );
+  }
+  if (intent.expectedPriceSats > ACCEPT_OFFER_PRICE_SANITY_CEILING_SATS) {
+    throw new AcceptOfferInvariantError(
+      'expected-price-above-sanity-ceiling',
+      `${intent.expectedPriceSats} > ${ACCEPT_OFFER_PRICE_SANITY_CEILING_SATS}`
+    );
+  }
+
+  const utxo = intent.expectedSellerUtxo;
+  if (
+    !utxo ||
+    typeof utxo.txid !== 'string' ||
+    !TXID_PATTERN.test(utxo.txid) ||
+    typeof utxo.vout !== 'number' ||
+    !Number.isInteger(utxo.vout) ||
+    utxo.vout < 0
+  ) {
+    throw new AcceptOfferInvariantError(
+      'expected-seller-utxo-malformed',
+      JSON.stringify(utxo)
+    );
+  }
+
+  if (typeof intent.offerPsbt !== 'string' || intent.offerPsbt.length === 0) {
+    throw new AcceptOfferInvariantError('offer-psbt-empty');
+  }
+  if (intent.offerPsbt.length > ACCEPT_OFFER_PSBT_MAX_BYTES) {
+    throw new AcceptOfferInvariantError(
+      'offer-psbt-too-large',
+      `${intent.offerPsbt.length} > ${ACCEPT_OFFER_PSBT_MAX_BYTES}`
+    );
+  }
+
+  const psbtBytes = decodePsbtPayload(intent.offerPsbt);
+  if (!psbtBytes) {
+    throw new AcceptOfferInvariantError('offer-psbt-not-parseable', 'neither hex nor base64');
+  }
+  if (psbtBytes.length < PSBT_MAGIC.length || !startsWithMagic(psbtBytes)) {
+    throw new AcceptOfferInvariantError(
+      'offer-psbt-not-parseable',
+      'missing PSBT magic bytes'
+    );
+  }
+  if (psbtBytes.length > ACCEPT_OFFER_PSBT_MAX_BYTES) {
+    throw new AcceptOfferInvariantError(
+      'offer-psbt-too-large',
+      `decoded ${psbtBytes.length} > ${ACCEPT_OFFER_PSBT_MAX_BYTES}`
+    );
+  }
+
+  return Object.assign(intent as Validated<Cat21AcceptOfferIntent>, { psbtBytes });
+}
+
+function decodePsbtPayload(payload: string): Uint8Array | null {
+  // Try hex first (deterministic charset; cheapest).
+  if (/^[0-9a-fA-F]+$/.test(payload) && payload.length % 2 === 0) {
+    try {
+      return hex.decode(payload);
+    } catch {
+      // fall through to base64
+    }
+  }
+  try {
+    return base64.decode(payload);
+  } catch {
+    return null;
+  }
+}
+
+function startsWithMagic(bytes: Uint8Array): boolean {
+  for (let i = 0; i < PSBT_MAGIC.length; i++) {
+    if (bytes[i] !== PSBT_MAGIC[i]) return false;
+  }
+  return true;
 }

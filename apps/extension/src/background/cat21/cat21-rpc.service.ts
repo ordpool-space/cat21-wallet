@@ -23,7 +23,8 @@ import { enforceCreateOfferInvariants } from './invariants/create-offer-invarian
 import { buildMintPsbt } from './builders/mint-builder';
 import { TransferUtxo, buildTransferPsbt } from './builders/transfer-builder';
 import { buildListing } from './builders/listing-builder';
-import { Cat21OfferValidation } from './builders/accept-offer-validator';
+import { Cat21OfferValidation, validateAcceptOffer } from './builders/accept-offer-validator';
+import { enforceAcceptOfferInvariants, ValidatedAcceptOffer } from './invariants/accept-offer-invariants';
 
 /**
  * Funding UTXO shape accepted by every cat21 builder. The wallet's
@@ -365,28 +366,88 @@ export class Cat21RpcService {
    * `cat21_accept_offer` — wallet receives a buy-offer PSBT from a buyer,
    * validates it against the seller's expected deal (`expectedCatId`,
    * `expectedPriceSats`, `expectedSellerUtxo`), signs input 0 (the
-   * seller's cat input) with SIGHASH_ALL, and broadcasts. Pipeline:
-   *
-   *   1. enforceAcceptOfferInvariants(intent, network)
-   *   2. resolveSigningMode(...)
-   *   3. resolveCatUtxo(expectedCatId) — re-confirms wallet owns the cat
-   *   4. validateAcceptOffer(intent, psbtBytes, ...) — SDK delegate;
-   *      mismatch returns inbound-offer-mismatch denial (no popup,
-   *      no signing path)
-   *   5. Sign:
-   *        mode === 'manual'     → signWithConfirmation(psbt, intent)
-   *        mode === 'autonomous' → signSilently(psbt)
-   *   6. Broadcast → return broadcast success
-   *
-   * Implementation lands in the iteration-7 implementation commit.
+   * seller's cat input) with SIGHASH_ALL, and broadcasts.
    */
-  acceptOffer(
+  async acceptOffer(
     intent: Cat21AcceptOfferIntent,
     transport: Cat21Transport
   ): Promise<Cat21RpcResult> {
-    void intent;
-    void transport;
-    return Promise.reject(new Error('Not implemented — iteration 7 (stubs commit)'));
+    const accountCtx = this.deps.getAccountContext();
+
+    let validated: ValidatedAcceptOffer;
+    try {
+      validated = enforceAcceptOfferInvariants(intent, accountCtx.network);
+    } catch (err) {
+      return denied('intent-invariant-violated', errorDetail(err));
+    }
+
+    let mode: 'autonomous' | 'manual';
+    try {
+      mode = resolveSigningMode({
+        intent: validated,
+        transport,
+        agentMode: this.deps.agentMode,
+        evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
+      });
+    } catch (err) {
+      if (err instanceof ModeResolverError) {
+        return denied(modeResolverReasonToRpcReason(err.rejection), err.detail);
+      }
+      return denied('intent-invariant-violated', errorDetail(err));
+    }
+
+    // Re-confirm wallet ownership of the cat. This is defence-in-depth on
+    // top of the SDK validator: the validator pins input 0 to
+    // expectedSellerUtxo, but the wallet ALSO confirms the cat with that
+    // catId currently lives at a UTXO the wallet controls. If cat21-ord
+    // disagrees the seller cannot sign anyway.
+    let catUtxo;
+    try {
+      catUtxo = this.deps.resolveCatUtxo(validated.expectedCatId);
+    } catch (err) {
+      return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
+    }
+    if (
+      catUtxo.txid !== validated.expectedSellerUtxo.txid ||
+      catUtxo.vout !== validated.expectedSellerUtxo.vout
+    ) {
+      return denied(
+        'inbound-offer-mismatch',
+        `expectedSellerUtxo ${validated.expectedSellerUtxo.txid}:${validated.expectedSellerUtxo.vout} disagrees with on-chain cat location ${catUtxo.txid}:${catUtxo.vout}`
+      );
+    }
+
+    const validation = validateAcceptOffer(
+      {
+        intent: validated,
+        psbtBytes: validated.psbtBytes,
+        expectedSellerPaymentAddress: accountCtx.paymentAddress,
+        network: accountCtx.network,
+      },
+      this.deps.validateBuyOfferPsbt
+    );
+    if (!validation.ok) {
+      return denied('inbound-offer-mismatch', `${validation.reason}: ${validation.detail ?? ''}`);
+    }
+
+    let signed: SignedTx;
+    try {
+      signed = mode === 'manual'
+        ? await this.deps.signWithConfirmation(validated.psbtBytes, validated)
+        : await this.deps.signSilently(validated.psbtBytes);
+    } catch (err) {
+      return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
+    }
+
+    let result: BroadcastResult;
+    try {
+      result = await this.deps.broadcast(signed);
+    } catch (err) {
+      return denied('broadcast-failed', errorDetail(err));
+    }
+
+    this.deps.recordSpend(0);
+    return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
 }
 
