@@ -1,4 +1,22 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import deepMerge from 'deepmerge';
+
+/* HACK -- Cat21: dev extension public key pinned for stable chrome-extension://<id>/
+ * The matching private key lives in .keys/cat21-wallet-dev.pem (gitignored).
+ * Stable ID lets ADR-5 Native Messaging Host manifests hardcode allowed_origins.
+ * If .keys/ is absent (clean checkouts, CI), we fall back to Chrome's per-install
+ * random ID — NMH will not work in that case but builds still succeed. */
+function loadDevExtensionKey() {
+  try {
+    const path = resolve(import.meta.dirname, '../../../.keys/cat21-wallet-dev.pub.b64');
+    return readFileSync(path, 'utf8').trim();
+  } catch {
+    return undefined;
+  }
+}
+const DEV_EXTENSION_KEY = loadDevExtensionKey();
 
 // Manifest can only be prod or dev
 const WALLET_ENVIRONMENT =
@@ -105,6 +123,7 @@ const manifest = {
 
 const devManifest = {
   name: 'Cat21 Wallet Dev',
+  ...(DEV_EXTENSION_KEY ? { key: DEV_EXTENSION_KEY } : {}),
 };
 
 const name = PREVIEW_RELEASE ? 'Cat21 Wallet Preview' : 'Cat21 Wallet';
