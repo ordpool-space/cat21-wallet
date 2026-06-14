@@ -156,3 +156,40 @@ export class Cat21OrdApiClient {
  * expects. */
 export type { OrdAddressInscriptions, OrdInscription, OrdOutput, OrdStatus };
 export { z };
+
+/**
+ * Phase 3.0 safety helper: returns the subset of given UTXOs that hold cats.
+ * Used by `UtxosService.getDescriptorProtectedUtxos` to ensure the BTC send
+ * flow never picks a cat-bearing UTXO as a payment input.
+ *
+ * On the wire this is one `/output/<txid>:<vout>` query per UTXO, queued
+ * through the cat21-ord rate-limiter. A per-UTXO probe is more conservative
+ * than a per-address scan: it tolerates address-reuse, multi-cat outputs,
+ * and not-yet-indexed receive addresses correctly.
+ *
+ * Failure mode: if cat21-ord cannot be reached or the per-UTXO probe throws,
+ * the safe answer is "treat the UTXO as cat-bearing" — i.e. the BTC send
+ * flow won't touch it. This is the right default: if we cannot verify a UTXO
+ * is cat-free, we don't risk spending a cat by mistake.
+ */
+export async function fetchCatBearingUtxoIds(
+  client: Cat21OrdApiClient,
+  utxos: { txid: string; vout: number }[],
+  options: ApiRequestOptions = {}
+): Promise<{ txid: string; vout: number }[]> {
+  if (utxos.length === 0) return [];
+
+  const checks = await Promise.all(
+    utxos.map(async utxo => {
+      try {
+        const out = await client.fetchOutput(`${utxo.txid}:${utxo.vout}`, options);
+        return { utxo, hasCat: out.inscriptions.length > 0 };
+      } catch {
+        return { utxo, hasCat: true };
+      }
+    })
+  );
+
+  return checks.filter(c => c.hasCat).map(c => c.utxo);
+}
+

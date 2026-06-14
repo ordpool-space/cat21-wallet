@@ -3,6 +3,13 @@ import { inject, injectable } from 'inversify';
 import { OwnedUtxo } from '@leather.io/models';
 import { hasBitcoinAddress } from '@leather.io/utils';
 
+/* HACK -- Cat21: Cat21OrdApiClient + fetchCatBearingUtxoIds imports per
+ * Phase 3.0 safety. Without these, BtcBalancesService cannot route cat-bearing
+ * UTXOs out of the `available` bucket. */
+import {
+  Cat21OrdApiClient,
+  fetchCatBearingUtxoIds,
+} from '../infrastructure/api/cat21-ord/cat21-ord-api.client';
 import { LeatherApiClient } from '../infrastructure/api/leather/leather-api.client';
 import { MempoolApiClient } from '../infrastructure/api/mempool/mempool-api.client';
 import { selectBitcoinNetworkMode } from '../infrastructure/settings/settings.selectors';
@@ -45,7 +52,10 @@ export class UtxosService {
     private readonly leatherApiClient: LeatherApiClient,
     private readonly mempoolApiClient: MempoolApiClient,
     private readonly bitcoinTransactionsService: BitcoinTransactionsService,
-    @inject(Types.SettingsService) private readonly settings: SettingsService
+    @inject(Types.SettingsService) private readonly settings: SettingsService,
+    /* HACK -- Cat21: Cat21OrdApiClient injected for per-UTXO cat probing per
+     * Phase 3.0 safety. Skipped on regtest (no cat21-ord there). */
+    private readonly cat21OrdClient: Cat21OrdApiClient
   ) {}
   /**
    * Retrieve categorized UTXO lists for given Bitcoin account.
@@ -91,7 +101,16 @@ export class UtxosService {
       this.getDescriptorTotalUtxos(descriptor, fingerprint, signal),
       this.bitcoinTransactionsService.getDescriptorTransactions(descriptor, signal),
     ]);
-    return getUtxoTotals(fingerprint, totalUtxos, btcTxs);
+    /* HACK -- Cat21: cat-bearing UTXO probe per Phase 3.0 safety. Per-output
+     * /output query on cat21-ord, rate-limited. Failure mode is "assume cat
+     * present" (see fetchCatBearingUtxoIds doc); the resulting UTXOs land in
+     * the `protected` bucket and never reach `available`. */
+    const networkMode = selectBitcoinNetworkMode(this.settings.getSettings());
+    const catBearingUtxoIds =
+      networkMode === 'mainnet'
+        ? await fetchCatBearingUtxoIds(this.cat21OrdClient, totalUtxos, { signal })
+        : [];
+    return getUtxoTotals(fingerprint, totalUtxos, btcTxs, catBearingUtxoIds);
   }
 
   private async getDescriptorTotalUtxos(

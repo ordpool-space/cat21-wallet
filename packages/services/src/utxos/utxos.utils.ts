@@ -107,7 +107,13 @@ export function getKeyOrigin(fingerprint: string, path: string) {
 export function getUtxoTotals(
   accountFingerprint: string,
   totalUtxos: OwnedUtxo[],
-  btcTxs: BitcoinTransaction[]
+  btcTxs: BitcoinTransaction[],
+  /* HACK -- Cat21: optional `catBearingUtxoIds` per ADR-12 + Phase 3.0 safety.
+   * UTXOs identified by cat21-ord as holding a cat are routed into the
+   * `protected` bucket and removed from `available`, so the BTC send flow
+   * cannot accidentally spend a cat. When omitted, the bucket stays empty
+   * (legacy/test behaviour). */
+  catBearingUtxoIds: UtxoId[] = []
 ): UtxoTotals {
   const outboundUtxos = getOutboundUtxos(btcTxs, accountFingerprint);
   const unconfirmedUtxos = totalUtxos.filter(isUnconfirmedUtxo);
@@ -116,16 +122,18 @@ export function getUtxoTotals(
     ...outboundUtxos,
   ];
   const dustUtxos = confirmedUtxos.filter(isDustUtxo);
-  const unspendableUtxos = selectUniqueUtxoIds([...outboundUtxos, ...dustUtxos]);
+  const protectedUtxos = confirmedUtxos.filter(filterMatchesAnyUtxoId(catBearingUtxoIds));
+  const unspendableUtxos = selectUniqueUtxoIds([
+    ...outboundUtxos,
+    ...dustUtxos,
+    ...protectedUtxos,
+  ]);
   const availableUtxos = confirmedUtxos.filter(filterOutMatchesAnyUtxoId(unspendableUtxos));
   return {
     confirmed: confirmedUtxos,
     inbound: unconfirmedUtxos,
     outbound: outboundUtxos,
-    /* HACK -- Cat21: empty `protected` bucket per ADR-12. The cat-bearing UTXO
-     * classification belongs to the coin-control phase; this slot exists now so
-     * the caller signature matches the revived BtcBalancesService. */
-    protected: [],
+    protected: protectedUtxos,
     dust: dustUtxos,
     unspendable: unspendableUtxos,
     available: availableUtxos,
