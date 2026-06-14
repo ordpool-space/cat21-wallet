@@ -23,6 +23,7 @@ import { enforceCreateOfferInvariants } from './invariants/create-offer-invarian
 import { buildMintPsbt } from './builders/mint-builder';
 import { TransferUtxo, buildTransferPsbt } from './builders/transfer-builder';
 import { buildListing } from './builders/listing-builder';
+import { Cat21OfferValidation } from './builders/accept-offer-validator';
 
 /**
  * Funding UTXO shape accepted by every cat21 builder. The wallet's
@@ -93,6 +94,18 @@ export interface Cat21RpcDeps {
    * Autonomous mode skips this callback entirely.
    */
   confirmListingPublication(intent: Cat21CreateOfferIntent): Promise<void>;
+  /**
+   * Delegate into the SDK's `validateCat21BuyOfferPsbt`. Wired by the
+   * dispatcher at startup; tests stub it. Returning a typed validation
+   * result keeps the service untyped against ordpool-sdk's exports.
+   */
+  validateBuyOfferPsbt(args: {
+    psbt: Uint8Array;
+    expectedSellerUtxo: { txid: string; vout: number };
+    floorPriceSats: number;
+    expectedSellerPaymentAddress: string;
+    network: 'mainnet' | 'testnet';
+  }): Cat21OfferValidation;
   /** Autonomous-mode signer: signs without prompting. */
   signSilently(psbt: Uint8Array): Promise<SignedTx>;
   /** Broadcast dispatcher (mempool / Slipstream per weight). */
@@ -348,13 +361,32 @@ export class Cat21RpcService {
     return { ok: true, value: { kind: 'listing', listing } };
   }
 
+  /**
+   * `cat21_accept_offer` — wallet receives a buy-offer PSBT from a buyer,
+   * validates it against the seller's expected deal (`expectedCatId`,
+   * `expectedPriceSats`, `expectedSellerUtxo`), signs input 0 (the
+   * seller's cat input) with SIGHASH_ALL, and broadcasts. Pipeline:
+   *
+   *   1. enforceAcceptOfferInvariants(intent, network)
+   *   2. resolveSigningMode(...)
+   *   3. resolveCatUtxo(expectedCatId) — re-confirms wallet owns the cat
+   *   4. validateAcceptOffer(intent, psbtBytes, ...) — SDK delegate;
+   *      mismatch returns inbound-offer-mismatch denial (no popup,
+   *      no signing path)
+   *   5. Sign:
+   *        mode === 'manual'     → signWithConfirmation(psbt, intent)
+   *        mode === 'autonomous' → signSilently(psbt)
+   *   6. Broadcast → return broadcast success
+   *
+   * Implementation lands in the iteration-7 implementation commit.
+   */
   acceptOffer(
     intent: Cat21AcceptOfferIntent,
     transport: Cat21Transport
   ): Promise<Cat21RpcResult> {
     void intent;
     void transport;
-    return Promise.reject(new Error('Not implemented — iteration 7'));
+    return Promise.reject(new Error('Not implemented — iteration 7 (stubs commit)'));
   }
 }
 

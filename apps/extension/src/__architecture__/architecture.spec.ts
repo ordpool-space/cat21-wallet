@@ -206,7 +206,7 @@ describe('HARD RULE — createOffer never builds a tx, never broadcasts, never s
     const src = read(
       join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
     );
-    const match = src.match(/async createOffer\([^)]*\)[^{]*\{([\s\S]*?)\n  \}\n/);
+    const match = src.match(/async createOffer\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(match).not.toBeNull();
     const body = match![1];
     expect(body).not.toMatch(/this\.deps\.broadcast\s*\(/);
