@@ -1,65 +1,346 @@
-DO NOT ADD, REMOVE, OR MODIFY COMMENTS IN CODE — including punctuation and formatting in existing comments. Only touch comments if explicitly asked.
+# Claude Code — cat21-wallet onboarding
 
-After ANY code changes, you MUST run verification (see Verification section). Do not report a task as complete or move on until all checks pass.
+This file is the single source of truth for working on the Cat21 Wallet
+repo. Read it before touching anything. The rules at the top are not
+suggestions; the rest is map + history.
 
-# Claude Instructions
+---
 
-Leather is a Bitcoin & Stacks wallet — browser extension, mobile app (Expo/React Native), and web app.
+## HARD RULE #1: WE DO NOT BREAK nLockTime=21 — EVER
 
-## Architecture
+The CAT-21 protocol marker is `nLockTime = 21` on the mint transaction.
+A cat exists if and only if that field landed on chain with that value.
+**Any operation that drops or alters nLockTime on a cat-bearing or
+cat-minting transaction kills the cat.**
 
-Turborepo monorepo using `pnpm`, organized in **CLEAN architecture** layers. Use the `monorepo-navigation` skill for detailed package structure and decision trees.
+The 2024 Xverse incident is the lesson: a third-party wallet replaced a
+pending CAT-21 mint with a higher-fee replacement that did not carry
+the locktime through, and the cat was lost. We do not repeat this.
 
-**Presentation**: `apps/` (extension, mobile, web), `@leather.io/ui`, `@leather.io/features`
-**Application**: `@leather.io/queries` (React Query), `@leather.io/services` (orchestration, API calls, DI, caching)
-**Domain**: `@leather.io/models` (types), `@leather.io/bitcoin`, `@leather.io/stacks`
-**State**: `@leather.io/state` (Redux Toolkit slices for shared state)
-**Foundation**: `@leather.io/utils`, `@leather.io/constants`, `@leather.io/tokens`, `@leather.io/crypto`
+### What this means concretely
 
-- **State management**: Redux Toolkit. Extension uses `{feature}.slice.ts`; mobile uses `{feature}.write.ts` (slice + actions) and `{feature}.read.ts` (selectors + hooks).
-- **Server state**: React Query (`@tanstack/react-query`). Queries live in `packages/queries/` and app-level `src/queries/`.
-- **Feature flags**: LaunchDarkly with `camelCase` flag keys in extension; also used in mobile.
+| Operation | Rule | Where enforced |
+|---|---|---|
+| Building a mint tx | `nLockTime = 21`. Hard runtime assert. | `packages/bitcoin/src/transactions/generate-cat21-mint-transaction.ts` |
+| Mint input sequences | `< 0xfffffffe` (signals BIP-125 RBF) AND `< 0xffffffff` (so locktime is still honored). Default we ship: `0xfffffffd`. | `CAT21_MINT_INPUT_SEQUENCE` |
+| Replacing a CAT-21 tx via RBF | Replacement MUST keep `nLockTime = 21`. Hard runtime assert. | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` |
+| Spending a cat-bearing UTXO | Either deliberately (sell/transfer flow) with the cat preserved on output 0, OR refused because the UTXO is `protected`. | `packages/services/src/utxos/utxos.service.ts`, `packages/bitcoin/src/transactions/generate-cat21-buy-offer-psbt.ts` |
+| Allowing RBF | Yes, allowed. The protection is in the cat21-wallet code path that builds the replacement; ordpool-sdk has its own enforcement layer. | n/a — by policy |
 
-Use the `monorepo-navigation` skill for the full decision tree on where new code goes.
+### What this does NOT mean
 
-## Development commands
+- We do **not** ban RBF on CAT-21 mints. RBF is a legitimate Bitcoin
+  user feature and the wallet must support it. The protection is at
+  the *replacement-construction* layer: any replacement tx we build for
+  a CAT-21 mint pins `nLockTime = 21` and asserts it before broadcast.
+- The ordpool-sdk maintains its own RBF policy independently. The
+  wallet does not duplicate that policy; we just guarantee that any
+  tx we sign on behalf of a CAT-21 flow carries the correct locktime.
 
-First-time setup:
+### How to verify when touching tx-builder code
 
-```bash
-pnpm i && pnpm build
+1. Add or modify a builder under `packages/bitcoin/src/transactions/`.
+2. Re-run `pnpm --filter @leather.io/bitcoin test:unit`.
+3. The spec `generate-cat21-mint-transaction.spec.ts` pins
+   `tx.lockTime === 21` and the sequence range. If you change either
+   without changing the spec to match, you are about to ship a bug.
+4. Any new tx flow that touches cat-bearing UTXOs gets a corresponding
+   "locktime preserved" assert + spec.
+
+---
+
+## HARD RULE #2: Cat-bearing UTXOs are never spent by the BTC send flow
+
+Per ADR-9 + Phase 3.0 safety. A UTXO holding a cat lives in the
+`protected` bucket; the BTC send coin-selection only ever sees `available`.
+The probe lives in `packages/services/src/utxos/utxos.service.ts` and
+queries cat21-ord's `/output/<txid>:<vout>` per UTXO.
+
+**Failure mode is conservative**: if cat21-ord is unreachable, we treat
+the UTXO as cat-bearing and refuse to spend it. The BTC balance appears
+lower until cat21-ord recovers. That is the right default.
+
+---
+
+## HARD RULE #3: We do not auto-update from upstream Leather
+
+Cat21 Wallet is a non-fork clone of `leather-io/mono@a6460b4d`. Upstream
+sync is **manual**, on a quarterly cadence, by the maintainer. Reasons:
+
+- Dependabot is org-wide banned (see `/Work/ordpool/CLAUDE.md`).
+- Auto-merging upstream is an open door for supply-chain attacks.
+- Every sync re-checks that the inscription stack (which we revived
+  from #2358's parent) hasn't been re-deleted.
+
+The `upstream` remote points at `https://github.com/leather-io/mono`.
+Pulling from it is allowed and recommended for review. Auto-applying
+is not.
+
+---
+
+## HARD RULE #4: No `axios` ban inside this repo
+
+ADR-11. Leather uses axios throughout, the cat21-wallet code we own
+uses axios too. The "no axios in code we own" rule that applies to
+`ordpool-parser` and `ordpool-sdk` does NOT apply here. axios stays.
+
+Reason: every helper we revive from `a6460b4d` already imports axios
+and rewriting them to native fetch creates merge conflicts with no
+benefit. The supply-chain audit happens at the lockfile boundary
+during quarterly upstream sync; not by line-by-line replacement.
+
+---
+
+## HARD RULE #5: Identity separation (workspace-level)
+
+Reproduced here for emphasis — full rule lives at
+`/Users/johanneshoppe/Work/ordpool/CLAUDE.md`:
+
+- **GitHub account**: `hans-crypto` (not the main professional account).
+- **Git user**: `Hans Crypto` / `johannes@haushoppe.art`.
+- **SSH alias**: `github-ord-dev`.
+- `gh` commands MUST use the hans-crypto PAT:
+  `GH_TOKEN=<token> gh <command>`. Never bare `gh`.
+
+The local repo already has user.name + user.email set; verify with
+`git config user.email` if unsure.
+
+---
+
+## What this repo is
+
+A Bitcoin-L1-only browser-extension wallet for active CAT-21 cat
+trading. Fork of [Leather](https://github.com/leather-io/mono), hidden
+down to BTC + cats only, with three features Leather does not have:
+
+1. **ord-style buyer-initiated offers** (sniping-proof; SIGHASH_ALL
+   everywhere).
+2. **CAT-21 mint flow** with hard nLockTime=21 + RBF-signaling sequence
+   asserts.
+3. **MCP server via Chrome Native Messaging Host** for agent-mode
+   trading under user-configured policy.
+
+Plan and ADRs (1–14) live at the workspace level in
+`/Users/johanneshoppe/Work/ordpool/CAT21-WALLET-FORK-PLAN.md`. The
+audit walks the safety invariants in `SECURITY-REVIEW.md` here in the
+repo.
+
+---
+
+## Repo layout
+
+This is a Turborepo monorepo. Names are inherited from Leather; the
+identifier is `@leather.io/*` so upstream sync keeps working.
+
+```
+apps/
+  extension/        # the Chrome extension (this is what ships)
+  mobile/           # NOT shipped by Cat21 Wallet
+  web/              # NOT shipped by Cat21 Wallet
+packages/
+  bitcoin/          # PSBT builders incl. cat21-mint + buy-offer
+  models/           # InscriptionAsset became Cat21Asset; CryptoAsset union
+  utils/            # cat21-helpers, asset-id, asset-display-name
+  features/         # collectible-view; the cat21 protocol branch lives here
+  services/         # cat21-ord client + Cat21AssetService + AgentPolicyService
+  provider/         # window.Cat21Provider injection + WBIP004 discovery
+  ui/, rpc/, query/, state/, ...   # upstream Leather shared packages
+tools/
+  src/mcp-host/     # the NMH bridge binary (Phase 6)
 ```
 
-Run extension:
+Files to know:
 
-```bash
-pnpm dev
+| File | Purpose |
+|---|---|
+| `CLAUDE.md` | this file |
+| `SECURITY-REVIEW.md` | Phase 7 audit walking the safety invariants with file:line citations |
+| `PRIVACY-POLICY.md` | data the wallet stores and sends, no-analytics posture |
+| `INTEGRATION-ORDPOOL-SDK.md` | the SDK ⇄ wallet contract (Cat21Provider discovery, RPC surface) |
+| `CHROME-WEB-STORE-LISTING.md` | store listing copy + permissions justification |
+
+---
+
+## Development workflow
+
+### Install
+
+```sh
+pnpm i
+pnpm build  # builds all packages
 ```
 
-Run web:
+Node 22+ via `.nvmrc`. pnpm version pinned via `packageManager` in
+`package.json`.
 
-```bash
-pnpm dev
+### Run the extension in dev
+
+```sh
+pnpm dev   # turbo watches everything
+# load apps/extension/dist as an unpacked extension in Chrome
 ```
 
-Run mobile:
+The dev extension ID is deterministic via the public key pinned in
+`apps/extension/scripts/generate-manifest.js` →
+`nbooeiaddbkoiekkahgekialhahgpboe`. The matching private key lives in
+`.keys/cat21-wallet-dev.pem` (gitignored).
 
-```bash
-cd apps/mobile
-pnpm 1password:env:dev    # requires 1Password CLI — or ask developer to add EXPO_PUBLIC_LAUNCH_DARKLY to .env
-pnpm ios
+### Verify before commit
+
+```sh
+pnpm format
+pnpm lint
+pnpm typecheck
+pnpm knip
+pnpm --filter @leather.io/extension lint:unused-exports
 ```
 
-Mobile requires an `apps/mobile/.env` file with `EXPO_PUBLIC_LAUNCH_DARKLY` set. Run `pnpm 1password:env:dev` to generate it, or ask the developer to provide the LaunchDarkly key.
+For a faster loop on a single package:
 
-## React Native / Expo
+```sh
+pnpm --filter @leather.io/{package} typecheck
+pnpm --filter @leather.io/{package} test:unit
+```
 
-- Mobile app uses Expo with local prebuild + Fastlane on GitHub runners (no EAS Build, no EAS Update, no @expo/fingerprint).
-- SDK upgrades: check the official upgrade guide for deprecated/renamed APIs before starting.
-- Clear bundler cache: `npx expo start --dev-client --clear`.
-- `BUILD_TARGET` env var controls platform builds: `mobile`, `extension`, or `web`. Unset builds everything.
+### Commits
 
-## Code style
+Conventional Commits format. Imperative. No body unless explicitly asked.
+Examples (real commits in this repo):
+
+- `feat(bitcoin): cat21-mint PSBT builder with hard nLockTime + sequence asserts`
+- `fix(extension): hide Increase-Fee button on CAT-21 mint txs`
+- `refactor: rename inscription -> cat21 throughout our code`
+
+The HACK marker convention is inherited from `ordpool/`:
+
+- `/* HACK -- Cat21: <reason> */` for modifications to upstream files.
+- `// HACK -- Cat21: ...` for one-liners.
+
+Never delete upstream code; comment it out with a HACK marker so the
+quarterly upstream sync is reviewable.
+
+---
+
+## CI and trusted builds
+
+GitHub Actions are partitioned. See the README + the discussion in
+`/Work/ordpool/PROTOCOL.md` for context.
+
+Active on push/PR (safety net):
+
+- `extension:code-checks.yml`, `extension:pr-build.yml`,
+  `extension:integration-tests.yml`
+- `repo:code-checks.yml`, `repo:all-checks-pass.yml`,
+  `repo:workflow-checks.yml`
+
+Tag-gated trusted build (the deliverable):
+
+- `.github/workflows/cat21:trusted-build.yml` — runs only on
+  GitHub-hosted runners, refuses self-hosted, pins every action by
+  sha, uses `--frozen-lockfile`, emits a sigstore attestation via
+  `actions/attest-build-provenance@v1.4.0`.
+
+Verify a ZIP came from this trusted build:
+
+```sh
+gh attestation verify cat21-wallet-extension.zip \
+  --repo ordpool-space/cat21-wallet
+```
+
+Disabled (`on: workflow_dispatch` only, never auto-fires):
+
+- `extension:publish-extensions.yml` (Chrome Web Store push, dangerous)
+- `web:deploy.yml`, `packages:sanity-studio.yml`
+
+Fully HACK-disabled (mobile + web + release-please + claude-code-review):
+
+- all `mobile:*`, `web:check-security-headers`, `web:integration-tests`,
+  `web:staging-build`, `packages:release-please`,
+  `repo:claude-code-review`.
+
+If you add a workflow, add it under one of these three buckets and
+update this section.
+
+---
+
+## RPC surface + window providers
+
+The provider package exposes:
+
+- `window.Cat21Provider` — always present. `isCat21: true`, `isLeather:
+  true`, `getProductInfo().name === 'Cat21 Wallet'`.
+- `window.LeatherProvider` — only when real Leather is NOT installed.
+- `window.btc_providers` — WBIP004 discovery array; always contains a
+  Cat21 entry, contains a Leather entry only when no other Leather entry
+  exists.
+
+This politeness is by design. See `INTEGRATION-ORDPOOL-SDK.md` for the
+contract dapps and the SDK should code against.
+
+RPC methods the wallet handles (Bitcoin-only subset of Leather's RPC):
+
+- `open`, `getInfo`, `supportedMethods`, `getAddresses`, `signPsbt`,
+  `signMessage`, `sendTransfer`.
+
+Stacks RPCs are silently absent — the handler imports were dropped in
+Phase 1.1. A call to any `stx_*` method returns `METHOD_NOT_FOUND`.
+
+---
+
+## Network surfaces
+
+| Host | Why | Configurable |
+|---|---|---|
+| `https://ord.cat21.space` | cat21-ord; sole authority for cat data | yes, via settings |
+| `https://api.ordpool.space` | ordpool backend; inscription preview, recursive inscriptions | no |
+| `https://mempool.space`, `https://blockstream.info` | BTC mempool + tx broadcast | upstream-managed |
+| `https://slipstream.mara.com` | direct-to-miner submission for oversize txs (ADR-6) | no |
+| `https://ord.io`, `https://ordinals.com`, `https://ordinals.hiro.so` | cat content bytes + preview URLs | no |
+| `https://api.leather.io` | upstream market data, fee rates, native-token prices | upstream-managed |
+| `https://api.hiro.so` | shared Bitcoin fee endpoints | upstream-managed |
+
+The manifest's `host_permissions` is narrowed to this exact list
+(generate-manifest.js). Anything we missed surfaces as a blocked fetch
+in DevTools.
+
+---
+
+## How to revive an upstream file we hid
+
+Pattern when a Phase-1 hide turns out to be needed after all:
+
+1. `git checkout a6460b4d -- <file>` to grab the parent-of-#2358 version.
+2. Re-add the HACK markers describing why we hid + why we un-hid.
+3. Rebuild affected packages: `pnpm --filter @leather.io/<pkg> build`.
+4. Run the typecheck on the consumer side.
+
+Pattern for the reverse — hiding a piece of upstream we now want gone:
+
+1. **Never delete.** Comment out with `/* HACK -- Cat21: ... */`.
+2. Update routes, exports, DI bindings to skip the hidden symbol.
+3. Re-run the full verification pipeline.
+
+---
+
+## When in doubt
+
+- Read `SECURITY-REVIEW.md` first; the invariants are claimed there.
+- Then `CAT21-WALLET-FORK-PLAN.md` for the ADR that drove the decision.
+- The workspace-level `/Work/ordpool/CLAUDE.md` carries the
+  cross-repo rules (identity separation, axios policy, Dependabot
+  ban, branding capitalization, the lore around 21 BTC / Genesis Cat).
+  It supersedes this file where rules overlap.
+
+If a rule conflicts between this file and the workspace `CLAUDE.md`,
+**the more restrictive rule wins**. The reasoning behind both files
+is: incidents are cheap to avoid, expensive to clean up.
+
+---
+
+## Code style (inherited from Leather)
+
+These conventions came over with the fork. Apply unless a HARD RULE
+above contradicts.
 
 - Don't use enums.
 - Default to `interface` for object shapes. Name component props `ComponentNameProps`.
@@ -91,51 +372,16 @@ Mobile requires an `apps/mobile/.env` file with `EXPO_PUBLIC_LAUNCH_DARKLY` set.
 
 - Never import from a barrel export (`index.ts`) within the same package's sub-modules.
 - Place `initialState` in write/slice modules, not shared read modules.
-- Metro require cycle warnings are bugs to fix, not warnings to ignore.
 - Concrete anti-pattern: slice → utils → store → slice. Break by keeping `initialState` in write/slice files and never importing from `store/index.ts` within slices.
 
-## Security
+## Security (general; cat-specific rules at the top of this file)
 
-- Sanitize HTML from external sources (NFT metadata, collectible descriptions) before rendering.
-- Validate responses from IPFS gateways and untrusted origins.
+- Sanitize HTML from external sources (cat content, collectible descriptions) before rendering.
+- Validate responses from cat21-ord and any other untrusted origin with Zod schemas. `.passthrough()` so future fields don't break the parse.
 - Never expose private keys, seeds, or mnemonics in error messages or logs.
-
-## Commits
-
-- Conventional commits format with scope: `feat(mobile)`, `refactor(web)`, `fix(utils)`.
-- Imperative language. No body unless explicitly asked.
-- Branches and PRs are always based against `dev`, not `main`.
-
-## Verification
-
-You MUST run these after any code changes. Do not consider a task complete until they pass:
-
-```bash
-pnpm format
-pnpm lint
-pnpm typecheck
-pnpm knip
-pnpm --filter @leather.io/extension lint:unused-exports
-```
-
-If working on mobile, run `pnpm lingui` from `apps/mobile/` before running verification.
-
-For faster feedback in a specific package:
-
-```bash
-pnpm --filter @leather.io/{package} lint
-pnpm --filter @leather.io/{package} typecheck
-```
 
 ## Tooling
 
 - Turborepo + `pnpm`.
-- Vitest for unit/integration tests. Use the `testing-patterns` skill for conventions.
+- Vitest for unit/integration tests.
 - Playwright for E2E tests (extension). Avoid `force: true` — it hides accessibility issues. Never nest interactive elements.
-
-## Common tasks
-
-- **Add a UI component** → `@leather.io/ui`, use the `monorepo-navigation` skill
-- **Add a Redux slice** → Extension: `{feature}.slice.ts`; Mobile: `{feature}.write.ts` + `{feature}.read.ts`
-- **Add a React Query hook** → `packages/queries/` or app-level `src/queries/`
-- **Run a single package's tests** → `pnpm --filter @leather.io/{package} test:unit`
