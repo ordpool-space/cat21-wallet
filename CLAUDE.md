@@ -206,6 +206,80 @@ The local repo already has user.name + user.email set; verify with
 
 ---
 
+## HARD RULE #8: Process discipline — plan first, small diffs, independent review
+
+The maintainer watched Claude Code build ~1200 LOC in the wrong repo,
+re-suggest the wrong architecture three times after correction, and
+ship "wallet exposes cat21_* via window.Cat21Provider" multiple times
+across one session. Promises do not prevent that drift; mechanisms do.
+
+These mechanisms are mandatory for any non-trivial change to this
+repo (more than a one-line bugfix):
+
+1. **Spec before code.** Each iteration starts with a commit that
+   contains only the test stubs + type signatures + interface
+   sketches for the slice being built. The maintainer reviews the
+   shapes and signs off. Only then does the next commit contain the
+   implementation. If the implementation surfaces a problem the
+   shapes can't model, raise it explicitly — do not silently
+   redesign.
+
+2. **Tiny diffs.** Hard ceiling: 200 lines changed per implementation
+   commit (excluding the spec-stub commit and any generated lockfile
+   churn). If the change is genuinely larger, split it into multiple
+   reviewable commits, each behind its own stub-commit.
+
+3. **Independent review of every implementation commit.** Spawn a
+   review agent (`Agent` tool, `general-purpose` subagent) that has
+   no context from the current session, hand it the diff
+   (`git diff HEAD~1..HEAD`) plus this `CLAUDE.md`, ask it to list
+   every architectural rule the diff violates. The review agent
+   sees drifts the implementing assistant has already rationalised
+   away. Review-agent output goes into the next commit message
+   verbatim (so future sessions can see what was caught).
+
+4. **`__architecture__/architecture.spec.ts` is law.** It encodes
+   the rules in this file as executable Vitest checks. When a HARD
+   RULE changes, the spec changes in the same commit. When a code
+   change violates the spec, CI rejects the merge. The maintainer
+   does not need to remember the rules; the spec does.
+
+5. **`.husky/cat21-architecture-guard.js` is the second gate.**
+   Same checks as the spec, but at pre-commit time on the dev
+   machine. Bypasses (`--no-verify`) are disallowed without an
+   explicit, written justification in the commit message.
+
+Drift catches: if any of these mechanisms catches a violation, the
+violation is fixed in the same commit. Do not "merge it and fix
+later" — later doesn't come.
+
+---
+
+## HARD RULE #9: The architecture spec is the contract
+
+`apps/extension/src/__architecture__/architecture.spec.ts` codifies
+the HARD RULES above into Vitest assertions that run against the
+source tree. Specifically:
+
+- Browser RPC registry contents (must equal the eight Leather-
+  compatible methods, no cat21_*).
+- Browser-side code (inpage / content-scripts / packages/provider)
+  must not mention any cat21_* method name or `Cat21RpcService`
+  import.
+- The increase-fee hook must copy the original locktime onto the
+  replacement Transaction and assert equality before signing.
+- BTC balances service must fold `utxos.protected` into the
+  unspendable bucket.
+- Every modified upstream file must carry a `HACK -- Cat21` marker.
+- `CLAUDE.md` must still contain the seven HARD RULES and the four
+  RPC method names by literal string.
+
+When you change a HARD RULE in this file, change the corresponding
+spec assertion in the same commit. The spec is the contract; this
+prose is the explanation. They drift apart at your peril.
+
+---
+
 ## What this repo is — scope
 
 Bitcoin-L1-only browser-extension wallet that serves **three user

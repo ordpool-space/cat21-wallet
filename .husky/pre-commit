@@ -1,2 +1,3 @@
 node .husky/mobile-lingui-extract.js
+node .husky/cat21-architecture-guard.js
 node .husky/hooks.js pre-commit
