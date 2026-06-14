@@ -156,6 +156,50 @@ describe('HARD RULE #1 — nLockTime=21 cannot be silently dropped', () => {
   });
 });
 
+describe('HARD RULE #1 (extended) — mint-builder pins lockTime=21 + sequence 0xfffffffd', () => {
+
+  it('mint-builder declares the CAT-21 lockTime constant as exactly 21', () => {
+    const src = read(
+      join(
+        EXTENSION_ROOT,
+        'src/background/cat21/builders/mint-builder.ts'
+      )
+    );
+    expect(src).toMatch(/export const CAT21_LOCK_TIME\s*=\s*21\s*;/);
+  });
+
+  it('mint-builder declares the cat21wallet input sequence as exactly 0xfffffffd', () => {
+    const src = read(
+      join(
+        EXTENSION_ROOT,
+        'src/background/cat21/builders/mint-builder.ts'
+      )
+    );
+    expect(src).toMatch(/export const CAT21_WALLET_MINT_INPUT_SEQUENCE\s*=\s*0xfffffffd\s*;/);
+  });
+
+  it('mint-builder constructs the transaction with lockTime=CAT21_LOCK_TIME', () => {
+    const src = read(
+      join(
+        EXTENSION_ROOT,
+        'src/background/cat21/builders/mint-builder.ts'
+      )
+    );
+    expect(src).toMatch(/new btc\.Transaction\(\s*\{\s*lockTime:\s*CAT21_LOCK_TIME/);
+  });
+
+  it('mint-builder asserts both invariants before return', () => {
+    const src = read(
+      join(
+        EXTENSION_ROOT,
+        'src/background/cat21/builders/mint-builder.ts'
+      )
+    );
+    expect(src).toMatch(/tx\.lockTime\s*!==\s*CAT21_LOCK_TIME/);
+    expect(src).toMatch(/input\.sequence\s*!==\s*CAT21_WALLET_MINT_INPUT_SEQUENCE/);
+  });
+});
+
 describe('HARD RULE #2 — cat-bearing UTXOs are never picked by BTC coin selection', () => {
 
   it('utxos.service folds the protected bucket into unspendable downstream', () => {
