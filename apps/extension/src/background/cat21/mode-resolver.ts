@@ -87,6 +87,33 @@ export function resolveSigningMode(args: {
     | { allowed: true }
     | { allowed: false; reason: string; detail?: string };
 }): 'autonomous' | 'manual' {
-  void args;
-  throw new Error('Not implemented — see iteration-2 commit');
+  if (args.intent.mode !== 'autonomous') {
+    return 'manual';
+  }
+
+  if (args.transport !== 'mcp-nmh') {
+    throw new ModeResolverError(
+      'transport-not-trusted-for-autonomous',
+      `transport=${args.transport}`
+    );
+  }
+
+  if (!args.agentMode.enabled) {
+    throw new ModeResolverError('agent-disabled');
+  }
+
+  const decision = args.evaluateAgentPolicy(args.intent);
+  if (!decision.allowed) {
+    throw new ModeResolverError('policy-denied', describePolicyDenial(decision));
+  }
+
+  return 'autonomous';
+}
+
+function describePolicyDenial(decision: {
+  allowed: false;
+  reason: string;
+  detail?: string;
+}): string {
+  return decision.detail ? `${decision.reason}: ${decision.detail}` : decision.reason;
 }
