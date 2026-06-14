@@ -200,6 +200,32 @@ describe('HARD RULE #1 (extended) — mint-builder pins lockTime=21 + sequence 0
   });
 });
 
+describe('HARD RULE — createOffer never builds a tx, never broadcasts, never signs', () => {
+
+  it('Cat21RpcService.createOffer body does NOT call broadcast, signSilently, or signWithConfirmation', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
+    );
+    const match = src.match(/async createOffer\([^)]*\)[^{]*\{([\s\S]*?)\n  \}\n/);
+    expect(match).not.toBeNull();
+    const body = match![1];
+    expect(body).not.toMatch(/this\.deps\.broadcast\s*\(/);
+    expect(body).not.toMatch(/this\.deps\.signSilently\s*\(/);
+    expect(body).not.toMatch(/this\.deps\.signWithConfirmation\s*\(/);
+    expect(body).not.toMatch(/this\.deps\.recordSpend\s*\(/);
+  });
+
+  it('listing-builder source contains no PSBT construction primitives', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/background/cat21/builders/listing-builder.ts')
+    );
+    expect(src).not.toMatch(/btc\./); // No @scure/btc-signer use.
+    expect(src).not.toMatch(/Transaction/);
+    expect(src).not.toMatch(/toPSBT/);
+    expect(src).not.toMatch(/addInput|addOutput/);
+  });
+});
+
 describe('HARD RULE #1 (transfer-builder) — transfers must NOT carry lockTime=21', () => {
 
   it('transfer-builder constructs Transaction without a lockTime field', () => {

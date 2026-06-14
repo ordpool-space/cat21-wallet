@@ -89,6 +89,17 @@ export interface Cat21RpcBroadcastSuccess {
 
 export interface Cat21RpcListingSuccess {
   kind: 'listing';
+  /**
+   * The buyer reconstructs the seller-input bytes (`value`, `scriptPubKey`)
+   * from cat21-ord's `/output/<txid>:<vout>` before constructing a buy-offer
+   * PSBT. That's deliberate — the buyer must not trust seller-asserted UTXO
+   * bytes; verifying against chain is the right cryptographic posture, and
+   * keeps the listing shape minimal. Publishing this listing publishes the
+   * ownership outpoint pre-trade (a buyer can resolve `catId → outpoint`
+   * via cat21-ord regardless, so no incremental leak vs. publishing the
+   * catId itself; future work may add commit-reveal listings for sellers
+   * who want stealth).
+   */
   listing: {
     catId: string;
     sellerUtxo: { txid: string; vout: number };
