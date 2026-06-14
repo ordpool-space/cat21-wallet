@@ -91,7 +91,33 @@ during quarterly upstream sync; not by line-by-line replacement.
 
 ---
 
-## HARD RULE #5: Identity separation (workspace-level)
+## HARD RULE #5: Do not modify existing comments — except HACK markers
+
+Inherited from upstream Leather. Existing comments stay as written —
+punctuation, whitespace, line breaks, everything. The maintainer wrote
+them at a moment of full context; touching them rots that context.
+
+**Exception:** the HACK marker convention (`/* HACK -- Cat21: <reason> */`).
+HACK markers are how we document our fork-specific edits over upstream
+code. Adding, editing, or removing a HACK marker is allowed and expected
+when the edit it describes changes.
+
+How to apply:
+
+| Comment kind | May I touch it? |
+|---|---|
+| Existing upstream comment (no HACK marker) | No — leave it exactly as written |
+| Existing HACK marker we wrote | Yes — keep the marker honest about the current edit |
+| New HACK marker I am adding | Yes — required when hiding/modifying upstream code |
+| New comment in a brand-new file we own | Yes — write what you need |
+
+If a refactor genuinely requires changing an existing non-HACK upstream
+comment (rare), call it out in the commit message so the upstream-sync
+review can flag it. Otherwise: leave it.
+
+---
+
+## HARD RULE #6: Identity separation (workspace-level)
 
 Reproduced here for emphasis — full rule lives at
 `/Users/johanneshoppe/Work/ordpool/CLAUDE.md`:
