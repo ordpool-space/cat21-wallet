@@ -29,6 +29,10 @@ export * from './signer/bitcoin-payer';
 export * from './transactions/generate-unsigned-transaction';
 /* HACK -- Cat21: CAT-21 mint PSBT builder per Phase 3.2 safety. */
 export * from './transactions/generate-cat21-mint-transaction';
+/* HACK -- Cat21: ord-style buyer-initiated offer PSBT per Phase 4.1. */
+export * from './transactions/generate-cat21-buy-offer-psbt';
+/* HACK -- Cat21: seller-side offer validation per Phase 4.2. */
+export * from './transactions/validate-cat21-buy-offer';
 
 export * from './validation/address-validation';
 export * from './validation/amount-validation';
