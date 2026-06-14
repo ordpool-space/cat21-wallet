@@ -489,6 +489,77 @@
   * devDependencies
     * @leather.io/models bumped to 0.41.0
 
+## [1.112.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/ui-v1.111.6...@leather.io/ui-v1.112.0) (2026-06-14)
+
+
+### Features
+
+* **extension:** add swap asset selector ([fea3884](https://github.com/ordpool-space/cat21-wallet/commit/fea3884c5077da671c7eae11b57ce6672144f0b7))
+* **extension:** assets ui redesign ([a22fde9](https://github.com/ordpool-space/cat21-wallet/commit/a22fde991f204384ade9d48253c40509ea694556))
+* **extension:** fade bottom action bar ([065ec91](https://github.com/ordpool-space/cat21-wallet/commit/065ec91a1d52c3cf833b42572eab2c6667bca727))
+* **extension:** first token ([a945df1](https://github.com/ordpool-space/cat21-wallet/commit/a945df1e5bef1f884d3a1c670f7f5485376d6d2b))
+* **extension:** overhaul collectibles tab with new UI and empty states ([73e6231](https://github.com/ordpool-space/cat21-wallet/commit/73e623133b5786621a06b83bf099a68f5e3889ef))
+* **mobile:** expo v54 ([50d0f98](https://github.com/ordpool-space/cat21-wallet/commit/50d0f98a39a00986f35193825724e7c80dcb2d94))
+* **mobile:** get your first nft section ([f5ceaeb](https://github.com/ordpool-space/cat21-wallet/commit/f5ceaeb4eba70b150e27ce8be969502afca16b25))
+* **mobile:** learn section ([a56cb7f](https://github.com/ordpool-space/cat21-wallet/commit/a56cb7fedda2c395f2a3c7e2a63fa32819fab740))
+* network badge ([7cf9b35](https://github.com/ordpool-space/cat21-wallet/commit/7cf9b352f84d7aafb7c502e015527458e589de6b))
+* new action buttons ([6bb4b78](https://github.com/ordpool-space/cat21-wallet/commit/6bb4b78db34f306504762d7b87d5f4a7dde41b8a))
+* other settings pages ([fe93560](https://github.com/ordpool-space/cat21-wallet/commit/fe93560e5d936ba11d9800a3986deea205f6287e))
+* **ui:** add `useAmountField` hooks for web and native ([ca8f983](https://github.com/ordpool-space/cat21-wallet/commit/ca8f983ab20895f384a88e7c002ad6e1ce41fb7f))
+* **ui:** add a web version of the slidePair animation preset ([a08844e](https://github.com/ordpool-space/cat21-wallet/commit/a08844e6f106a9f04e98002a902c9b17faa6a514))
+* **ui:** add popover web component ([a44473c](https://github.com/ordpool-space/cat21-wallet/commit/a44473c136eb1946466527f2a4e4d8150b14847e))
+* **ui:** add web version of `CircularProgress` component ([7f10152](https://github.com/ordpool-space/cat21-wallet/commit/7f101529c75ce6170df846be3686e1a27c72515a))
+* **ui:** add web version of numeric input ([ac33307](https://github.com/ordpool-space/cat21-wallet/commit/ac33307dd5f41f79ea7733efaba8537dcf5ab222))
+* updated settings ([af9ddbb](https://github.com/ordpool-space/cat21-wallet/commit/af9ddbb0d2124b87dfcc14efbaf1a33faafd7dee))
+* **web:** Leather Multisig UI (initial import, behind multisigEnabled flag) ([#2365](https://github.com/ordpool-space/cat21-wallet/issues/2365)) ([872827d](https://github.com/ordpool-space/cat21-wallet/commit/872827d28f3f848595958f197df22df6b580dd81))
+* **web:** multisig per-chain connection-status dropdown ([#2376](https://github.com/ordpool-space/cat21-wallet/issues/2376)) ([98b810b](https://github.com/ordpool-space/cat21-wallet/commit/98b810b51d8b9c9994978d10637cf30ecb7662d6))
+
+
+### Bug Fixes
+
+* 16kb memory ([47ea4e4](https://github.com/ordpool-space/cat21-wallet/commit/47ea4e4becd5cd51cde3d095c3d7e624bf0cb112))
+* bump versions in ui package ([92c7b70](https://github.com/ordpool-space/cat21-wallet/commit/92c7b70b600228cfbe731ebd85849b119e6d5da5))
+* **ci:** decouple mobile build from package lifecycle hooks ([a53e33a](https://github.com/ordpool-space/cat21-wallet/commit/a53e33a6d97c3af8b52a3d4972cd7caadac2edae))
+* **extension:** bleeding shadows ([f14bd12](https://github.com/ordpool-space/cat21-wallet/commit/f14bd123173f9377eb942de7ec3f03087c51e142))
+* **extension:** make deposits pressable ([831a1f3](https://github.com/ordpool-space/cat21-wallet/commit/831a1f3c2603ad9422d9bbe9008d72599ce24fa6))
+* **extension:** refine collectibles tab typography and spacing ([509e784](https://github.com/ordpool-space/cat21-wallet/commit/509e78416099d4e90f47bb89eacd4abc474ee84a))
+* **extension:** refine token list typography, spacing, and hover radius ([05871e1](https://github.com/ordpool-space/cat21-wallet/commit/05871e1686e292760caba72286afd8ecf24781bd))
+* **extension:** update collectible design ([7902c68](https://github.com/ordpool-space/cat21-wallet/commit/7902c68a97f6883c17b83f0935d125fa227ee78d))
+* **extension:** update storybook version ([10f91f4](https://github.com/ordpool-space/cat21-wallet/commit/10f91f4edb59fda19e81b42654083356a33fc2bb))
+* integration tests connected to settings ([19b9213](https://github.com/ordpool-space/cat21-wallet/commit/19b92135ac7fce715b96441877301efcb4d0ced9))
+* **mobile:** adjust swap activity icon alignment, simplify styling ([53587a2](https://github.com/ordpool-space/cat21-wallet/commit/53587a2f90ba51bd5e814d66afc2ddd26ed7a4c8))
+* **mobile:** refactor avatars + fix regressions to mobile activity ([08465b6](https://github.com/ordpool-space/cat21-wallet/commit/08465b6a972002cc957cbcd9f00b7fd8fdee8cf9))
+* more updates for settings revamp ([edb2895](https://github.com/ordpool-space/cat21-wallet/commit/edb289521116b96b46afd733071a16ba8ba7f9b5))
+* only run panda on build, scope EAS post‑install build to mobile only ([29690bf](https://github.com/ordpool-space/cat21-wallet/commit/29690bfe4901fc691cd06d9d4487b585f9c2f60e))
+* point panda to src/preset config as its how we use it mostly ([29690bf](https://github.com/ordpool-space/cat21-wallet/commit/29690bfe4901fc691cd06d9d4487b585f9c2f60e))
+* re-add pnpm prepare for web and extension ([29690bf](https://github.com/ordpool-space/cat21-wallet/commit/29690bfe4901fc691cd06d9d4487b585f9c2f60e))
+* remove runes/ordinals from ui packages ([#2353](https://github.com/ordpool-space/cat21-wallet/issues/2353)) ([709dbb5](https://github.com/ordpool-space/cat21-wallet/commit/709dbb53a38f221b2befc73191e44c952bee4c49))
+* rollback build change ([29690bf](https://github.com/ordpool-space/cat21-wallet/commit/29690bfe4901fc691cd06d9d4487b585f9c2f60e))
+* svg logo ([c0163c6](https://github.com/ordpool-space/cat21-wallet/commit/c0163c61e747bf1a7c7673401daae319dfb3f945))
+* **ui:** enforce logomark dimensions for mobile header ([f50d72b](https://github.com/ordpool-space/cat21-wallet/commit/f50d72b738e4af42f377ad04679b83d17f367e58))
+* **ui:** improve switch on/off contrast and add focus ring ([e621993](https://github.com/ordpool-space/cat21-wallet/commit/e6219935ea01f11a8928d284187a309ae4b0e098))
+* **ui:** package advisories ([61872cf](https://github.com/ordpool-space/cat21-wallet/commit/61872cfeaefcce7b97071ae4d5421ea7a64cb324))
+* **ui:** prevent semantic warnings on missing attributes ([2373565](https://github.com/ordpool-space/cat21-wallet/commit/2373565ec3d3fdcc12f7bc388ba1b2f45ccbb0aa))
+* **ui:** truncate long titles in item layout with ellipsis ([#2360](https://github.com/ordpool-space/cat21-wallet/issues/2360)) ([58cf921](https://github.com/ordpool-space/cat21-wallet/commit/58cf92115f5ccffa6c0bfd847ec85026e85d5880))
+* **ui:** use blue.border instead of lightModeBlue.500 for switch focus ring ([a2da5b1](https://github.com/ordpool-space/cat21-wallet/commit/a2da5b143fd942ba7c61214f0e1bd01abf09a9a1))
+* **ui:** use contractId to identify sBTC and USDCx for custom avatars ([3a3ebcb](https://github.com/ordpool-space/cat21-wallet/commit/3a3ebcbf470e0ade89fec2d39fb93e683cbbdceb))
+* **ui:** use correct spacings for numeric input elements ([5f91542](https://github.com/ordpool-space/cat21-wallet/commit/5f9154259e841b5e2b043c17ae92417d9cd1f69a))
+* update extension revamp ui for tooltips and spacings ([660f4e4](https://github.com/ordpool-space/cat21-wallet/commit/660f4e431fbf68d4598a750e8f6b5ecd86235725))
+* update storybook dependancy ([4683726](https://github.com/ordpool-space/cat21-wallet/commit/4683726ada4035dba496d34718593e496716f44f))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/tokens bumped to 0.27.0
+    * @leather.io/utils bumped to 0.52.0
+  * devDependencies
+    * @leather.io/features bumped to 1.5.0
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/panda-preset bumped to 0.17.0
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [1.111.6](https://github.com/leather-io/mono/compare/@leather.io/ui-v1.111.5...@leather.io/ui-v1.111.6) (2026-06-01)
 
 

@@ -23,6 +23,113 @@
 * axios cve ([b145cd5](https://github.com/leather-io/mono/commit/b145cd5fd055201b18304b5e2b92635d56086915))
 * **mobile:** help header ([764af25](https://github.com/leather-io/mono/commit/764af257655ecb585d6805c5350c3d5fffe7a56a))
 
+## [2.109.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/mobile-v2.108.0...@leather.io/mobile-v2.109.0) (2026-06-14)
+
+
+### Features
+
+* add withdrawal and fee logic to sbtc swap provider service ([3d277dd](https://github.com/ordpool-space/cat21-wallet/commit/3d277dd8e1f56eae7772b4a042f66288b87101ba))
+* **cms:** add fully CMS-driven learn sections ([dc0ed7a](https://github.com/ordpool-space/cat21-wallet/commit/dc0ed7a350d2f4be1f88c9e117531eea00257110))
+* **extension:** first token ([a945df1](https://github.com/ordpool-space/cat21-wallet/commit/a945df1e5bef1f884d3a1c670f7f5485376d6d2b))
+* **extension:** implement taproot sends ([c4bfa96](https://github.com/ordpool-space/cat21-wallet/commit/c4bfa960658d29bb0427f756725e87bdf77fd7b7))
+* **extension:** overhaul collectibles tab with new UI and empty states ([73e6231](https://github.com/ordpool-space/cat21-wallet/commit/73e623133b5786621a06b83bf099a68f5e3889ef))
+* **extension:** remove homeTabsRevamp feature flag and go live ([25ec770](https://github.com/ordpool-space/cat21-wallet/commit/25ec7701b990ddb48c923f57a8e9ba2bbe7e116e))
+* **extension:** support originator post-condition mode ([#2324](https://github.com/ordpool-space/cat21-wallet/issues/2324)) ([6e7d3e1](https://github.com/ordpool-space/cat21-wallet/commit/6e7d3e11b5d18a576c72fe4886f5ead6376d9d16))
+* **extension:** trending tokens ([f3ec298](https://github.com/ordpool-space/cat21-wallet/commit/f3ec29826661db843dd2dc3e4b57e0acc9dcdbcb))
+* migrate off eas ([#2306](https://github.com/ordpool-space/cat21-wallet/issues/2306)) ([66751ab](https://github.com/ordpool-space/cat21-wallet/commit/66751ab5bea4504021927313185d67848516897a))
+* **mobile:** add input readiness flag to swap state ([82b2bc0](https://github.com/ordpool-space/cat21-wallet/commit/82b2bc0431088e5b1a726837adb823755cf88c4b))
+* **mobile:** add support for swap execution constraints ([2dcce76](https://github.com/ordpool-space/cat21-wallet/commit/2dcce76ea480391b6122e54d924b250334367682))
+* **mobile:** add swap live estimate tests ([04dd110](https://github.com/ordpool-space/cat21-wallet/commit/04dd1102eb99df3855e479a7f5b3a8035f6f049f))
+* **mobile:** disable sBTC bridging via LaunchDarkly flag ([2235048](https://github.com/ordpool-space/cat21-wallet/commit/2235048da2bd70046f5e9cce324c7cd6781b38a4))
+* **mobile:** expo v54 ([50d0f98](https://github.com/ordpool-space/cat21-wallet/commit/50d0f98a39a00986f35193825724e7c80dcb2d94))
+* **mobile:** first token ([0a9514c](https://github.com/ordpool-space/cat21-wallet/commit/0a9514c60936f793b4a090eb7817e43561afa2bf))
+* **mobile:** get your first nft section ([f5ceaeb](https://github.com/ordpool-space/cat21-wallet/commit/f5ceaeb4eba70b150e27ce8be969502afca16b25))
+* **mobile:** improve target asset display ordering swap ([f6d7723](https://github.com/ordpool-space/cat21-wallet/commit/f6d7723e0980a8d5ba07b2357090df950857a8d4))
+* **mobile:** integrate spendable amount query into swap state and readiness checks ([8097563](https://github.com/ordpool-space/cat21-wallet/commit/8097563b1d8f02d60b7c957e1dd27cd019f19720))
+* **mobile:** learn section ([a56cb7f](https://github.com/ordpool-space/cat21-wallet/commit/a56cb7fedda2c395f2a3c7e2a63fa32819fab740))
+* **mobile:** ordinals feature flag ([#2320](https://github.com/ordpool-space/cat21-wallet/issues/2320)) ([0dc1bc3](https://github.com/ordpool-space/cat21-wallet/commit/0dc1bc3d970ae1db80624585f5a4c58a9b0aff5d))
+* **mobile:** remove runes/ordinals ([#2347](https://github.com/ordpool-space/cat21-wallet/issues/2347)) ([1f8437b](https://github.com/ordpool-space/cat21-wallet/commit/1f8437b44f2bb26f047c5fc0a679d92ee7ebebb8))
+* **mobile:** trending tokens ([d321fc5](https://github.com/ordpool-space/cat21-wallet/commit/d321fc529f0802f06fa6c2d68ad48606dcba88bc))
+* **mobile:** update enriched swap quotes with new fields ([0346010](https://github.com/ordpool-space/cat21-wallet/commit/0346010cd9e9e001eaa6fd142cd6e8fc12c7ad1e))
+* **services:** integrate bitflow bff api ([8256079](https://github.com/ordpool-space/cat21-wallet/commit/8256079c4b1c5760fbaa51f978cdabf8817a0e0a))
+* **web:** Leather Multisig UI (initial import, behind multisigEnabled flag) ([#2365](https://github.com/ordpool-space/cat21-wallet/issues/2365)) ([872827d](https://github.com/ordpool-space/cat21-wallet/commit/872827d28f3f848595958f197df22df6b580dd81))
+
+
+### Bug Fixes
+
+* 16kb memory ([47ea4e4](https://github.com/ordpool-space/cat21-wallet/commit/47ea4e4becd5cd51cde3d095c3d7e624bf0cb112))
+* android version code ([#2309](https://github.com/ordpool-space/cat21-wallet/issues/2309)) ([283432b](https://github.com/ordpool-space/cat21-wallet/commit/283432bba7b74295c180e6a852909f930b4ed4e6))
+* audit axios ([#2362](https://github.com/ordpool-space/cat21-wallet/issues/2362)) ([83e1848](https://github.com/ordpool-space/cat21-wallet/commit/83e1848b6fe5f4ac3d4478090277b3bf032d055b))
+* axios cve ([b145cd5](https://github.com/ordpool-space/cat21-wallet/commit/b145cd5fd055201b18304b5e2b92635d56086915))
+* build only mobile and related dependencies ([2681dc7](https://github.com/ordpool-space/cat21-wallet/commit/2681dc71a2cbf6b0d732b8dbcf04157478537266))
+* **ci:** decouple mobile build from package lifecycle hooks ([a53e33a](https://github.com/ordpool-space/cat21-wallet/commit/a53e33a6d97c3af8b52a3d4972cd7caadac2edae))
+* **ci:** let sentry fail in mobile CI to reduce flakiness ([4a6fb5b](https://github.com/ordpool-space/cat21-wallet/commit/4a6fb5b3758e9d26bf330072c5ff3dc83b0c3563))
+* **ci:** reduce noise in fingerprints ([9b22cfd](https://github.com/ordpool-space/cat21-wallet/commit/9b22cfddbeae957b8f7bbcc7a1f387ebdb1186cc))
+* dep audit ([f0f69d3](https://github.com/ordpool-space/cat21-wallet/commit/f0f69d3b726fc8637ba9b7b69b7bcbf3bb78d244))
+* do not open asset details in send flow ([f930fb6](https://github.com/ordpool-space/cat21-wallet/commit/f930fb650e12c5222ffd65feb17c73b365ba2d19))
+* enforce dimensions window ([be0a281](https://github.com/ordpool-space/cat21-wallet/commit/be0a2816d5383045045d851c9b7be90432f0554d))
+* **extension:** incorrect account balance totals ([a299450](https://github.com/ordpool-space/cat21-wallet/commit/a299450ec583a6e7cd82f82ce61e8c0ed57284a5))
+* givc usdcx priority in mobile and show in empty wallets ([22d5673](https://github.com/ordpool-space/cat21-wallet/commit/22d5673f2f71665fd3346551c6224fa2f64641a3))
+* icons sheet performance ([6bc4ee4](https://github.com/ordpool-space/cat21-wallet/commit/6bc4ee4013eaeff430551e6666ba78989da17762))
+* include fingerprint in on-chain activity key preventing duplicate keys ([af358e0](https://github.com/ordpool-space/cat21-wallet/commit/af358e03c0883f55bfb897b4e217455629fd14b0))
+* ios team id ([#2310](https://github.com/ordpool-space/cat21-wallet/issues/2310)) ([3d40cf8](https://github.com/ordpool-space/cat21-wallet/commit/3d40cf8df8ec7aea38d36f348ccdcadbf3982215))
+* menu items ([c90004d](https://github.com/ordpool-space/cat21-wallet/commit/c90004d37faa67cf7ed1bd2dc82816b2d905d04f))
+* mobile release ([#2308](https://github.com/ordpool-space/cat21-wallet/issues/2308)) ([c973d9a](https://github.com/ordpool-space/cat21-wallet/commit/c973d9aef60ee2eaa84710ac204e5106a52f5843))
+* **mobile:** account selector list ([0a0cd66](https://github.com/ordpool-space/cat21-wallet/commit/0a0cd66129a15c089e1258cca9a6b3074266e84c))
+* **mobile:** add sBTC bridging flag in Bitcoin token details ([466723e](https://github.com/ordpool-space/cat21-wallet/commit/466723e3cce622bb5aa9b00d1a5ce6d1fab407f1))
+* **mobile:** adjust SkeletonLoader height for total balance ([b33fc95](https://github.com/ordpool-space/cat21-wallet/commit/b33fc9531a181b11d9d901d1788acdeaa7d081a4))
+* **mobile:** bump expo module version for build compatiblity ([540dc4a](https://github.com/ordpool-space/cat21-wallet/commit/540dc4af5db66ca662530f5b5ab2aa8e649a8cf2))
+* **mobile:** display of taproot sends ([741d133](https://github.com/ordpool-space/cat21-wallet/commit/741d1330ccced495da361c93dac0c93c34b5abc9))
+* **mobile:** fix Lottie animation BG colour mismatch, ref LEA-3367 ([1394124](https://github.com/ordpool-space/cat21-wallet/commit/1394124e02ca8cc338891b0ba9a9ab29eca42d80))
+* **mobile:** fix status bar color ([d5edeaf](https://github.com/ordpool-space/cat21-wallet/commit/d5edeafe7a612f95647525514a9ea92053c2932b))
+* **mobile:** help header ([764af25](https://github.com/ordpool-space/cat21-wallet/commit/764af257655ecb585d6805c5350c3d5fffe7a56a))
+* **mobile:** make sure lottie animations stay synced with tokens, ref LEA-3367 ([dde15ed](https://github.com/ordpool-space/cat21-wallet/commit/dde15ed5ab3028cb879b516608f0563ffcbc9bd3))
+* **mobile:** make sure secret key copy button is visible on small screens ([c2c9359](https://github.com/ordpool-space/cat21-wallet/commit/c2c9359c477c3272347a7f2f7df930bd8cc543ad))
+* **mobile:** migrate to correct fingerprint format ([ef15f7a](https://github.com/ordpool-space/cat21-wallet/commit/ef15f7a3f3ea499bf6f1037d147b95c86aef0535))
+* **mobile:** migration to v2 for older versions ([51ff2b9](https://github.com/ordpool-space/cat21-wallet/commit/51ff2b95aeaf7924d8b572a0983cc849a518e23d))
+* **mobile:** package advisories ([50fb598](https://github.com/ordpool-space/cat21-wallet/commit/50fb5984f9e9c3e0a1dbd3e7f2b2bcd8083e88e4))
+* **mobile:** refactor avatars + fix regressions to mobile activity ([08465b6](https://github.com/ordpool-space/cat21-wallet/commit/08465b6a972002cc957cbcd9f00b7fd8fdee8cf9))
+* **mobile:** remove deep linking ([#2349](https://github.com/ordpool-space/cat21-wallet/issues/2349)) ([6d8d5f5](https://github.com/ordpool-space/cat21-wallet/commit/6d8d5f5b0e92323ce36ce0cf32bd8d867ad290d4))
+* **mobile:** remove firebase-tools ([cbbddcc](https://github.com/ordpool-space/cat21-wallet/commit/cbbddccf0666df6e5b49f36d7708c3bcea833a6c))
+* **mobile:** remove mobile runes/stamps ([#2288](https://github.com/ordpool-space/cat21-wallet/issues/2288)) ([66a4584](https://github.com/ordpool-space/cat21-wallet/commit/66a4584ca0abeb5e6413a0c225447fad144bfe8c))
+* **mobile:** remove token details flag ([7ca9251](https://github.com/ordpool-space/cat21-wallet/commit/7ca92510f12da9c8b13084c583e42ac6c1b2dacd))
+* **mobile:** show token loading state for btc/stx token details pages ([1466ca8](https://github.com/ordpool-space/cat21-wallet/commit/1466ca8670b4fa3b34b3c2e31b68b930518eb25f))
+* **mobile:** skip prepare scripts during EAS build ([0ce669f](https://github.com/ordpool-space/cat21-wallet/commit/0ce669fc6b22712ee510efbc066d78fa00d08699))
+* **mobile:** use correct size for receive screen asset avatar ([62f7148](https://github.com/ordpool-space/cat21-wallet/commit/62f7148f949c527c11c6aa381e8617603ceddd8c))
+* **mobile:** wallet state not rehydrating after dev reload ([145d4c3](https://github.com/ordpool-space/cat21-wallet/commit/145d4c3a45488520161c4f58eb06296e1ab31071))
+* networks bug ([#2379](https://github.com/ordpool-space/cat21-wallet/issues/2379)) ([01d0c87](https://github.com/ordpool-space/cat21-wallet/commit/01d0c87860b18ff5952cac03a12f42f8f9b9165a))
+* remove premature error in getMnemonic function ([0655589](https://github.com/ordpool-space/cat21-wallet/commit/06555892fb28e46f3165d685b780a75d441cb7a2))
+* remove runes/ordinals pages from queries ([#2352](https://github.com/ordpool-space/cat21-wallet/issues/2352)) ([22578a1](https://github.com/ordpool-space/cat21-wallet/commit/22578a14ef855040b549e8ec2d39c5f23de3806b))
+* remove runes/ordinals pages from services/models ([#2358](https://github.com/ordpool-space/cat21-wallet/issues/2358)) ([101bf28](https://github.com/ordpool-space/cat21-wallet/commit/101bf2808285991f40d93e6eaad00f32c4435675))
+* update redux migrations and secure store migrations. add tests ([726f23a](https://github.com/ordpool-space/cat21-wallet/commit/726f23a5785f2bdfafee890faaa5008ec15b66cb))
+* upgrade axios ([#2313](https://github.com/ordpool-space/cat21-wallet/issues/2313)) ([9876bb2](https://github.com/ordpool-space/cat21-wallet/commit/9876bb2a6cc764494fbcf9d57449ce5ccc821ab3))
+* use Screen.List for consistent rendering of activity list ([4c21512](https://github.com/ordpool-space/cat21-wallet/commit/4c2151276f33c996bd99cc5ee9278a547d918e0f))
+* use uniqueArray to useQueries and cache nft to avoid duplicate queries ([b391f2b](https://github.com/ordpool-space/cat21-wallet/commit/b391f2bbb52897d6c8fe6d158bd7409ac9213231))
+* wallet deletion ([58d7e29](https://github.com/ordpool-space/cat21-wallet/commit/58d7e2998587aa5a499e9e4410599d03856a89a8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/analytics bumped to 3.21.0
+    * @leather.io/bitcoin bumped to 0.38.0
+    * @leather.io/cms bumped to 1.7.0
+    * @leather.io/constants bumped to 0.37.0
+    * @leather.io/crypto bumped to 1.12.24
+    * @leather.io/features bumped to 1.5.0
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/provider bumped to 1.6.27
+    * @leather.io/queries bumped to 0.11.0
+    * @leather.io/query bumped to 2.50.0
+    * @leather.io/rpc bumped to 2.23.0
+    * @leather.io/services bumped to 1.57.0
+    * @leather.io/stacks bumped to 1.21.0
+    * @leather.io/ui bumped to 1.112.0
+    * @leather.io/utils bumped to 0.52.0
+  * devDependencies
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [2.108.0](https://github.com/leather-io/mono/compare/@leather.io/mobile-v2.107.0...@leather.io/mobile-v2.108.0) (2026-06-01)
 
 

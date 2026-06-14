@@ -247,6 +247,18 @@
     * @leather.io/models bumped to 0.44.1
     * @leather.io/rpc bumped to 2.20.17
 
+## [1.5.45](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/sdk-v1.5.44...@leather.io/sdk-v1.5.45) (2026-06-14)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/rpc bumped to 2.23.0
+  * devDependencies
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [1.5.44](https://github.com/leather-io/mono/compare/@leather.io/sdk-v1.5.43...@leather.io/sdk-v1.5.44) (2026-06-01)
 
 

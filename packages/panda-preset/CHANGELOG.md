@@ -252,6 +252,33 @@
   * devDependencies
     * @leather.io/tokens bumped to 0.23.1
 
+## [0.17.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/panda-preset-v0.16.2...@leather.io/panda-preset-v0.17.0) (2026-06-14)
+
+
+### Features
+
+* **extension:** fade bottom action bar ([065ec91](https://github.com/ordpool-space/cat21-wallet/commit/065ec91a1d52c3cf833b42572eab2c6667bca727))
+* secret key page ([d96ea91](https://github.com/ordpool-space/cat21-wallet/commit/d96ea9160dda0c5b71342c84a6c02e3b0031a4e7))
+* updated settings ([af9ddbb](https://github.com/ordpool-space/cat21-wallet/commit/af9ddbb0d2124b87dfcc14efbaf1a33faafd7dee))
+
+
+### Bug Fixes
+
+* **ci:** decouple mobile build from package lifecycle hooks ([a53e33a](https://github.com/ordpool-space/cat21-wallet/commit/a53e33a6d97c3af8b52a3d4972cd7caadac2edae))
+* **mobile:** skip prepare scripts during EAS build ([0ce669f](https://github.com/ordpool-space/cat21-wallet/commit/0ce669fc6b22712ee510efbc066d78fa00d08699))
+* only run panda on build, scope EAS post‑install build to mobile only ([29690bf](https://github.com/ordpool-space/cat21-wallet/commit/29690bfe4901fc691cd06d9d4487b585f9c2f60e))
+* **panda-preset:** resolve tokens import during EAS build ([ebabad1](https://github.com/ordpool-space/cat21-wallet/commit/ebabad12cbbb1ee2d481e52533d5c9eb30c67f28))
+* point panda to src/preset config as its how we use it mostly ([29690bf](https://github.com/ordpool-space/cat21-wallet/commit/29690bfe4901fc691cd06d9d4487b585f9c2f60e))
+* re-add pnpm prepare for web and extension ([29690bf](https://github.com/ordpool-space/cat21-wallet/commit/29690bfe4901fc691cd06d9d4487b585f9c2f60e))
+* rollback build change ([29690bf](https://github.com/ordpool-space/cat21-wallet/commit/29690bfe4901fc691cd06d9d4487b585f9c2f60e))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @leather.io/tokens bumped to 0.27.0
+
 ## [0.16.2](https://github.com/leather-io/mono/compare/@leather.io/panda-preset-v0.16.1...@leather.io/panda-preset-v0.16.2) (2026-03-02)
 
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.4](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/eslint-config-v0.14.3...@leather.io/eslint-config-v0.14.4) (2026-06-14)
+
+
+### Bug Fixes
+
+* enforce dimensions window ([be0a281](https://github.com/ordpool-space/cat21-wallet/commit/be0a2816d5383045045d851c9b7be90432f0554d))
+
 ## [0.14.3](https://github.com/leather-io/mono/compare/@leather.io/eslint-config-v0.14.2...@leather.io/eslint-config-v0.14.3) (2026-01-27)
 
 

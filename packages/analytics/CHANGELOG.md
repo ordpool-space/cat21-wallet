@@ -114,6 +114,32 @@
   * devDependencies
     * @leather.io/models bumped to 0.44.1
 
+## [3.21.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/analytics-v3.20.1...@leather.io/analytics-v3.21.0) (2026-06-14)
+
+
+### Features
+
+* **extension:** deprecation of ordinals and runes ([d6e1fea](https://github.com/ordpool-space/cat21-wallet/commit/d6e1feaccb47de540983c9263cb198f279ed7679))
+* **extension:** overhaul collectibles tab with new UI and service integration ([9412c29](https://github.com/ordpool-space/cat21-wallet/commit/9412c2951d423807a44ba4d96c3164f1956472cf))
+* other settings pages ([fe93560](https://github.com/ordpool-space/cat21-wallet/commit/fe93560e5d936ba11d9800a3986deea205f6287e))
+* updated settings ([af9ddbb](https://github.com/ordpool-space/cat21-wallet/commit/af9ddbb0d2124b87dfcc14efbaf1a33faafd7dee))
+
+
+### Bug Fixes
+
+* analytics package return values ([04d87af](https://github.com/ordpool-space/cat21-wallet/commit/04d87aff6b381d6388d5ac892cdf1a4db3462c46))
+* **extension:** remove recover taproot feature ([145cee5](https://github.com/ordpool-space/cat21-wallet/commit/145cee55d56a20100cb11e8684b33652fd53eb66))
+* legacy requests callout / analytics ([236e016](https://github.com/ordpool-space/cat21-wallet/commit/236e01633d5b26871f2d89eeb61ede098d646240))
+* remove runes/ordinals pages from services/models ([#2358](https://github.com/ordpool-space/cat21-wallet/issues/2358)) ([101bf28](https://github.com/ordpool-space/cat21-wallet/commit/101bf2808285991f40d93e6eaad00f32c4435675))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [3.20.1](https://github.com/leather-io/mono/compare/@leather.io/analytics-v3.20.0...@leather.io/analytics-v3.20.1) (2026-06-01)
 
 

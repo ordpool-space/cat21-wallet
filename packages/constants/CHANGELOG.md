@@ -215,6 +215,34 @@
   * devDependencies
     * @leather.io/prettier-config bumped to 0.9.0
 
+## [0.37.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/constants-v0.36.0...@leather.io/constants-v0.37.0) (2026-06-14)
+
+
+### Features
+
+* **cms:** add fully CMS-driven learn sections ([dc0ed7a](https://github.com/ordpool-space/cat21-wallet/commit/dc0ed7a350d2f4be1f88c9e117531eea00257110))
+* **extension:** add aeUSDC retirement callout ([#2336](https://github.com/ordpool-space/cat21-wallet/issues/2336)) ([a2f8423](https://github.com/ordpool-space/cat21-wallet/commit/a2f8423fae4074f952a016b249c291674c7878fa))
+* **extension:** overhaul collectibles tab with new UI and empty states ([73e6231](https://github.com/ordpool-space/cat21-wallet/commit/73e623133b5786621a06b83bf099a68f5e3889ef))
+* **extension:** overhaul collectibles tab with new UI and service integration ([9412c29](https://github.com/ordpool-space/cat21-wallet/commit/9412c2951d423807a44ba4d96c3164f1956472cf))
+* **extension:** usdcx at top of asset list ([59eb61b](https://github.com/ordpool-space/cat21-wallet/commit/59eb61ba95d54440b992b813b0b8e7f95911fe03))
+* **mobile:** disable sBTC bridging via LaunchDarkly flag ([2235048](https://github.com/ordpool-space/cat21-wallet/commit/2235048da2bd70046f5e9cce324c7cd6781b38a4))
+* **mobile:** get your first nft section ([f5ceaeb](https://github.com/ordpool-space/cat21-wallet/commit/f5ceaeb4eba70b150e27ce8be969502afca16b25))
+* **mobile:** learn section ([a56cb7f](https://github.com/ordpool-space/cat21-wallet/commit/a56cb7fedda2c395f2a3c7e2a63fa32819fab740))
+* **utils:** add sip10 token name override function ref LEA-3483 ([d650958](https://github.com/ordpool-space/cat21-wallet/commit/d6509588398ac33f02ceb5272c764f6c1fb2c9b2))
+
+
+### Bug Fixes
+
+* add support for tpubs ([#2381](https://github.com/ordpool-space/cat21-wallet/issues/2381)) ([09d4c94](https://github.com/ordpool-space/cat21-wallet/commit/09d4c944af9b0f74bb15379382d47ad45f11832f))
+* integration tests connected to settings ([19b9213](https://github.com/ordpool-space/cat21-wallet/commit/19b92135ac7fce715b96441877301efcb4d0ced9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/models bumped to 0.57.0
+
 ## [0.36.0](https://github.com/leather-io/mono/compare/@leather.io/constants-v0.35.1...@leather.io/constants-v0.36.0) (2026-06-01)
 
 

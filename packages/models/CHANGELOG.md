@@ -36,6 +36,25 @@
   * devDependencies
     * @leather.io/prettier-config bumped to 0.9.0
 
+## [0.57.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/models-v0.56.1...@leather.io/models-v0.57.0) (2026-06-14)
+
+
+### Features
+
+* add withdrawal and fee logic to sbtc swap provider service ([3d277dd](https://github.com/ordpool-space/cat21-wallet/commit/3d277dd8e1f56eae7772b4a042f66288b87101ba))
+* adds market stats and token analytics services ([b5c47ae](https://github.com/ordpool-space/cat21-wallet/commit/b5c47ae2401e3e1431343a11cd8398e7a5c1bc6b))
+* auth infrastructure ([#2368](https://github.com/ordpool-space/cat21-wallet/issues/2368)) ([f3d4b3e](https://github.com/ordpool-space/cat21-wallet/commit/f3d4b3e91e86f0d69606c21f67985b3eed762f1f))
+* **extension:** fee service usage in extension ([f295794](https://github.com/ordpool-space/cat21-wallet/commit/f29579434d4291805dc1010faeac863dcadaaf5f))
+* **models,services:** unify SwapDex and YieldProvider into StacksProtocol model ([0d7f44c](https://github.com/ordpool-space/cat21-wallet/commit/0d7f44cb2961c57aa0730066b39697e5ab7ca632))
+* **services:** activity v2 ([ae29c23](https://github.com/ordpool-space/cat21-wallet/commit/ae29c23a6001bffc5ab81c89400e2d9768930478))
+* **services:** integrate bitflow bff api ([8256079](https://github.com/ordpool-space/cat21-wallet/commit/8256079c4b1c5760fbaa51f978cdabf8817a0e0a))
+* **services:** multisig service vaults ([#2378](https://github.com/ordpool-space/cat21-wallet/issues/2378)) ([4351c6c](https://github.com/ordpool-space/cat21-wallet/commit/4351c6c26b256fd4007d70020bc588bf109f7b89))
+
+
+### Bug Fixes
+
+* remove runes/ordinals pages from services/models ([#2358](https://github.com/ordpool-space/cat21-wallet/issues/2358)) ([101bf28](https://github.com/ordpool-space/cat21-wallet/commit/101bf2808285991f40d93e6eaad00f32c4435675))
+
 ## [0.56.1](https://github.com/leather-io/mono/compare/@leather.io/models-v0.56.0...@leather.io/models-v0.56.1) (2026-06-01)
 
 

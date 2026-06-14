@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.5.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/features-v1.4.5...@leather.io/features-v1.5.0) (2026-06-14)
+
+
+### Features
+
+* **extension:** add collectible details pages and manage inscriptions ([26fc7a9](https://github.com/ordpool-space/cat21-wallet/commit/26fc7a925ec71720735abd9dc9e105472301c777))
+* **extension:** implement token details page ([4096727](https://github.com/ordpool-space/cat21-wallet/commit/4096727fa624849cc74425e488c9a494b89c4c2a))
+* **extension:** overhaul collectibles tab with new UI and service integration ([9412c29](https://github.com/ordpool-space/cat21-wallet/commit/9412c2951d423807a44ba4d96c3164f1956472cf))
+* **extension:** trending tokens ([f3ec298](https://github.com/ordpool-space/cat21-wallet/commit/f3ec29826661db843dd2dc3e4b57e0acc9dcdbcb))
+* **utils:** add sip10 token name override function ref LEA-3483 ([d650958](https://github.com/ordpool-space/cat21-wallet/commit/d6509588398ac33f02ceb5272c764f6c1fb2c9b2))
+
+
+### Bug Fixes
+
+* add unique identifier for activity keys ([2393dda](https://github.com/ordpool-space/cat21-wallet/commit/2393dda72affdf595c903b911acafc10f6dd1a70))
+* include fingerprint in on-chain activity key preventing duplicate keys ([af358e0](https://github.com/ordpool-space/cat21-wallet/commit/af358e03c0883f55bfb897b4e217455629fd14b0))
+* **mobile:** refactor avatars + fix regressions to mobile activity ([08465b6](https://github.com/ordpool-space/cat21-wallet/commit/08465b6a972002cc957cbcd9f00b7fd8fdee8cf9))
+* playwright tests ([eaf96c9](https://github.com/ordpool-space/cat21-wallet/commit/eaf96c9400431c7fbd539b8e5cd7abc86c327f5b))
+* remove runes/ordinals from ui packages ([#2353](https://github.com/ordpool-space/cat21-wallet/issues/2353)) ([709dbb5](https://github.com/ordpool-space/cat21-wallet/commit/709dbb53a38f221b2befc73191e44c952bee4c49))
+* remove runes/ordinals pages from services/models ([#2358](https://github.com/ordpool-space/cat21-wallet/issues/2358)) ([101bf28](https://github.com/ordpool-space/cat21-wallet/commit/101bf2808285991f40d93e6eaad00f32c4435675))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/constants bumped to 0.37.0
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/services bumped to 1.57.0
+    * @leather.io/stacks bumped to 1.21.0
+    * @leather.io/tokens bumped to 0.27.0
+    * @leather.io/utils bumped to 0.52.0
+  * devDependencies
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [1.4.5](https://github.com/leather-io/mono/compare/@leather.io/features-v1.4.4...@leather.io/features-v1.4.5) (2026-06-01)
 
 

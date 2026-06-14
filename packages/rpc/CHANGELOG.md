@@ -411,6 +411,29 @@
     * @leather.io/stacks bumped to 1.17.3
     * @leather.io/utils bumped to 0.46.4
 
+## [2.23.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/rpc-v2.22.1...@leather.io/rpc-v2.23.0) (2026-06-14)
+
+
+### Features
+
+* **extension:** support originator post-condition mode ([#2324](https://github.com/ordpool-space/cat21-wallet/issues/2324)) ([6e7d3e1](https://github.com/ordpool-space/cat21-wallet/commit/6e7d3e11b5d18a576c72fe4886f5ead6376d9d16))
+
+
+### Bug Fixes
+
+* implement wsh signing in signPsbt ([#2374](https://github.com/ordpool-space/cat21-wallet/issues/2374)) ([82f6216](https://github.com/ordpool-space/cat21-wallet/commit/82f621646a4ff619e31090be9eb24ec148866349))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/stacks bumped to 1.21.0
+    * @leather.io/utils bumped to 0.52.0
+  * devDependencies
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [2.22.1](https://github.com/leather-io/mono/compare/@leather.io/rpc-v2.22.0...@leather.io/rpc-v2.22.1) (2026-06-01)
 
 

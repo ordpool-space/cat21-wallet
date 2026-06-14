@@ -1,5 +1,36 @@
 # Changelog
 
+## [0.11.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/queries-v0.10.1...@leather.io/queries-v0.11.0) (2026-06-14)
+
+
+### Features
+
+* adds market stats and token analytics services ([b5c47ae](https://github.com/ordpool-space/cat21-wallet/commit/b5c47ae2401e3e1431343a11cd8398e7a5c1bc6b))
+* asset-list service ([c4dcb11](https://github.com/ordpool-space/cat21-wallet/commit/c4dcb11d79fdaf318dade7d7f52ca81d2c33ecf0))
+* **cms:** add fully CMS-driven learn sections ([dc0ed7a](https://github.com/ordpool-space/cat21-wallet/commit/dc0ed7a350d2f4be1f88c9e117531eea00257110))
+* **extension:** add usdcx balance hook to loader ([38805f9](https://github.com/ordpool-space/cat21-wallet/commit/38805f9485d6d09daeaa2f246bbb67375e45ab91))
+* **extension:** fee service usage in extension ([f295794](https://github.com/ordpool-space/cat21-wallet/commit/f29579434d4291805dc1010faeac863dcadaaf5f))
+* **extension:** support originator post-condition mode ([#2324](https://github.com/ordpool-space/cat21-wallet/issues/2324)) ([6e7d3e1](https://github.com/ordpool-space/cat21-wallet/commit/6e7d3e11b5d18a576c72fe4886f5ead6376d9d16))
+* **services:** activity v2 ([ae29c23](https://github.com/ordpool-space/cat21-wallet/commit/ae29c23a6001bffc5ab81c89400e2d9768930478))
+* update query layer for collectibles and add shared utilities ([a7c9046](https://github.com/ordpool-space/cat21-wallet/commit/a7c904652b8ec7f61cef415dee4b84a27db52c55))
+
+
+### Bug Fixes
+
+* **extension:** incorrect account balance totals ([a299450](https://github.com/ordpool-space/cat21-wallet/commit/a299450ec583a6e7cd82f82ce61e8c0ed57284a5))
+* **extension:** sip10 send form service usage ([c61d4e5](https://github.com/ordpool-space/cat21-wallet/commit/c61d4e5de382c4a94686ed751120677dc6d44095))
+* remove runes/ordinals pages from queries ([#2352](https://github.com/ordpool-space/cat21-wallet/issues/2352)) ([22578a1](https://github.com/ordpool-space/cat21-wallet/commit/22578a14ef855040b549e8ec2d39c5f23de3806b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/cms bumped to 1.7.0
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/services bumped to 1.57.0
+    * @leather.io/utils bumped to 0.52.0
+
 ## [0.10.1](https://github.com/leather-io/mono/compare/@leather.io/queries-v0.10.0...@leather.io/queries-v0.10.1) (2026-06-01)
 
 

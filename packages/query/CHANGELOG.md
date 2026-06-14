@@ -779,6 +779,40 @@
     * @leather.io/stacks bumped to 1.17.2
     * @leather.io/utils bumped to 0.46.3
 
+## [2.50.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/query-v2.49.0...@leather.io/query-v2.50.0) (2026-06-14)
+
+
+### Features
+
+* add fallback responses to all bis client calls ([c81750e](https://github.com/ordpool-space/cat21-wallet/commit/c81750ee967704794efdae276f9bd3e31af50941))
+* **extension:** remove runes and ordinals ([#2343](https://github.com/ordpool-space/cat21-wallet/issues/2343)) ([88d12da](https://github.com/ordpool-space/cat21-wallet/commit/88d12da1389dc241d24753f7f7f230a243b2444b))
+* **extension:** support originator post-condition mode ([#2324](https://github.com/ordpool-space/cat21-wallet/issues/2324)) ([6e7d3e1](https://github.com/ordpool-space/cat21-wallet/commit/6e7d3e11b5d18a576c72fe4886f5ead6376d9d16))
+* **utils:** add sip10 token name override function ref LEA-3483 ([d650958](https://github.com/ordpool-space/cat21-wallet/commit/d6509588398ac33f02ceb5272c764f6c1fb2c9b2))
+
+
+### Bug Fixes
+
+* audit axios ([#2362](https://github.com/ordpool-space/cat21-wallet/issues/2362)) ([83e1848](https://github.com/ordpool-space/cat21-wallet/commit/83e1848b6fe5f4ac3d4478090277b3bf032d055b))
+* axios cve ([b145cd5](https://github.com/ordpool-space/cat21-wallet/commit/b145cd5fd055201b18304b5e2b92635d56086915))
+* dep audit ([f0f69d3](https://github.com/ordpool-space/cat21-wallet/commit/f0f69d3b726fc8637ba9b7b69b7bcbf3bb78d244))
+* networks bug ([#2379](https://github.com/ordpool-space/cat21-wallet/issues/2379)) ([01d0c87](https://github.com/ordpool-space/cat21-wallet/commit/01d0c87860b18ff5952cac03a12f42f8f9b9165a))
+* ordinals/runes fallback ([35d1bea](https://github.com/ordpool-space/cat21-wallet/commit/35d1bea0e3cde0e9ad1e6c77d33793ef48260e3b))
+* prevent calls to .../addresses//balances/ft if no address ([20b6ff7](https://github.com/ordpool-space/cat21-wallet/commit/20b6ff7116c85d7c2beb45d515b8ec1b889e6e54))
+* **query:** do not retry unreliable stx20 api ([18b9f84](https://github.com/ordpool-space/cat21-wallet/commit/18b9f84524b7ad9fc3896af4bf70598e7be99e76))
+* remove runes/ordinals pages from queries ([#2352](https://github.com/ordpool-space/cat21-wallet/issues/2352)) ([22578a1](https://github.com/ordpool-space/cat21-wallet/commit/22578a14ef855040b549e8ec2d39c5f23de3806b))
+* upgrade axios ([#2313](https://github.com/ordpool-space/cat21-wallet/issues/2313)) ([9876bb2](https://github.com/ordpool-space/cat21-wallet/commit/9876bb2a6cc764494fbcf9d57449ce5ccc821ab3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/bitcoin bumped to 0.38.0
+    * @leather.io/constants bumped to 0.37.0
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/stacks bumped to 1.21.0
+    * @leather.io/utils bumped to 0.52.0
+
 ## [2.49.0](https://github.com/leather-io/mono/compare/@leather.io/query-v2.48.0...@leather.io/query-v2.49.0) (2026-06-01)
 
 

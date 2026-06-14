@@ -350,6 +350,22 @@
     * @leather.io/rpc bumped to 2.20.16
     * @leather.io/utils bumped to 0.46.3
 
+## [1.6.27](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/provider-v1.6.26...@leather.io/provider-v1.6.27) (2026-06-14)
+
+
+### Bug Fixes
+
+* **mobile:** injected provider. add tests ([90c66bb](https://github.com/ordpool-space/cat21-wallet/commit/90c66bb99c6704e4d3d77e7aa4663d9e53949446))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/rpc bumped to 2.23.0
+  * devDependencies
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [1.6.26](https://github.com/leather-io/mono/compare/@leather.io/provider-v1.6.25...@leather.io/provider-v1.6.26) (2026-06-01)
 
 

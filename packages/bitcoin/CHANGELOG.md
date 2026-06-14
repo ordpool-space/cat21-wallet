@@ -939,6 +939,38 @@
     * @leather.io/prettier-config bumped to 0.9.0
     * @leather.io/rpc bumped to 2.20.17
 
+## [0.38.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/bitcoin-v0.37.7...@leather.io/bitcoin-v0.38.0) (2026-06-14)
+
+
+### Features
+
+* add withdrawal and fee logic to sbtc swap provider service ([3d277dd](https://github.com/ordpool-space/cat21-wallet/commit/3d277dd8e1f56eae7772b4a042f66288b87101ba))
+* auth infrastructure ([#2368](https://github.com/ordpool-space/cat21-wallet/issues/2368)) ([f3d4b3e](https://github.com/ordpool-space/cat21-wallet/commit/f3d4b3e91e86f0d69606c21f67985b3eed762f1f))
+* **extension:** implement taproot sends ([c4bfa96](https://github.com/ordpool-space/cat21-wallet/commit/c4bfa960658d29bb0427f756725e87bdf77fd7b7))
+
+
+### Bug Fixes
+
+* add support for tpubs ([#2381](https://github.com/ordpool-space/cat21-wallet/issues/2381)) ([09d4c94](https://github.com/ordpool-space/cat21-wallet/commit/09d4c944af9b0f74bb15379382d47ad45f11832f))
+* add tr related unit tests + fix bug in max send calculation ([852e8a6](https://github.com/ordpool-space/cat21-wallet/commit/852e8a6765fef7cb98014642fa94357e7dbfc1c0))
+* change addresses support ([7469bcc](https://github.com/ordpool-space/cat21-wallet/commit/7469bcc3bc4b44bda655c5d86b0a66397aea419b))
+* implement wsh signing in signPsbt ([#2374](https://github.com/ordpool-space/cat21-wallet/issues/2374)) ([82f6216](https://github.com/ordpool-space/cat21-wallet/commit/82f621646a4ff619e31090be9eb24ec148866349))
+* **mobile:** migrate to correct fingerprint format ([ef15f7a](https://github.com/ordpool-space/cat21-wallet/commit/ef15f7a3f3ea499bf6f1037d147b95c86aef0535))
+* remove runes/ordinals pages from services/models ([#2358](https://github.com/ordpool-space/cat21-wallet/issues/2358)) ([101bf28](https://github.com/ordpool-space/cat21-wallet/commit/101bf2808285991f40d93e6eaad00f32c4435675))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/constants bumped to 0.37.0
+    * @leather.io/crypto bumped to 1.12.24
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/utils bumped to 0.52.0
+  * devDependencies
+    * @leather.io/rpc bumped to 2.23.0
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [0.37.7](https://github.com/leather-io/mono/compare/@leather.io/bitcoin-v0.37.6...@leather.io/bitcoin-v0.37.7) (2026-06-01)
 
 

@@ -413,6 +413,66 @@
   * devDependencies
     * @leather.io/rpc bumped to 2.20.14
 
+## [1.57.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/services-v1.56.0...@leather.io/services-v1.57.0) (2026-06-14)
+
+
+### Features
+
+* add fallback responses to all bis client calls ([c81750e](https://github.com/ordpool-space/cat21-wallet/commit/c81750ee967704794efdae276f9bd3e31af50941))
+* add withdrawal and fee logic to sbtc swap provider service ([3d277dd](https://github.com/ordpool-space/cat21-wallet/commit/3d277dd8e1f56eae7772b4a042f66288b87101ba))
+* adds market stats and token analytics services ([b5c47ae](https://github.com/ordpool-space/cat21-wallet/commit/b5c47ae2401e3e1431343a11cd8398e7a5c1bc6b))
+* asset-list service ([c4dcb11](https://github.com/ordpool-space/cat21-wallet/commit/c4dcb11d79fdaf318dade7d7f52ca81d2c33ecf0))
+* auth infrastructure ([#2368](https://github.com/ordpool-space/cat21-wallet/issues/2368)) ([f3d4b3e](https://github.com/ordpool-space/cat21-wallet/commit/f3d4b3e91e86f0d69606c21f67985b3eed762f1f))
+* **extension:** deprecation of ordinals and runes ([d6e1fea](https://github.com/ordpool-space/cat21-wallet/commit/d6e1feaccb47de540983c9263cb198f279ed7679))
+* **extension:** fee service usage in extension ([f295794](https://github.com/ordpool-space/cat21-wallet/commit/f29579434d4291805dc1010faeac863dcadaaf5f))
+* **extension:** remove runes and ordinals ([#2343](https://github.com/ordpool-space/cat21-wallet/issues/2343)) ([88d12da](https://github.com/ordpool-space/cat21-wallet/commit/88d12da1389dc241d24753f7f7f230a243b2444b))
+* **extension:** support originator post-condition mode ([#2324](https://github.com/ordpool-space/cat21-wallet/issues/2324)) ([6e7d3e1](https://github.com/ordpool-space/cat21-wallet/commit/6e7d3e11b5d18a576c72fe4886f5ead6376d9d16))
+* implement auth service ([c414973](https://github.com/ordpool-space/cat21-wallet/commit/c4149736c63f547718d8730ff6a029273c9a7306))
+* **models,services:** unify SwapDex and YieldProvider into StacksProtocol model ([0d7f44c](https://github.com/ordpool-space/cat21-wallet/commit/0d7f44cb2961c57aa0730066b39697e5ab7ca632))
+* **services:** activity v2 ([ae29c23](https://github.com/ordpool-space/cat21-wallet/commit/ae29c23a6001bffc5ab81c89400e2d9768930478))
+* **services:** integrate bitflow bff api ([8256079](https://github.com/ordpool-space/cat21-wallet/commit/8256079c4b1c5760fbaa51f978cdabf8817a0e0a))
+* **services:** multisig service vaults ([#2378](https://github.com/ordpool-space/cat21-wallet/issues/2378)) ([4351c6c](https://github.com/ordpool-space/cat21-wallet/commit/4351c6c26b256fd4007d70020bc588bf109f7b89))
+* **utils:** add sip10 token name override function ref LEA-3483 ([d650958](https://github.com/ordpool-space/cat21-wallet/commit/d6509588398ac33f02ceb5272c764f6c1fb2c9b2))
+* **web:** wire multisig auth sign-in flow and session bootstrap (ref LEA-3577) ([#2372](https://github.com/ordpool-space/cat21-wallet/issues/2372)) ([6aa01ea](https://github.com/ordpool-space/cat21-wallet/commit/6aa01ea6a609ebac1dee13908c658ce871e4dd39))
+
+
+### Bug Fixes
+
+* audit axios ([#2362](https://github.com/ordpool-space/cat21-wallet/issues/2362)) ([83e1848](https://github.com/ordpool-space/cat21-wallet/commit/83e1848b6fe5f4ac3d4478090277b3bf032d055b))
+* axios cve ([b145cd5](https://github.com/ordpool-space/cat21-wallet/commit/b145cd5fd055201b18304b5e2b92635d56086915))
+* dep audit ([f0f69d3](https://github.com/ordpool-space/cat21-wallet/commit/f0f69d3b726fc8637ba9b7b69b7bcbf3bb78d244))
+* **extension:** fix bug with tab navigation, ref LEA-3334 ([6030950](https://github.com/ordpool-space/cat21-wallet/commit/6030950a3f16616105edc42f45194388d1bc76c0))
+* **extension:** incorrect account balance totals ([a299450](https://github.com/ordpool-space/cat21-wallet/commit/a299450ec583a6e7cd82f82ce61e8c0ed57284a5))
+* **extension:** sip10 send form service usage ([c61d4e5](https://github.com/ordpool-space/cat21-wallet/commit/c61d4e5de382c4a94686ed751120677dc6d44095))
+* networks bug ([#2379](https://github.com/ordpool-space/cat21-wallet/issues/2379)) ([01d0c87](https://github.com/ordpool-space/cat21-wallet/commit/01d0c87860b18ff5952cac03a12f42f8f9b9165a))
+* ordinals/runes fallback ([35d1bea](https://github.com/ordpool-space/cat21-wallet/commit/35d1bea0e3cde0e9ad1e6c77d33793ef48260e3b))
+* remove runes/ordinals pages from services/models ([#2358](https://github.com/ordpool-space/cat21-wallet/issues/2358)) ([101bf28](https://github.com/ordpool-space/cat21-wallet/commit/101bf2808285991f40d93e6eaad00f32c4435675))
+* sbtc withdrawal bugs ([8f07d2e](https://github.com/ordpool-space/cat21-wallet/commit/8f07d2e61bbcaa97271ebcd37c1137d204a12994))
+* **services:** add pagination for nft holdings endpoint ([4005a7a](https://github.com/ordpool-space/cat21-wallet/commit/4005a7afa93013e3de729c257065a89903c8a99b))
+* **services:** failing rate limiter unit test ([2fb4ced](https://github.com/ordpool-space/cat21-wallet/commit/2fb4ced24c73db03421c0165461876a86ca4eabc))
+* **services:** filter lp tokens from collectibles ([252454c](https://github.com/ordpool-space/cat21-wallet/commit/252454ca25e4aeebe099dd8bcf7ba94753ed855f))
+* **services:** filter SIP-9 collectibles that duplicate owned BNS names ([11e2171](https://github.com/ordpool-space/cat21-wallet/commit/11e217153c38f4e38255de083754ec8a79ea78d7))
+* **services:** handle api errors gracefully in gamma and bns services ([26af965](https://github.com/ordpool-space/cat21-wallet/commit/26af965e152ecdd27ff2a0412401d7afd41b8839))
+* **services:** limit NFT holdings pagination and narrow Gamma error handling ([e63bce2](https://github.com/ordpool-space/cat21-wallet/commit/e63bce2a8f98f57c2372761fe77c907f46b0d302))
+* **services:** prevent ipfs url double-encoding ([095548b](https://github.com/ordpool-space/cat21-wallet/commit/095548bc1dd79ee44a9054a4cc623144185f2d71))
+* **services:** use correct execution type for sbtc withdrawals ([cb8bcb7](https://github.com/ordpool-space/cat21-wallet/commit/cb8bcb73105f0f3fb5309e11d9a30e36ccf766cb))
+* **services:** use promise.allsettled for resilient nft metadata fetching ([8275367](https://github.com/ordpool-space/cat21-wallet/commit/827536792e417e1bd0a1171ad4c677a452506707))
+* upgrade axios ([#2313](https://github.com/ordpool-space/cat21-wallet/issues/2313)) ([9876bb2](https://github.com/ordpool-space/cat21-wallet/commit/9876bb2a6cc764494fbcf9d57449ce5ccc821ab3))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/bitcoin bumped to 0.38.0
+    * @leather.io/constants bumped to 0.37.0
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/stacks bumped to 1.21.0
+    * @leather.io/test-config bumped to 0.1.4
+    * @leather.io/utils bumped to 0.52.0
+  * devDependencies
+    * @leather.io/rpc bumped to 2.23.0
+
 ## [1.56.0](https://github.com/leather-io/mono/compare/@leather.io/services-v1.55.0...@leather.io/services-v1.56.0) (2026-06-01)
 
 

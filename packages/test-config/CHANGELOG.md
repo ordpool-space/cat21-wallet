@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/test-config-v0.1.3...@leather.io/test-config-v0.1.4) (2026-06-14)
+
+
+### Bug Fixes
+
+* update redux migrations and secure store migrations. add tests ([726f23a](https://github.com/ordpool-space/cat21-wallet/commit/726f23a5785f2bdfafee890faaa5008ec15b66cb))
+
 ## [0.1.3](https://github.com/leather-io/mono/compare/@leather.io/test-config-v0.1.2...@leather.io/test-config-v0.1.3) (2026-01-23)
 
 

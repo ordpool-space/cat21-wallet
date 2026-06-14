@@ -492,6 +492,25 @@
   * dependencies
     * @leather.io/utils bumped to 0.46.4
 
+## [1.12.24](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/crypto-v1.12.23...@leather.io/crypto-v1.12.24) (2026-06-14)
+
+
+### Bug Fixes
+
+* add support for tpubs ([#2381](https://github.com/ordpool-space/cat21-wallet/issues/2381)) ([09d4c94](https://github.com/ordpool-space/cat21-wallet/commit/09d4c944af9b0f74bb15379382d47ad45f11832f))
+* **crypto:** leading zero loss in fingerprint calc ([af18126](https://github.com/ordpool-space/cat21-wallet/commit/af18126bf76f657452539a6d5a6522538d81ce55))
+* update redux migrations and secure store migrations. add tests ([726f23a](https://github.com/ordpool-space/cat21-wallet/commit/726f23a5785f2bdfafee890faaa5008ec15b66cb))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/constants bumped to 0.37.0
+    * @leather.io/utils bumped to 0.52.0
+  * devDependencies
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [1.12.23](https://github.com/leather-io/mono/compare/@leather.io/crypto-v1.12.22...@leather.io/crypto-v1.12.23) (2026-06-01)
 
 

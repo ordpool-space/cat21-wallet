@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.7.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/cms-v1.6.1...@leather.io/cms-v1.7.0) (2026-06-14)
+
+
+### Features
+
+* add breadcrumbs to top header ([46fe4b4](https://github.com/ordpool-space/cat21-wallet/commit/46fe4b493e43471041b1fa0f8fd3f97a8b2e2e2c))
+* clean up styles and add search query ([3da2b47](https://github.com/ordpool-space/cat21-wallet/commit/3da2b476d1efd1ad97f22b8e24a33815aa027649))
+* **cms:** add fully CMS-driven learn sections ([dc0ed7a](https://github.com/ordpool-space/cat21-wallet/commit/dc0ed7a350d2f4be1f88c9e117531eea00257110))
+* **cms:** add GROQ queries for new help center schema ([e497576](https://github.com/ordpool-space/cat21-wallet/commit/e49757611ff4a7a36879eb2d7463e1f31194ef3f))
+* **cms:** add help center content migration script ([5c40dc9](https://github.com/ordpool-space/cat21-wallet/commit/5c40dc97a225ca932b06d274f0939fadfa00f638))
+* **cms:** add helpCenterCategory Sanity schema type ([56476f6](https://github.com/ordpool-space/cat21-wallet/commit/56476f6888d8c64193a6df6ddce25de23f3c7c8d))
+* **cms:** add helpCenterGuide Sanity schema type ([7376a50](https://github.com/ordpool-space/cat21-wallet/commit/7376a50b044360b74c8d40e46d1e6f0b50fc1f1a))
+* **mobile:** expo v54 ([50d0f98](https://github.com/ordpool-space/cat21-wallet/commit/50d0f98a39a00986f35193825724e7c80dcb2d94))
+
+
+### Bug Fixes
+
+* **cms:** filter orphan relatedPosts in migration script ([d4567e8](https://github.com/ordpool-space/cat21-wallet/commit/d4567e80a6480ef99382f0644ad7198ce8aa0ea7))
+* ensure related posts are a separate part of post schema ([d26d189](https://github.com/ordpool-space/cat21-wallet/commit/d26d18939eb5a510f7b1bd9e5399a85969d01883))
+* remove runes/ordinals pages from services/models ([#2358](https://github.com/ordpool-space/cat21-wallet/issues/2358)) ([101bf28](https://github.com/ordpool-space/cat21-wallet/commit/101bf2808285991f40d93e6eaad00f32c4435675))
+
 ## [1.6.1](https://github.com/leather-io/mono/compare/@leather.io/cms-v1.6.0...@leather.io/cms-v1.6.1) (2026-06-01)
 
 

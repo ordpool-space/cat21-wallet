@@ -577,6 +577,31 @@
     * @leather.io/models bumped to 0.44.1
     * @leather.io/utils bumped to 0.46.4
 
+## [1.21.0](https://github.com/ordpool-space/cat21-wallet/compare/@leather.io/stacks-v1.20.1...@leather.io/stacks-v1.21.0) (2026-06-14)
+
+
+### Features
+
+* **extension:** support originator post-condition mode ([#2324](https://github.com/ordpool-space/cat21-wallet/issues/2324)) ([6e7d3e1](https://github.com/ordpool-space/cat21-wallet/commit/6e7d3e11b5d18a576c72fe4886f5ead6376d9d16))
+
+
+### Bug Fixes
+
+* **extension:** contract principal support, closes leather-io/extension[#6334](https://github.com/ordpool-space/cat21-wallet/issues/6334) ([b428c1f](https://github.com/ordpool-space/cat21-wallet/commit/b428c1f400df8585772622c2ad195d20d6cad08f))
+* networks bug ([#2379](https://github.com/ordpool-space/cat21-wallet/issues/2379)) ([01d0c87](https://github.com/ordpool-space/cat21-wallet/commit/01d0c87860b18ff5952cac03a12f42f8f9b9165a))
+* update redux migrations and secure store migrations. add tests ([726f23a](https://github.com/ordpool-space/cat21-wallet/commit/726f23a5785f2bdfafee890faaa5008ec15b66cb))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @leather.io/crypto bumped to 1.12.24
+    * @leather.io/models bumped to 0.57.0
+    * @leather.io/utils bumped to 0.52.0
+  * devDependencies
+    * @leather.io/test-config bumped to 0.1.4
+
 ## [1.20.1](https://github.com/leather-io/mono/compare/@leather.io/stacks-v1.20.0...@leather.io/stacks-v1.20.1) (2026-06-01)
 
 
