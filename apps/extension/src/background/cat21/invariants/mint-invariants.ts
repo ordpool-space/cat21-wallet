@@ -60,7 +60,7 @@ export function enforceMintInvariants(
     );
   }
 
-  if (!(intent.feeRate > 0)) {
+  if (!Number.isFinite(intent.feeRate) || !(intent.feeRate > 0)) {
     throw new MintInvariantError('fee-rate-not-positive', String(intent.feeRate));
   }
   if (intent.feeRate > MINT_FEE_RATE_SANITY_CEILING_SAT_PER_VBYTE) {
@@ -70,14 +70,23 @@ export function enforceMintInvariants(
     );
   }
 
-  if (intent.tip !== undefined) {
-    if (intent.tip.value < 0) {
-      throw new MintInvariantError('tip-value-negative', String(intent.tip.value));
+  // `intent.tip != null` rejects both `undefined` (no tip) and `null` (which a
+  // bug in upstream code path or a hand-crafted intent could produce). Without
+  // the `!= null` form, the subsequent `intent.tip.value` would throw
+  // `TypeError` on a null tip, which would surface as an opaque crash to the
+  // caller rather than a typed MintInvariantError.
+  if (intent.tip != null) {
+    const tipShape = intent.tip;
+    if (typeof tipShape.value !== 'number' || !Number.isFinite(tipShape.value)) {
+      throw new MintInvariantError('tip-value-negative', String(tipShape.value));
     }
-    if (intent.tip.value > 0) {
-      const tipNetwork = decodeAddressNetwork(intent.tip.address);
+    if (tipShape.value < 0) {
+      throw new MintInvariantError('tip-value-negative', String(tipShape.value));
+    }
+    if (tipShape.value > 0) {
+      const tipNetwork = decodeAddressNetwork(tipShape.address);
       if (tipNetwork === null || tipNetwork !== network) {
-        throw new MintInvariantError('tip-address-invalid', intent.tip.address);
+        throw new MintInvariantError('tip-address-invalid', tipShape.address);
       }
     }
   }

@@ -138,6 +138,68 @@ describe('enforceMintInvariants', () => {
     }
   });
 
+  it('throws MintInvariantError(fee-rate-not-positive) on NaN feeRate', () => {
+    try {
+      enforceMintInvariants(makeIntent({ feeRate: NaN }), 'mainnet');
+      throw new Error('did not throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(MintInvariantError);
+      expect((err as MintInvariantError).reason).toBe('fee-rate-not-positive');
+    }
+  });
+
+  it('throws MintInvariantError(fee-rate-not-positive) on Infinity feeRate', () => {
+    try {
+      enforceMintInvariants(makeIntent({ feeRate: Infinity }), 'mainnet');
+      throw new Error('did not throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(MintInvariantError);
+      expect((err as MintInvariantError).reason).toBe('fee-rate-not-positive');
+    }
+  });
+
+  it('treats null tip the same as omitted tip (no TypeError, no error at all)', () => {
+    // Defensive: a bug in upstream code or a hand-crafted intent could pass
+    // `tip: null`. Without the `!= null` guard the subsequent dereference
+    // would throw a raw TypeError, surfacing as an opaque crash. We accept
+    // null as a tip-absent signal alongside undefined.
+    const result = enforceMintInvariants(
+      makeIntent({ tip: null as unknown as Cat21MintIntent['tip'] }),
+      'mainnet'
+    );
+    expect(result.recipient).toBe(MAINNET_P2TR);
+  });
+
+  it('throws MintInvariantError(tip-value-negative) when tip.value is missing or non-numeric', () => {
+    try {
+      enforceMintInvariants(
+        makeIntent({
+          tip: { address: MAINNET_P2WPKH } as unknown as Cat21MintIntent['tip'],
+        }),
+        'mainnet'
+      );
+      throw new Error('did not throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(MintInvariantError);
+      expect((err as MintInvariantError).reason).toBe('tip-value-negative');
+    }
+  });
+
+  it('checks tip-value-negative BEFORE tip-address-invalid (first violation wins)', () => {
+    // Pin first-violation-wins ordering so a future refactor doesn't accidentally
+    // surface a different reason. Both fields are wrong; tip-value-negative fires.
+    try {
+      enforceMintInvariants(
+        makeIntent({ tip: { address: 'garbage', value: -1 } }),
+        'mainnet'
+      );
+      throw new Error('did not throw');
+    } catch (err) {
+      expect(err).toBeInstanceOf(MintInvariantError);
+      expect((err as MintInvariantError).reason).toBe('tip-value-negative');
+    }
+  });
+
   it('accepts tip with value === 0 (caller convention: 0 means no output)', () => {
     // tip.value === 0 skips the address-validity check, even with a
     // syntactically broken address — the caller has opted out of the
