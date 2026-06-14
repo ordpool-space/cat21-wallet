@@ -17,4 +17,8 @@ export type BitcoinErrorKey =
   | 'InsufficientAmount'
   | 'NoInputsToSign'
   | 'NoOutputsToSign'
-  | 'InscribedUtxos';
+  | 'InscribedUtxos'
+  /* HACK -- Cat21: mint-guarantee errors per Phase 3.2 safety. These fire if a
+   * future refactor breaks the nLockTime=21 or no-RBF sequence invariants. */
+  | 'Cat21MintLockTimeBroken'
+  | 'Cat21MintInputSequenceBroken';

@@ -27,6 +27,8 @@ export * from './psbt/utils';
 export * from './signer/bitcoin-payer';
 
 export * from './transactions/generate-unsigned-transaction';
+/* HACK -- Cat21: CAT-21 mint PSBT builder per Phase 3.2 safety. */
+export * from './transactions/generate-cat21-mint-transaction';
 
 export * from './validation/address-validation';
 export * from './validation/amount-validation';
