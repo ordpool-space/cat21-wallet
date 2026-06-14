@@ -15,6 +15,8 @@ export * from './infrastructure/api/cat21-ord/cat21-ord-api.schema';
 export * from './infrastructure/api/cat21-ord/cat21-ord-api.utils';
 export * from './infrastructure/api/slipstream/slipstream-api.client';
 export * from './mint/cat21-broadcast.service';
+export * from './agent-mode/agent-policy.types';
+export * from './agent-mode/agent-policy.service';
 export * from './coin-selection/bitcoin-coin-selection.service';
 export * from './fees/bitcoin-transaction-fees.service';
 export * from './fees/stacks-transaction-fees.service';
