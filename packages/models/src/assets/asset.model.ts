@@ -1,3 +1,4 @@
+import { InscriptionMimeType } from '../inscription-mime-type.model';
 import { Sip9Asset } from './sip9-asset.model';
 
 export const CryptoAssetChains = {
@@ -15,6 +16,10 @@ export const FungibleCryptoAssetProtocols = {
 } as const;
 export const NonFungibleCryptoAssetProtocols = {
   sip9: 'sip9',
+  /* HACK -- Cat21: 'inscription' protocol re-added per ADR-12. Cat21 cats present
+   * to the asset list as inscription-shaped assets so the existing collectibles UI
+   * surface can render them without a new code path. */
+  inscription: 'inscription',
 } as const;
 export const CryptoAssetProtocols = {
   ...FungibleCryptoAssetProtocols,
@@ -72,7 +77,31 @@ export interface BaseNonFungibleCryptoAsset extends BaseCryptoAsset {
   readonly protocol: NonFungibleCryptoAssetProtocol;
 }
 
-export type NonFungibleCryptoAsset = Sip9Asset;
+/* HACK -- Cat21: InscriptionAsset re-added per ADR-12 (restored from
+ * leather-io/mono@a6460b4d, parent of #2358). cat21-ord serves cats as
+ * inscription-shaped records; surfacing them via this type lets the existing
+ * collectibles pipeline render them with minimal divergence from upstream. */
+export interface InscriptionAsset extends BaseNonFungibleCryptoAsset {
+  readonly chain: 'bitcoin';
+  readonly protocol: 'inscription';
+  readonly id: string;
+  readonly mimeType: InscriptionMimeType;
+  readonly number: number;
+  readonly address: string;
+  readonly title: string;
+  readonly txid: string;
+  readonly output: string;
+  readonly offset: string;
+  readonly preview: string;
+  readonly src: string;
+  readonly thumbnailSrc?: string;
+  readonly value: string;
+  readonly genesisBlockHash: string;
+  readonly genesisTimestamp: number;
+  readonly genesisBlockHeight: number;
+}
+
+export type NonFungibleCryptoAsset = Sip9Asset | InscriptionAsset;
 
 export type CryptoAsset = FungibleCryptoAsset | NonFungibleCryptoAsset;
 

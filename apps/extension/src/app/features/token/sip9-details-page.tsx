@@ -2,6 +2,8 @@ import { useState } from 'react';
 
 import { Stack } from 'leather-styles/jsx';
 
+import type { Sip9Asset } from '@leather.io/models';
+
 import type { CollectibleView } from '@leather.io/features';
 
 import { Sip9Card } from '../collectibles/components/sip9-card';
@@ -17,7 +19,11 @@ interface Sip9DetailsPageProps {
 export function Sip9DetailsPage({ view, onBack }: Sip9DetailsPageProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
-  const asset = view.asset;
+  /* HACK -- Cat21: NonFungibleCryptoAsset widened to include InscriptionAsset per
+   * ADR-12. This page only renders when the caller has routed by `view.protocol
+   * === 'sip9'`; the runtime narrow below makes that contract typesafe. */
+  if (view.asset.protocol !== 'sip9') return null;
+  const asset: Sip9Asset = view.asset;
   const title = view.title || 'Stacks NFT';
   const subtitle = view.subtitle;
 

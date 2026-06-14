@@ -10,6 +10,9 @@ export * from './assets/asset-id.model';
 export * from './assets/asset-type-guards';
 export * from './assets/asset.model';
 export * from './assets/sip9-asset.model';
+/* HACK -- Cat21: inscription-mime-type model re-exported for the revived
+ * InscriptionsService (ADR-12). Removed upstream in #2358. */
+export * from './inscription-mime-type.model';
 export * from './balance.model';
 export * from './bitcoin.model';
 export * from './bns.model';

@@ -40,6 +40,13 @@ export function getAssetId(asset: CryptoAsset): CryptoAssetId {
       };
     case 'sip9':
       return createSip9AssetId(asset);
+    /* HACK -- Cat21: 'inscription' branch re-added per ADR-12 (restored from
+     * leather-io/mono@a6460b4d). Wire format unchanged from upstream. */
+    case 'inscription':
+      return {
+        protocol: 'inscription',
+        id: asset.id,
+      };
     default:
       assertUnreachable(asset);
   }

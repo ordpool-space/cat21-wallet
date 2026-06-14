@@ -16,6 +16,8 @@ export function getProtocolDisplayLabel(protocol: CryptoAssetProtocol): string {
     nativeStx: 'Stacks',
     sip9: 'SIP-009',
     sip10: 'SIP-010',
+    /* HACK -- Cat21: 'inscription' label re-added per ADR-12. */
+    inscription: 'Inscription',
   };
   return labels[protocol] ?? protocol;
 }
