@@ -19,19 +19,43 @@ A regression that leaks `nLockTime=21` into a non-mint tx would fail the
 spec at `generate-cat21-mint-transaction.spec.ts:50` (which pins the value)
 because no other tx path constructs a `Transaction` with that argument.
 
-## 2. CAT-21 mint inputs use sequence 0xfffffffe (no RBF, locktime honored)
+## 2. CAT-21 mint inputs use sequence 0xfffffffd (RBF allowed, locktime honored)
 
 **Status:** verified.
 
-`generate-cat21-mint-transaction.ts:36` defines `CAT21_MINT_INPUT_SEQUENCE =
-0xfffffffe`. It is set on every input at line 122. A runtime assert at lines
-146–151 throws `Cat21MintInputSequenceBroken` if any input deviates. The
-spec at `generate-cat21-mint-transaction.spec.ts:57` pins this for all inputs.
+`generate-cat21-mint-transaction.ts` defines `CAT21_MINT_INPUT_SEQUENCE =
+0xfffffffd`. Two bits matter:
 
-The 0xfffffffe choice (vs 0xffffffff) is deliberate: 0xffffffff would make
-inputs *definitively final* and ignore the transaction-level locktime,
-defeating the protocol marker. 0xfffffffe is final-for-RBF-purposes while
-still honoring locktime.
+- `< 0xfffffffe` → signals BIP-125 opt-in RBF. The user is allowed to
+  replace the mint via the wallet's increase-fee flow.
+- `< 0xffffffff` → keeps the input non-final-for-locktime so the
+  transaction-level `nLockTime = 21` is still honored.
+
+A runtime assert in the mint builder throws `Cat21MintInputSequenceBroken`
+if any input sequence reaches `0xffffffff` (which would disable locktime).
+The spec pins both the exact value (`0xfffffffd`) and the two range
+invariants.
+
+Per CLAUDE.md HARD RULE #1, we deliberately do NOT ban RBF on CAT-21
+mints. The defense against the 2024 Xverse incident is at the
+*replacement-construction* layer (point 4 below), not by refusing RBF on
+the original mint.
+
+## 4. RBF replacement preserves nLockTime
+
+**Status:** verified.
+
+`apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts`
+constructs the replacement Transaction with `new btc.Transaction({
+lockTime: payload.tx.locktime })`. The original tx's locktime is copied
+verbatim, so a CAT-21 mint (locktime=21) replaced via this flow stays a
+CAT-21 mint. The sequence bump is clamped to `0xfffffffe` so locktime
+remains honored across an arbitrary number of replacements.
+
+A runtime assert at the end of `generateUnsignedTx` throws if
+`newTx.lockTime !== payload.tx.locktime`. Refusing to sign in that case
+is the right default: per CLAUDE.md HARD RULE #1, losing nLockTime on a
+CAT-21 mint is the worst class of bug this wallet can ship.
 
 ## 3. Buy-offer PSBT uses SIGHASH_ALL on every input
 

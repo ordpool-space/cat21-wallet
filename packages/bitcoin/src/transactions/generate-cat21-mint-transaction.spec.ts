@@ -52,12 +52,16 @@ describe(generateCat21MintUnsignedTransaction.name, () => {
     expect(result.tx.lockTime).toBe(21);
   });
 
-  it('sets every input sequence to 0xfffffffe (final without disabling locktime)', () => {
+  it('sets every input sequence to 0xfffffffd (RBF-signaling, locktime honored)', () => {
     const result = generateCat21MintUnsignedTransaction(baseArgs);
     for (let i = 0; i < result.tx.inputsLength; i++) {
       const input = result.tx.getInput(i);
       expect(input.sequence).toBe(CAT21_MINT_INPUT_SEQUENCE);
-      expect(input.sequence).toBe(0xfffffffe);
+      expect(input.sequence).toBe(0xfffffffd);
+      // < 0xfffffffe => RBF-signaling
+      expect(input.sequence!).toBeLessThan(0xfffffffe);
+      // < 0xffffffff => locktime still honored
+      expect(input.sequence!).toBeLessThan(0xffffffff);
     }
   });
 

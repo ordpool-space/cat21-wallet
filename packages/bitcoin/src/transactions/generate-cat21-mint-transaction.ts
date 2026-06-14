@@ -23,15 +23,25 @@ import { BitcoinError } from '../validation/bitcoin-error';
 export const CAT21_LOCK_TIME = 21;
 
 /**
- * Final sequence numbers are anything > 0xfffffffd. The CAT-21 mint must use
- * a final sequence so the transaction does not signal RBF. Some wallets
- * (Xverse, 2024 incident) accelerate RBF-replaceable mints, which drops the
- * nLockTime in the replacement and kills the cat. We use `0xfffffffe` rather
- * than `0xffffffff` so locktime is still honored — `0xffffffff` would mark
- * the input as definitively final and ignore the transaction-level locktime,
- * which defeats the whole purpose.
+ * CAT-21 mint input sequence — `0xfffffffd`.
+ *
+ * Two bits matter to us:
+ *
+ *   - `< 0xfffffffe` signals BIP-125 opt-in RBF. The user is allowed to
+ *     replace the mint via the wallet's increase-fee flow.
+ *   - `< 0xffffffff` keeps the input non-final-for-locktime, so the
+ *     transaction-level `nLockTime = 21` is still honored.
+ *
+ * `0xfffffffd` is the canonical "RBF + locktime honored" value.
+ *
+ * Why we allow RBF here even though the 2024 Xverse incident killed cats
+ * via RBF acceleration: per HARD RULE #1 in CLAUDE.md, the protection is
+ * NOT to ban RBF — it is to make sure any replacement we build keeps
+ * `nLockTime = 21`. That is enforced in the replacement-construction
+ * layer (see `use-btc-increase-fee.ts`), not by refusing to signal RBF
+ * on the original mint.
  */
-export const CAT21_MINT_INPUT_SEQUENCE = 0xfffffffe;
+export const CAT21_MINT_INPUT_SEQUENCE = 0xfffffffd;
 
 /**
  * Dust threshold for the cat-bearing output. The genesis sat sits on the
@@ -60,8 +70,11 @@ export interface GenerateCat21MintTransactionArgs<T> {
 /**
  * Builds an unsigned CAT-21 mint PSBT. The protocol guarantees enforced here:
  *
- * 1. Transaction `nLockTime` is exactly 21.
- * 2. Every input has a sequence number that does NOT signal RBF.
+ * 1. Transaction `nLockTime` is exactly 21. Hard runtime assert.
+ * 2. Every input has a sequence < 0xffffffff so the locktime stays honored.
+ *    We do NOT forbid RBF signalling here; the protection against losing
+ *    nLockTime via RBF lives in the replacement-construction layer (see
+ *    `use-btc-increase-fee.ts` and HARD RULE #1 in CLAUDE.md).
  * 3. Output 0 is the recipient receiving 546 sats (the cat sat).
  * 4. Output 1 is change to the payer.
  * 5. Optional output 2 is the tip, when configured.
@@ -72,7 +85,7 @@ export interface GenerateCat21MintTransactionArgs<T> {
  * color + faster tx). Don't fix it."
  *
  * Hard runtime asserts at the end of the function defend against accidental
- * future edits that would silently break either guarantee.
+ * future edits that would silently break the locktime guarantee.
  */
 export function generateCat21MintUnsignedTransaction<
   T extends InputData & { vout: number; keyOrigin: string },
@@ -136,17 +149,19 @@ export function generateCat21MintUnsignedTransaction<
     tx.addOutputAddress(output.address, BigInt(output.value), network);
   });
 
-  /* Hard asserts: these guarantees must never silently regress. If a future
-   * refactor breaks either, we want to fail loudly at mint time rather than
-   * ship a tx that gets a cat killed by RBF acceleration or a missing
-   * locktime. */
+  /* Hard asserts: nLockTime=21 is the protocol identity of a cat. The
+   * sequence guarantee is weaker — every input must keep locktime honored
+   * (sequence < 0xffffffff) but is allowed to signal RBF (sequence <
+   * 0xfffffffe). Per CLAUDE.md HARD RULE #1, the protection against
+   * RBF-induced cat loss lives in the replacement-construction layer,
+   * not by refusing RBF here. */
   if (tx.lockTime !== CAT21_LOCK_TIME) {
     throw new BitcoinError('Cat21MintLockTimeBroken');
   }
   for (let i = 0; i < tx.inputsLength; i++) {
     const input = tx.getInput(i);
     const sequence = input.sequence ?? 0xffffffff;
-    if (sequence !== CAT21_MINT_INPUT_SEQUENCE) {
+    if (sequence >= 0xffffffff) {
       throw new BitcoinError('Cat21MintInputSequenceBroken');
     }
   }
