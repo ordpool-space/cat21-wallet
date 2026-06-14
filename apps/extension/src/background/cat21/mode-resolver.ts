@@ -7,44 +7,70 @@ import type { Cat21Intent } from './types';
  *     `chrome.runtime` channel (Path 2).
  *   - `mcp-nmh`: from the MCP NMH host process over Chrome Native
  *     Messaging (Path 3).
- *   - `unknown`: defensive default — any code path that hasn't proven
- *     its transport is treated as untrusted-for-autonomous. The
- *     resolver downgrades to manual mode.
+ *
+ * Closed union by design. The background dispatcher must determine
+ * transport at message-receive time from the port object; if it
+ * cannot, that's a programming bug and the dispatcher throws — the
+ * resolver never sees an unrecognised value.
  */
-export type Cat21Transport = 'popup' | 'mcp-nmh' | 'unknown';
+export type Cat21Transport = 'popup' | 'mcp-nmh';
 
 /**
  * Per-account user-configured agent-mode policy state. The full policy
  * struct (per-action cap, daily cap, etc.) lives in the SDK; this
  * resolver only consults the `enabled` flag here and delegates the
- * per-intent gate to ordpool-sdk's `evaluateAgentPolicy`. That keeps
- * the wallet from duplicating policy logic.
+ * per-intent gate to ordpool-sdk's `evaluateAgentPolicy`.
  */
 export interface AgentModeFlag {
   enabled: boolean;
 }
 
 /**
- * Decides whether the caller's `mode: 'autonomous'` request is honored.
+ * Reasons the resolver can reject an `'autonomous'` request.
  *
- * Per CLAUDE.md HARD RULE #8 and decision #6 in the Cat21 RPC
- * architecture, `'autonomous'` is honored ONLY when all four conditions
- * hold:
+ * Note the absence of a "downgrade to manual" branch. If the caller
+ * said `'autonomous'`, the caller meant it; silently returning
+ * `'manual'` would either (a) surprise a bot expecting silent-sign,
+ * or (b) push a popup at a user who already pressed something else.
+ * Either way the caller learns about the rejection via a typed error
+ * and decides for itself whether to retry with `mode: 'manual'`.
+ */
+export type ModeResolverRejection =
+  | 'transport-not-trusted-for-autonomous'
+  | 'agent-disabled'
+  | 'policy-denied';
+
+export class ModeResolverError extends Error {
+  constructor(
+    public readonly rejection: ModeResolverRejection,
+    public readonly detail?: string
+  ) {
+    super(detail ? `${rejection}: ${detail}` : rejection);
+    this.name = 'ModeResolverError';
+  }
+}
+
+/**
+ * Decides what signing mode applies to a Cat21 RPC call. The truth
+ * table (per CLAUDE.md HARD RULE #8 + Cat21 RPC architecture decision #6):
  *
- *   1. The caller explicitly declared `mode: 'autonomous'` in the intent.
- *   2. Transport is `'mcp-nmh'` (not popup, not unknown).
- *   3. The user has agent-mode enabled in settings for the active
- *      account.
- *   4. The agent-policy gate (ordpool-sdk's `evaluateAgentPolicy`)
- *      allows the intent.
+ *   declared = undefined     →  return 'manual'
+ *   declared = 'manual'      →  return 'manual'
+ *   declared = 'autonomous'  →  check four conditions:
+ *     1. transport === 'mcp-nmh'
+ *     2. agentMode.enabled === true
+ *     3. evaluateAgentPolicy(intent) → allowed
+ *     If all three pass     →  return 'autonomous'
+ *     If any one fails      →  throw ModeResolverError(typed rejection)
  *
- * If any condition fails, the resolver returns `'manual'` (popup
- * confirmation UI required). If the policy gate explicitly denies the
- * intent (vs. simply being disabled), the resolver throws —
- * downgrading to manual would silently bypass the user's stated cap.
+ * There is no downgrade path. A caller that requested `'autonomous'`
+ * but failed a guard gets a typed error and must explicitly re-call
+ * with `mode: 'manual'` to take the popup-confirm path. This makes
+ * mode resolution observable and prevents two distinct failure
+ * modes from being silently equivalenced.
  *
  * Implementation lands in the iteration-2 commit. The spec at
- * `mode-resolver.spec.ts` pins every branch.
+ * `mode-resolver.spec.ts` pins every branch of the truth table.
  */
 export function resolveSigningMode(args: {
   intent: Cat21Intent;
@@ -63,20 +89,4 @@ export function resolveSigningMode(args: {
 }): 'autonomous' | 'manual' {
   void args;
   throw new Error('Not implemented — see iteration-2 commit');
-}
-
-/**
- * Thrown when the agent-policy gate explicitly denies the intent.
- * Resolved deliberately as an error rather than a downgrade so a
- * misbehaving caller cannot silently fall through to a user prompt
- * that the user might wave through.
- */
-export class AgentPolicyDeniedError extends Error {
-  constructor(
-    public readonly policyReason: string,
-    public readonly detail?: string
-  ) {
-    super(detail ? `${policyReason}: ${detail}` : policyReason);
-    this.name = 'AgentPolicyDeniedError';
-  }
 }

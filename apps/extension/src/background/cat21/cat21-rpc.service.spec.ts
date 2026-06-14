@@ -42,10 +42,16 @@ describe('Cat21RpcService.mint', () => {
     it.todo('signs silently when mode resolves to autonomous (no popup opened)');
 
     it.todo('records the action in the per-account daily-spend counter so the next call sees it');
+  });
 
-    it.todo('returns { ok: false, reason: "policy-denied", detail } when the policy gate denies');
+  describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
+    it.todo('returns { ok: false, reason: "policy-denied", detail } when policy gate denies');
 
-    it.todo('returns { ok: false, reason: "transport-not-trusted-for-autonomous" } when the caller declared autonomous from popup');
+    it.todo('returns { ok: false, reason: "transport-not-trusted-for-autonomous" } when caller declared autonomous from popup');
+
+    it.todo('returns { ok: false, reason: "agent-disabled" } when caller declared autonomous but agent mode is off');
+
+    it.todo('does NOT fall through to the popup-confirmation path on autonomous rejection');
   });
 
   describe('broadcast', () => {

@@ -306,11 +306,12 @@ accept offer):
 **Path 3 — cat21-wallet users in YOLO / agent mode (the Bazaar).**
 
   An MCP bot connected over the Chrome Native Messaging Host bridge
-  invokes the same typed `cat21_*` RPC methods. When all four
-  mode-resolution guards pass (caller declared autonomous, transport
-  is NMH, user has agent-mode enabled, agent-policy gate allows the
-  intent), the wallet signs silently without a prompt. Any guard
-  failure downgrades to Path 2 (or hard-fails if the policy denies).
+  invokes the same typed `cat21_*` RPC methods. When all three
+  mode-resolution guards pass (transport is NMH, user has agent-mode
+  enabled, agent-policy gate allows the intent), the wallet signs
+  silently without a prompt. Any guard failure surfaces as a typed
+  rejection — never a silent downgrade to manual. Callers that want
+  the popup-confirm path must explicitly call with `mode: 'manual'`.
 
 **Also a permanent responsibility, across all three paths**: display
 cats from cat21-ord, refuse to spend cat-bearing UTXOs from the BTC
