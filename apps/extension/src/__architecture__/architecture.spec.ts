@@ -200,6 +200,45 @@ describe('HARD RULE #1 (extended) — mint-builder pins lockTime=21 + sequence 0
   });
 });
 
+describe('HARD RULE — acceptOffer signs ONLY input 0 (the seller cat input)', () => {
+
+  it('acceptOffer body passes [0] (not "all") as the inputIndexes to both signers', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
+    );
+    const match = src.match(/async acceptOffer\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
+    expect(match).not.toBeNull();
+    const body = match![1];
+    expect(body).toMatch(/signWithConfirmation\([^)]*,\s*\[0\]\s*\)/);
+    expect(body).toMatch(/signSilently\([^)]*\[0\]\s*\)/);
+    // Strong negative: acceptOffer must NOT pass 'all' anywhere.
+    const allOccurrences = body.match(/'all'/g) ?? [];
+    expect(allOccurrences.length).toBe(0);
+  });
+
+  it('mint and transfer pass \'all\' (self-built PSBTs; every input is wallet-owned)', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
+    );
+    const mintMatch = src.match(/async mint\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
+    const transferMatch = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
+    expect(mintMatch).not.toBeNull();
+    expect(transferMatch).not.toBeNull();
+    expect(mintMatch![1]).toMatch(/signWithConfirmation\([^)]*,\s*'all'\s*\)/);
+    expect(mintMatch![1]).toMatch(/signSilently\([^)]*'all'\s*\)/);
+    expect(transferMatch![1]).toMatch(/signWithConfirmation\([^)]*,\s*'all'\s*\)/);
+    expect(transferMatch![1]).toMatch(/signSilently\([^)]*'all'\s*\)/);
+  });
+
+  it('Cat21RpcDeps signWithConfirmation + signSilently carry an inputIndexes parameter', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
+    );
+    expect(src).toMatch(/signWithConfirmation\s*\([\s\S]*?inputIndexes:\s*'all'\s*\|\s*number\[\]/);
+    expect(src).toMatch(/signSilently\s*\([\s\S]*?inputIndexes:\s*'all'\s*\|\s*number\[\]/);
+  });
+});
+
 describe('HARD RULE — createOffer never builds a tx, never broadcasts, never signs', () => {
 
   it('Cat21RpcService.createOffer body does NOT call broadcast, signSilently, or signWithConfirmation', () => {

@@ -87,8 +87,22 @@ export interface Cat21RpcDeps {
    * active account does not own this cat (cat21-ord lookup mismatch).
    */
   resolveCatUtxo(catId: string): TransferUtxo;
-  /** Manual-mode signer: opens the cat21-themed popup, awaits user click. */
-  signWithConfirmation(psbt: Uint8Array, intent: Cat21Intent): Promise<SignedTx>;
+  /**
+   * Manual-mode signer: opens the cat21-themed popup, awaits user click.
+   *
+   * `inputIndexes` constrains the wallet to sign ONLY those input
+   * positions. This is the security boundary against an inbound PSBT
+   * that interleaves buyer-funded UTXOs the seller's key could
+   * coincidentally sign. For mint and transfer, the wallet builds the
+   * PSBT so it knows every input is its own (pass `'all'`). For accept-
+   * offer, the PSBT comes from a buyer and the seller MUST sign input 0
+   * only — pass `[0]`.
+   */
+  signWithConfirmation(
+    psbt: Uint8Array,
+    intent: Cat21Intent,
+    inputIndexes: 'all' | number[]
+  ): Promise<SignedTx>;
   /**
    * Manual-mode listing publish: opens a "Publish listing for cat X?"
    * popup, awaits the user click. Resolves on confirm, rejects on cancel.
@@ -107,8 +121,13 @@ export interface Cat21RpcDeps {
     expectedSellerPaymentAddress: string;
     network: 'mainnet' | 'testnet';
   }): Cat21OfferValidation;
-  /** Autonomous-mode signer: signs without prompting. */
-  signSilently(psbt: Uint8Array): Promise<SignedTx>;
+  /**
+   * Autonomous-mode signer: signs without prompting.
+   *
+   * Same `inputIndexes` semantics as `signWithConfirmation` — `'all'`
+   * for self-built PSBTs (mint, transfer); `[0]` for accept-offer.
+   */
+  signSilently(psbt: Uint8Array, inputIndexes: 'all' | number[]): Promise<SignedTx>;
   /** Broadcast dispatcher (mempool / Slipstream per weight). */
   broadcast(signedTx: SignedTx): Promise<BroadcastResult>;
   /** Per-account daily-spend tracker (updated on every accepted action). */
@@ -198,8 +217,8 @@ export class Cat21RpcService {
     let signed: SignedTx;
     try {
       signed = mode === 'manual'
-        ? await this.deps.signWithConfirmation(built.psbt, validated)
-        : await this.deps.signSilently(built.psbt);
+        ? await this.deps.signWithConfirmation(built.psbt, validated, 'all')
+        : await this.deps.signSilently(built.psbt, 'all');
     } catch (err) {
       return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
     }
@@ -279,8 +298,8 @@ export class Cat21RpcService {
     let signed: SignedTx;
     try {
       signed = mode === 'manual'
-        ? await this.deps.signWithConfirmation(built.psbt, validated)
-        : await this.deps.signSilently(built.psbt);
+        ? await this.deps.signWithConfirmation(built.psbt, validated, 'all')
+        : await this.deps.signSilently(built.psbt, 'all');
     } catch (err) {
       return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
     }
@@ -396,11 +415,15 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', errorDetail(err));
     }
 
-    // Re-confirm wallet ownership of the cat. This is defence-in-depth on
-    // top of the SDK validator: the validator pins input 0 to
-    // expectedSellerUtxo, but the wallet ALSO confirms the cat with that
-    // catId currently lives at a UTXO the wallet controls. If cat21-ord
-    // disagrees the seller cannot sign anyway.
+    // Re-confirm wallet ownership of the cat. This catches three attacks
+    // the SDK validator (input 0 == expectedSellerUtxo) cannot:
+    //   1. Stale listings — seller transferred the cat between publishing
+    //      the listing and signing acceptance; UTXO is now somewhere else.
+    //   2. Wrong-cat listings — seller named cat #42 in the intent but
+    //      the UTXO at expectedSellerUtxo actually holds cat #7.
+    //   3. cat21-ord disagreeing with the seller's expectation.
+    // The SDK validator pins INBOUND ↔ INTENT; this check pins
+    // INTENT ↔ CHAIN-NOW.
     let catUtxo;
     try {
       catUtxo = this.deps.resolveCatUtxo(validated.expectedCatId);
@@ -433,8 +456,8 @@ export class Cat21RpcService {
     let signed: SignedTx;
     try {
       signed = mode === 'manual'
-        ? await this.deps.signWithConfirmation(validated.psbtBytes, validated)
-        : await this.deps.signSilently(validated.psbtBytes);
+        ? await this.deps.signWithConfirmation(validated.psbtBytes, validated, [0])
+        : await this.deps.signSilently(validated.psbtBytes, [0]);
     } catch (err) {
       return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
     }
@@ -446,7 +469,12 @@ export class Cat21RpcService {
       return denied('broadcast-failed', errorDetail(err));
     }
 
-    this.deps.recordSpend(0);
+    // Record the deal size against the daily cap. The seller doesn't
+    // spend BTC, but the policy daily cap exists to backstop autonomous
+    // agents from accepting an unbounded number of offers per day; using
+    // pricePaidSats as the deal-size proxy lets the cap fire on activity
+    // volume, not just on outflow.
+    this.deps.recordSpend(validation.pricePaidSats);
     return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
 }

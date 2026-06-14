@@ -87,13 +87,31 @@ describe('validateAcceptOffer', () => {
     expect(result).toEqual({ ok: true, pricePaidSats: 100_000, postageSats: 546 });
   });
 
-  it('returns wrong-price ValidationFailure when SDK accepts but pricePaidSats > expected', () => {
-    // The SDK is happy because pricePaidSats >= floor. The wallet rejects because
-    // the intent demanded EXACTLY expectedPriceSats; the buyer overpaid.
-    // (Could be benign, but the wallet's contract is strict equality so any drift
-    // — by-design overpayment, sniped-out shape — surfaces visibly.)
+  it('accepts overpay: SDK ok with pricePaidSats > expectedPriceSats is a tip, not a mismatch', () => {
+    // Overpay is benign — the buyer's SIGHASH_ALL signature commits to
+    // every byte, so the seller's signature can't be diverted; a higher
+    // priceSats output just sends the seller more BTC.
     function delegate(): Cat21OfferValidation {
       return { ok: true, pricePaidSats: 110_000, postageSats: 546 };
+    }
+    const result = validateAcceptOffer(
+      {
+        intent: brandIntent(),
+        psbtBytes: new Uint8Array(),
+        expectedSellerPaymentAddress: 'bc1qfoo',
+        network: 'mainnet',
+      },
+      delegate
+    );
+    expect(result).toEqual({ ok: true, pricePaidSats: 110_000, postageSats: 546 });
+  });
+
+  it('rejects underpay with wrong-price when SDK accepts but pricePaidSats < expected', () => {
+    // Underpay defeats the seller's intent. The SDK may have accepted it
+    // (the wallet passed expectedPriceSats as floorPriceSats so SDK should
+    // also catch this, but defence-in-depth here).
+    function delegate(): Cat21OfferValidation {
+      return { ok: true, pricePaidSats: 90_000, postageSats: 546 };
     }
     const result = validateAcceptOffer(
       {
@@ -107,7 +125,7 @@ describe('validateAcceptOffer', () => {
     expect(result).toEqual({
       ok: false,
       reason: 'wrong-price',
-      detail: 'intent.expectedPriceSats=100000, psbt pays 110000',
+      detail: 'intent.expectedPriceSats=100000, psbt pays 90000',
     });
   });
 

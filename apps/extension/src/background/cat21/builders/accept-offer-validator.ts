@@ -75,7 +75,12 @@ export function validateAcceptOffer(
 
   if (!sdkResult.ok) return sdkResult;
 
-  if (sdkResult.pricePaidSats !== args.intent.expectedPriceSats) {
+  // Underpay is rejected; overpay is accepted. The ord-style PSBT is
+  // sniping-proof by construction (the buyer's SIGHASH_ALL signatures
+  // commit to every byte; see ordpool-sdk/cat21-offer.helper.ts
+  // sniping-proof note). An overpay is just a tip from the buyer the
+  // seller has no honest reason to refuse.
+  if (sdkResult.pricePaidSats < args.intent.expectedPriceSats) {
     return {
       ok: false,
       reason: 'wrong-price',

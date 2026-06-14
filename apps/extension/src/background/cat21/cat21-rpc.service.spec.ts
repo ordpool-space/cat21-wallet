@@ -861,9 +861,11 @@ describe('Cat21RpcService.acceptOffer', () => {
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
-    it('records spend=0 (seller receives BTC, does not spend)', async () => {
+    it('records spend=pricePaidSats (deal-size proxy for daily-cap policy)', async () => {
       await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
-      expect(deps.recordSpend).toHaveBeenCalledWith(0);
+      // SDK delegate returns pricePaidSats=100_000 in the default makeDeps;
+      // matches intent.expectedPriceSats so we land on the ok path.
+      expect(deps.recordSpend).toHaveBeenCalledWith(100_000);
     });
   });
 
@@ -981,10 +983,10 @@ describe('Cat21RpcService.acceptOffer', () => {
       }
     });
 
-    it('returns "inbound-offer-mismatch" with reason=wrong-price when SDK accepts but pricePaid differs from expected', async () => {
+    it('returns "inbound-offer-mismatch" with reason=wrong-price when buyer underpays', async () => {
       deps = makeDeps({
         validateBuyOfferPsbt: vi.fn(
-          (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 110_000, postageSats: 546 })
+          (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 90_000, postageSats: 546 })
         ),
       });
       service = new Cat21RpcService(deps);
@@ -994,6 +996,17 @@ describe('Cat21RpcService.acceptOffer', () => {
         expect(result.value.reason).toBe('inbound-offer-mismatch');
         expect(result.value.detail).toContain('wrong-price');
       }
+    });
+
+    it('ACCEPTS overpay: pricePaidSats > expectedPriceSats is a tip the seller pockets', async () => {
+      deps = makeDeps({
+        validateBuyOfferPsbt: vi.fn(
+          (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 110_000, postageSats: 546 })
+        ),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(true);
     });
   });
 
@@ -1020,6 +1033,24 @@ describe('Cat21RpcService.acceptOffer', () => {
       const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.value.reason).toBe('broadcast-failed');
+    });
+  });
+
+  describe('signer scope (HARD RULE — only input 0)', () => {
+
+    it('passes inputIndexes=[0] to signWithConfirmation in manual mode', async () => {
+      await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      const callArgs = deps.signWithConfirmation.mock.calls[0];
+      expect(callArgs[2]).toEqual([0]);
+    });
+
+    it('passes inputIndexes=[0] to signSilently in autonomous mode', async () => {
+      await service.acceptOffer(
+        makeAcceptOfferIntent({ mode: 'autonomous' }),
+        'mcp-nmh'
+      );
+      const callArgs = deps.signSilently.mock.calls[0];
+      expect(callArgs[1]).toEqual([0]);
     });
   });
 
