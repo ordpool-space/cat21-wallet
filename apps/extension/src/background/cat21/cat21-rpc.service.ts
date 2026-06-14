@@ -19,8 +19,10 @@ import {
   enforceMintInvariants,
 } from './invariants/mint-invariants';
 import { enforceTransferInvariants } from './invariants/transfer-invariants';
+import { enforceCreateOfferInvariants } from './invariants/create-offer-invariants';
 import { buildMintPsbt } from './builders/mint-builder';
 import { TransferUtxo, buildTransferPsbt } from './builders/transfer-builder';
+import { buildListing } from './builders/listing-builder';
 
 /**
  * Funding UTXO shape accepted by every cat21 builder. The wallet's
@@ -85,6 +87,12 @@ export interface Cat21RpcDeps {
   resolveCatUtxo(catId: string): TransferUtxo;
   /** Manual-mode signer: opens the cat21-themed popup, awaits user click. */
   signWithConfirmation(psbt: Uint8Array, intent: Cat21Intent): Promise<SignedTx>;
+  /**
+   * Manual-mode listing publish: opens a "Publish listing for cat X?"
+   * popup, awaits the user click. Resolves on confirm, rejects on cancel.
+   * Autonomous mode skips this callback entirely.
+   */
+  confirmListingPublication(intent: Cat21CreateOfferIntent): Promise<void>;
   /** Autonomous-mode signer: signs without prompting. */
   signSilently(psbt: Uint8Array): Promise<SignedTx>;
   /** Broadcast dispatcher (mempool / Slipstream per weight). */
@@ -281,23 +289,63 @@ export class Cat21RpcService {
    *   1. enforceCreateOfferInvariants(intent, network)
    *   2. resolveSigningMode(...)
    *   3. resolveCatUtxo(catId) — proves wallet owns the cat
-   *   4. buildListing({ intent, sellerUtxo })
-   *   5. signListing? — manual mode shows a confirmation popup so the
-   *      user clicks "Publish listing"; autonomous mode skips. Either
-   *      way no key material is needed since the listing is data, not
-   *      a PSBT. (A future hardening commit may add BIP-322 sign-the-
-   *      listing-JSON; punted to its own iteration.)
+   *   4. confirmListingPublication(intent) — manual mode only
+   *   5. buildListing({ intent, sellerUtxo })
    *   6. Return `{ ok: true, value: { kind: 'listing', listing: { ... } } }`.
    *
-   * Implementation lands in the iteration-6 implementation commit.
+   * No signature, no PSBT, no broadcast. The listing is data the agent
+   * publishes to a marketplace; buyers later construct a buy-offer PSBT
+   * the seller signs+broadcasts via cat21_accept_offer (iter 7).
    */
-  createOffer(
+  async createOffer(
     intent: Cat21CreateOfferIntent,
     transport: Cat21Transport
   ): Promise<Cat21RpcResult> {
-    void intent;
-    void transport;
-    return Promise.reject(new Error('Not implemented — iteration 6 (stubs commit)'));
+    const accountCtx = this.deps.getAccountContext();
+
+    let validated: Validated<Cat21CreateOfferIntent>;
+    try {
+      validated = enforceCreateOfferInvariants(intent, accountCtx.network);
+    } catch (err) {
+      return denied('intent-invariant-violated', errorDetail(err));
+    }
+
+    let mode: 'autonomous' | 'manual';
+    try {
+      mode = resolveSigningMode({
+        intent: validated,
+        transport,
+        agentMode: this.deps.agentMode,
+        evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
+      });
+    } catch (err) {
+      if (err instanceof ModeResolverError) {
+        return denied(modeResolverReasonToRpcReason(err.rejection), err.detail);
+      }
+      return denied('intent-invariant-violated', errorDetail(err));
+    }
+
+    let catUtxo: TransferUtxo;
+    try {
+      catUtxo = this.deps.resolveCatUtxo(validated.catId);
+    } catch (err) {
+      return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
+    }
+
+    if (mode === 'manual') {
+      try {
+        await this.deps.confirmListingPublication(validated);
+      } catch (err) {
+        return denied('broadcast-failed', `listing-cancelled: ${errorDetail(err)}`);
+      }
+    }
+
+    const listing = buildListing({
+      intent: validated,
+      sellerUtxo: { txid: catUtxo.txid, vout: catUtxo.vout },
+    });
+
+    return { ok: true, value: { kind: 'listing', listing } };
   }
 
   acceptOffer(

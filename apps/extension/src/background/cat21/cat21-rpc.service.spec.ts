@@ -71,6 +71,7 @@ interface SpyDeps extends Cat21RpcDeps {
   evaluateAgentPolicy: ReturnType<typeof vi.fn> & Cat21RpcDeps['evaluateAgentPolicy'];
   pickFundingUtxo: ReturnType<typeof vi.fn> & Cat21RpcDeps['pickFundingUtxo'];
   resolveCatUtxo: ReturnType<typeof vi.fn> & Cat21RpcDeps['resolveCatUtxo'];
+  confirmListingPublication: ReturnType<typeof vi.fn> & Cat21RpcDeps['confirmListingPublication'];
   signWithConfirmation: ReturnType<typeof vi.fn> & Cat21RpcDeps['signWithConfirmation'];
   signSilently: ReturnType<typeof vi.fn> & Cat21RpcDeps['signSilently'];
   broadcast: ReturnType<typeof vi.fn> & Cat21RpcDeps['broadcast'];
@@ -86,6 +87,7 @@ function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
     evaluateAgentPolicy: vi.fn(() => ({ allowed: true as const })),
     pickFundingUtxo: vi.fn(() => defaultUtxo()),
     resolveCatUtxo: vi.fn(() => defaultCatUtxo()),
+    confirmListingPublication: vi.fn(() => Promise.resolve()),
     signWithConfirmation: vi.fn(() => Promise.resolve(signedTx)),
     signSilently: vi.fn(() => Promise.resolve(signedTx)),
     broadcast: vi.fn(() => Promise.resolve(broadcastResult)),
@@ -560,12 +562,14 @@ describe('Cat21RpcService.transfer', () => {
   });
 });
 
-describe('Cat21RpcService.createOffer (iteration 6, stubs only)', () => {
+describe('Cat21RpcService.createOffer', () => {
 
+  let deps: SpyDeps;
   let service: Cat21RpcService;
 
   beforeEach(() => {
-    service = new Cat21RpcService(makeDeps());
+    deps = makeDeps();
+    service = new Cat21RpcService(deps);
   });
 
   function makeCreateOfferIntent(
@@ -575,29 +579,214 @@ describe('Cat21RpcService.createOffer (iteration 6, stubs only)', () => {
       catId: VALID_CAT_ID,
       priceSats: 100_000,
       paymentAddress: p2wpkhMainnet.address!,
-      mode: undefined,
       ...overrides,
     };
   }
 
-  it.todo('returns a listing success on the happy path (manual mode, popup)');
-  it.todo('returns a listing success on the happy path (autonomous mode, mcp-nmh)');
-  it.todo('returns "transport-not-trusted-for-autonomous" when autonomous over popup');
-  it.todo('returns "agent-disabled" when autonomous but agent mode off');
-  it.todo('returns "policy-denied" when policy gate denies');
-  it.todo('returns "intent-invariant-violated" on malformed catId');
-  it.todo('returns "intent-invariant-violated" on bad payment address');
-  it.todo('returns "intent-invariant-violated" on price below dust');
-  it.todo('returns "intent-invariant-violated" when wallet does not own the cat');
-  it.todo('runs invariants BEFORE consulting the agent policy');
-  it.todo('does NOT call broadcast (listing never broadcasts)');
-  it.todo('does NOT call signWithConfirmation in autonomous mode');
-  it.todo('passes a Cat21CreateOfferIntent to evaluateAgentPolicy');
-  it.todo('listing.catId, .sellerUtxo, .priceSats, .paymentAddress all populated');
+  describe('happy paths', () => {
 
-  it('rejects with Not-Implemented until iter-6 impl commit lands', async () => {
-    await expect(service.createOffer(makeCreateOfferIntent(), 'popup')).rejects.toThrow(
-      /Not implemented/
+    it('returns a listing success on the happy path (manual mode, popup)', async () => {
+      const result = await service.createOffer(makeCreateOfferIntent(), 'popup');
+      expect(result.ok).toBe(true);
+      if (result.ok && result.value.kind === 'listing') {
+        expect(result.value.listing.catId).toBe(VALID_CAT_ID);
+        expect(result.value.listing.priceSats).toBe(100_000);
+      } else {
+        throw new Error('expected listing success');
+      }
+      expect(deps.confirmListingPublication).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns a listing success on the happy path (autonomous mode, mcp-nmh)', async () => {
+      const result = await service.createOffer(
+        makeCreateOfferIntent({ mode: 'autonomous' }),
+        'mcp-nmh'
+      );
+      expect(result.ok).toBe(true);
+      if (result.ok && result.value.kind === 'listing') {
+        expect(result.value.listing.catId).toBe(VALID_CAT_ID);
+      } else {
+        throw new Error('expected listing success');
+      }
+      // Autonomous mode skips user confirmation.
+      expect(deps.confirmListingPublication).not.toHaveBeenCalled();
+    });
+
+    it('emits all four listing fields (catId, sellerUtxo, priceSats, paymentAddress)', async () => {
+      const result = await service.createOffer(makeCreateOfferIntent(), 'popup');
+      if (result.ok && result.value.kind === 'listing') {
+        expect(result.value.listing).toMatchObject({
+          catId: VALID_CAT_ID,
+          sellerUtxo: expect.objectContaining({ txid: expect.any(String), vout: expect.any(Number) }),
+          priceSats: 100_000,
+          paymentAddress: p2wpkhMainnet.address!,
+        });
+      } else {
+        throw new Error('expected listing success');
+      }
+    });
+  });
+
+  describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
+
+    it('returns "transport-not-trusted-for-autonomous" on popup transport', async () => {
+      const result = await service.createOffer(
+        makeCreateOfferIntent({ mode: 'autonomous' }),
+        'popup'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.reason).toBe('transport-not-trusted-for-autonomous');
+      expect(deps.confirmListingPublication).not.toHaveBeenCalled();
+    });
+
+    it('returns "agent-disabled" when autonomous but agent mode off', async () => {
+      deps = makeDeps({ agentMode: { enabled: false } });
+      service = new Cat21RpcService(deps);
+      const result = await service.createOffer(
+        makeCreateOfferIntent({ mode: 'autonomous' }),
+        'mcp-nmh'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.reason).toBe('agent-disabled');
+    });
+
+    it('returns "policy-denied" with detail when policy gate denies', async () => {
+      deps = makeDeps({
+        evaluateAgentPolicy: vi.fn(() => ({
+          allowed: false as const,
+          reason: 'floor-price-violation',
+          detail: '100000 < 200000',
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.createOffer(
+        makeCreateOfferIntent({ mode: 'autonomous' }),
+        'mcp-nmh'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('policy-denied');
+        expect(result.value.detail).toContain('floor-price-violation');
+      }
+    });
+  });
+
+  describe('intent-invariant violations bubble up as typed denials', () => {
+
+    it('returns "intent-invariant-violated" on malformed catId', async () => {
+      const result = await service.createOffer(
+        makeCreateOfferIntent({ catId: 'not-a-cat-id' }),
+        'popup'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.detail).toContain('cat-id-malformed');
+      }
+    });
+
+    it('returns "intent-invariant-violated" on bad payment address', async () => {
+      const result = await service.createOffer(
+        makeCreateOfferIntent({ paymentAddress: 'not-an-address' }),
+        'popup'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.detail).toContain('payment-address-not-a-bitcoin-address');
+    });
+
+    it('returns "intent-invariant-violated" on price below dust', async () => {
+      const result = await service.createOffer(
+        makeCreateOfferIntent({ priceSats: 100 }),
+        'popup'
+      );
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.detail).toContain('price-below-dust');
+    });
+
+    it('returns "intent-invariant-violated" when wallet does not own the cat', async () => {
+      deps = makeDeps({
+        resolveCatUtxo: vi.fn(() => {
+          throw new Error('cat not owned by active account');
+        }),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.createOffer(makeCreateOfferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.detail).toContain('cat-utxo-resolve-failed');
+    });
+  });
+
+  describe('publish flow', () => {
+
+    it('returns "broadcast-failed" with listing-cancelled detail when user cancels in manual mode', async () => {
+      deps = makeDeps({
+        confirmListingPublication: vi.fn(() => Promise.reject(new Error('user cancelled'))),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.createOffer(makeCreateOfferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('broadcast-failed');
+        expect(result.value.detail).toContain('listing-cancelled');
+      }
+    });
+
+    it('does NOT call broadcast (listings never broadcast)', async () => {
+      await service.createOffer(makeCreateOfferIntent(), 'popup');
+      expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+
+    it('does NOT call signWithConfirmation or signSilently (no signature needed)', async () => {
+      await service.createOffer(makeCreateOfferIntent(), 'popup');
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+      expect(deps.signSilently).not.toHaveBeenCalled();
+    });
+
+    it('does NOT call recordSpend (no satoshis leave the wallet)', async () => {
+      await service.createOffer(makeCreateOfferIntent(), 'popup');
+      expect(deps.recordSpend).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('pipeline ordering', () => {
+
+    it('runs invariants BEFORE consulting the agent policy', async () => {
+      await service.createOffer(makeCreateOfferIntent({ catId: 'bad' }), 'popup');
+      expect(deps.evaluateAgentPolicy).not.toHaveBeenCalled();
+    });
+
+    it('resolves mode BEFORE resolving the cat UTXO', async () => {
+      // Autonomous over popup → mode reject → cat lookup skipped.
+      await service.createOffer(
+        makeCreateOfferIntent({ mode: 'autonomous' }),
+        'popup'
+      );
+      expect(deps.resolveCatUtxo).not.toHaveBeenCalled();
+    });
+
+    it('resolves cat UTXO BEFORE asking for manual confirmation', async () => {
+      deps = makeDeps({
+        resolveCatUtxo: vi.fn(() => {
+          throw new Error('cat lookup failed');
+        }),
+      });
+      service = new Cat21RpcService(deps);
+      await service.createOffer(makeCreateOfferIntent(), 'popup');
+      expect(deps.confirmListingPublication).not.toHaveBeenCalled();
+    });
+  });
+
+  it('passes a Cat21CreateOfferIntent to evaluateAgentPolicy', async () => {
+    await service.createOffer(
+      makeCreateOfferIntent({ mode: 'autonomous', priceSats: 250_000 }),
+      'mcp-nmh'
     );
+    expect(deps.evaluateAgentPolicy).toHaveBeenCalledTimes(1);
+    const passedIntent = deps.evaluateAgentPolicy.mock.calls[0][0] as Cat21Intent;
+    expect(passedIntent).toMatchObject({
+      catId: VALID_CAT_ID,
+      priceSats: 250_000,
+      mode: 'autonomous',
+    });
   });
 });

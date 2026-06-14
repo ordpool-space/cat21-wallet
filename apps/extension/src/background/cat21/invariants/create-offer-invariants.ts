@@ -1,3 +1,5 @@
+import * as btc from '@scure/btc-signer';
+
 import type { Cat21CreateOfferIntent, Validated } from '../types';
 
 /**
@@ -47,13 +49,58 @@ export class CreateOfferInvariantError extends Error {
  * caller's responsibility — happens via cat21-ord lookup in the RPC
  * orchestrator.
  *
- * Implementation lands in the iteration-6 implementation commit.
+ * Order of checks: catId → price → address. Tested order matters; bad
+ * catId is the cheapest to detect and surfaces first.
  */
 export function enforceCreateOfferInvariants(
   intent: Cat21CreateOfferIntent,
   network: 'mainnet' | 'testnet'
 ): Validated<Cat21CreateOfferIntent> {
-  void intent;
-  void network;
-  throw new Error('Not implemented — iteration 6 (stubs commit)');
+  if (typeof intent.catId !== 'string' || !CREATE_OFFER_CAT_ID_PATTERN.test(intent.catId)) {
+    throw new CreateOfferInvariantError('cat-id-malformed', String(intent.catId));
+  }
+
+  if (!Number.isFinite(intent.priceSats) || intent.priceSats < CREATE_OFFER_PRICE_MIN_SATS) {
+    throw new CreateOfferInvariantError(
+      'price-below-dust',
+      `${intent.priceSats} < ${CREATE_OFFER_PRICE_MIN_SATS}`
+    );
+  }
+  if (intent.priceSats > CREATE_OFFER_PRICE_SANITY_CEILING_SATS) {
+    throw new CreateOfferInvariantError(
+      'price-above-sanity-ceiling',
+      `${intent.priceSats} > ${CREATE_OFFER_PRICE_SANITY_CEILING_SATS}`
+    );
+  }
+
+  const addressNetwork = decodeAddressNetwork(intent.paymentAddress);
+  if (addressNetwork === null) {
+    throw new CreateOfferInvariantError(
+      'payment-address-not-a-bitcoin-address',
+      intent.paymentAddress
+    );
+  }
+  if (addressNetwork !== network) {
+    throw new CreateOfferInvariantError(
+      'payment-address-wrong-network',
+      `expected ${network}, got ${addressNetwork}`
+    );
+  }
+
+  return intent as Validated<Cat21CreateOfferIntent>;
+}
+
+function decodeAddressNetwork(address: string): 'mainnet' | 'testnet' | null {
+  if (typeof address !== 'string' || address.length === 0) return null;
+  try {
+    btc.Address(btc.NETWORK).decode(address);
+    return 'mainnet';
+  } catch {
+    try {
+      btc.Address(btc.TEST_NETWORK).decode(address);
+      return 'testnet';
+    } catch {
+      return null;
+    }
+  }
 }

@@ -27,12 +27,14 @@ export interface BuildListingArgs {
  * ownership via cat21-ord lookup before calling this builder; the
  * builder's only job is to assemble the `Cat21RpcListingSuccess.listing`
  * payload from the validated intent + resolved seller UTXO.
- *
- * Implementation lands in the iteration-6 implementation commit.
  */
 export function buildListing(
   args: BuildListingArgs
 ): Cat21RpcListingSuccess['listing'] {
-  void args;
-  throw new Error('Not implemented — iteration 6 (stubs commit)');
+  return {
+    catId: args.intent.catId,
+    sellerUtxo: { txid: args.sellerUtxo.txid, vout: args.sellerUtxo.vout },
+    priceSats: args.intent.priceSats,
+    paymentAddress: args.intent.paymentAddress,
+  };
 }
