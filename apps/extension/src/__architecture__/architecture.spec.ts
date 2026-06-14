@@ -200,6 +200,36 @@ describe('HARD RULE #1 (extended) — mint-builder pins lockTime=21 + sequence 0
   });
 });
 
+describe('HARD RULE #1 (transfer-builder) — transfers must NOT carry lockTime=21', () => {
+
+  it('transfer-builder constructs Transaction without a lockTime field', () => {
+    // Setting lockTime=21 on a transfer would forge a "fake mint" marker
+    // on a non-mint tx, polluting cat21-ord's index. The transfer builder
+    // therefore omits the lockTime option, letting btc.Transaction default
+    // to 0. This regex matches `new btc.Transaction({` followed by anything
+    // up to the closing `})` and asserts `lockTime:` is NOT in that block.
+    const src = read(
+      join(
+        EXTENSION_ROOT,
+        'src/background/cat21/builders/transfer-builder.ts'
+      )
+    );
+    const constructorBlock = src.match(/new btc\.Transaction\(\s*\{[^}]*\}/);
+    expect(constructorBlock).not.toBeNull();
+    expect(constructorBlock![0]).not.toMatch(/lockTime/);
+  });
+
+  it('transfer-builder source does NOT reference CAT21_LOCK_TIME', () => {
+    const src = read(
+      join(
+        EXTENSION_ROOT,
+        'src/background/cat21/builders/transfer-builder.ts'
+      )
+    );
+    expect(src).not.toMatch(/CAT21_LOCK_TIME/);
+  });
+});
+
 describe('HARD RULE #2 — cat-bearing UTXOs are never picked by BTC coin selection', () => {
 
   it('utxos.service folds the protected bucket into unspendable downstream', () => {
