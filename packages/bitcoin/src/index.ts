@@ -27,12 +27,9 @@ export * from './psbt/utils';
 export * from './signer/bitcoin-payer';
 
 export * from './transactions/generate-unsigned-transaction';
-/* HACK -- Cat21: CAT-21 mint PSBT builder per Phase 3.2 safety. */
-export * from './transactions/generate-cat21-mint-transaction';
-/* HACK -- Cat21: ord-style buyer-initiated offer PSBT per Phase 4.1. */
-export * from './transactions/generate-cat21-buy-offer-psbt';
-/* HACK -- Cat21: seller-side offer validation per Phase 4.2. */
-export * from './transactions/validate-cat21-buy-offer';
+/* HACK -- Cat21: CAT-21 mint + offer builders + validator moved to
+ * ordpool-sdk per CLAUDE.md scope cut (2026-06-14). The wallet signs
+ * what the SDK delivers; it does not build cat-shaped PSBTs. */
 
 export * from './validation/address-validation';
 export * from './validation/amount-validation';

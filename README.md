@@ -31,16 +31,25 @@ See `CLAUDE.md` for the upstream Leather developer guide; the workflow conventio
 
 ## Components and where they live
 
-| Component | Path | Phase |
+| Component | Path | What it does |
 |---|---|---|
-| Cat-bearing UTXO protection | `packages/services/src/utxos/utxos.service.ts` + `infrastructure/api/cat21-ord/` | 3.0 |
-| CAT-21 mint PSBT builder | `packages/bitcoin/src/transactions/generate-cat21-mint-transaction.ts` | 3.2 |
-| Mint broadcast dispatcher (mempool + Slipstream) | `packages/services/src/mint/cat21-broadcast.service.ts` | 3.3 |
-| Buy-offer PSBT builder (ord-style) | `packages/bitcoin/src/transactions/generate-cat21-buy-offer-psbt.ts` | 4.1 |
-| Offer validator (seller side) | `packages/bitcoin/src/transactions/validate-cat21-buy-offer.ts` | 4.2 |
-| Agent-mode policy gate | `packages/services/src/agent-mode/agent-policy.service.ts` | 5 |
-| MCP host (NMH bridge) | `tools/src/mcp-host/` | 6 |
-| Mint + offer UI scaffolds | `apps/extension/src/app/pages/cat21-mint/`, `cat21-offer/` | 3.1 + 4 |
+| Cat asset display | `packages/services/src/collectibles/cat21-asset.service.ts` | Pulls cats held by the active account from cat21-ord, surfaces them in the collectibles UI |
+| cat21-ord client | `packages/services/src/infrastructure/api/cat21-ord/` | Zod-validated HTTP client for /cat, /address, /output, /status |
+| Cat-bearing UTXO protection | `packages/services/src/utxos/utxos.service.ts` | Per-output cat21-ord probe routes cat-holding UTXOs into the `protected` bucket so the BTC send flow cannot pick them |
+| nLockTime preservation through RBF | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` | When the user replaces a tx via increase-fee, the original locktime is copied verbatim; hard assert refuses to sign if it diverges |
+| Polite window providers | `packages/provider/src/index.ts` + `add-leather-to-providers.ts` | `window.Cat21Provider` always; `window.LeatherProvider` only when real Leather is not installed |
+| MCP host (NMH bridge) | `tools/src/mcp-host/` | Read-only tool surface (list_cats, wallet_status, cat21_ord_status) over Chrome NMH |
+
+Code that used to live here and moved to `ordpool-sdk` per the
+2026-06-14 scope cut:
+
+| What | Now in |
+|---|---|
+| Cat21 mint PSBT builder | ordpool-sdk |
+| Buy-offer / sell-accept PSBT builders | ordpool-sdk |
+| Offer validator | ordpool-sdk |
+| Agent-mode policy gate | ordpool-sdk |
+| Broadcast dispatcher (mempool / Slipstream) | ordpool-sdk |
 
 ## License
 

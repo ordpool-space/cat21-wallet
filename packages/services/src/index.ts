@@ -13,10 +13,8 @@ export * from './collectibles/cat21-asset.service';
 export * from './infrastructure/api/cat21-ord/cat21-ord-api.client';
 export * from './infrastructure/api/cat21-ord/cat21-ord-api.schema';
 export * from './infrastructure/api/cat21-ord/cat21-ord-api.utils';
-export * from './infrastructure/api/slipstream/slipstream-api.client';
-export * from './mint/cat21-broadcast.service';
-export * from './agent-mode/agent-policy.types';
-export * from './agent-mode/agent-policy.service';
+/* HACK -- Cat21: Slipstream, broadcast dispatcher, and agent-mode policy
+ * moved to ordpool-sdk per CLAUDE.md scope cut (2026-06-14). */
 export * from './coin-selection/bitcoin-coin-selection.service';
 export * from './fees/bitcoin-transaction-fees.service';
 export * from './fees/stacks-transaction-fees.service';

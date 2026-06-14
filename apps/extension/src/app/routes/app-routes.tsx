@@ -24,9 +24,6 @@ import { HomeHeader } from '@app/features/container/headers/home.header';
  * import { UnsupportedBrowserLayout } from '@app/features/ledger/generic-steps';
  * import { ConnectLedgerStart } from '@app/features/ledger/generic-steps/connect-device/connect-ledger-start';
  */
-/* HACK -- Cat21: CAT-21 mint + offer pages per Phase 3.1 + Phase 4. */
-import { Cat21MintPage } from '@app/pages/cat21-mint/cat21-mint';
-import { Cat21OfferPage } from '@app/pages/cat21-offer/cat21-offer';
 import { IncreaseBtcFeeSheet } from '@app/features/dialogs/transaction-action-dialog/increase-btc-fee-dialog';
 import { RouterErrorBoundary } from '@app/features/errors/app-error-boundary';
 import { useFlags } from '@app/features/feature-flags';
@@ -257,23 +254,6 @@ function useAppRoutes() {
             }
           />
 
-          {/* HACK -- Cat21: mint + offer routes per Phase 3.1 + Phase 4. */}
-          <Route
-            path={RouteUrls.Cat21Mint}
-            element={
-              <AccountGate>
-                <Cat21MintPage />
-              </AccountGate>
-            }
-          />
-          <Route
-            path={RouteUrls.Cat21Offer}
-            element={
-              <AccountGate>
-                <Cat21OfferPage />
-              </AccountGate>
-            }
-          />
 
           <Route
             path={RouteUrls.ManageTokens}

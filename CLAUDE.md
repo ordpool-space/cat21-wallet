@@ -133,23 +133,70 @@ The local repo already has user.name + user.email set; verify with
 
 ---
 
-## What this repo is
+## What this repo is — scope
 
-A Bitcoin-L1-only browser-extension wallet for active CAT-21 cat
-trading. Fork of [Leather](https://github.com/leather-io/mono), hidden
-down to BTC + cats only, with three features Leather does not have:
+Bitcoin-L1-only browser-extension wallet that does **exactly two things**:
 
-1. **ord-style buyer-initiated offers** (sniping-proof; SIGHASH_ALL
-   everywhere).
-2. **CAT-21 mint flow** with hard nLockTime=21 + RBF-signaling sequence
-   asserts.
-3. **MCP server via Chrome Native Messaging Host** for agent-mode
-   trading under user-configured policy.
+**(a) Display cats and respect nLockTime=21.**
 
-Plan and ADRs (1–14) live at the workspace level in
-`/Users/johanneshoppe/Work/ordpool/CAT21-WALLET-FORK-PLAN.md`. The
-audit walks the safety invariants in `SECURITY-REVIEW.md` here in the
-repo.
+  Read cat-bearing UTXOs from cat21-ord. Surface cats in the asset list.
+  Refuse to spend cat-bearing UTXOs from the BTC send flow (UTXO
+  protection). Preserve `nLockTime` through any tx we sign — most
+  notably, through RBF replacement via Leather's increase-fee flow
+  (HARD RULE #1).
+
+**(b) Offer an MCP server.**
+
+  A Chrome Native Messaging Host (`tools/src/mcp-host/`) exposes a
+  read-only tool surface (`list_cats`, `wallet_status`,
+  `cat21_ord_status`) to local MCP clients like Claude Desktop or
+  Cursor. Mutating actions go through the existing `signPsbt` RPC; the
+  SDK is responsible for building the PSBT and asking the wallet to
+  sign it.
+
+**That is the complete scope. Nothing more, nothing less.**
+
+Everything else lives in `ordpool-sdk`:
+
+- Mint PSBT construction (cat21-shaped, nLockTime=21).
+- Buy-offer / sell-accept PSBT construction (ord-style, SIGHASH_ALL).
+- Offer validation before signing.
+- Broadcast orchestration (mempool / Slipstream dispatcher).
+- Agent-mode policy gating (per-action caps, daily cap, floor price,
+  counterparty allowlist).
+- Marathon Slipstream fallback for oversize/non-standard txs.
+
+This split keeps the wallet small, auditable, and reviewable. Adding
+flows to the wallet that ordpool-sdk could host instead is **rejected
+on sight** — the wallet's surface is its security boundary, and every
+line we add here is one we have to defend forever.
+
+### What the wallet must therefore NOT contain
+
+- No in-extension mint UI (`/cat21-mint` etc.). Mint UI lives on
+  `cat21.space` / `ordpool.space` and reaches the wallet via
+  `window.Cat21Provider.request('signPsbt', ...)`.
+- No in-extension offer-construction UI. Offer UX lives on the SDK
+  side.
+- No bundled PSBT builders for mint or offer. The SDK builds; the
+  wallet signs.
+- No agent-mode policy gate inside the wallet. The SDK gates; the
+  wallet signs what the SDK delivers.
+
+### Why this split
+
+- Smaller wallet = smaller attack surface = faster security review.
+- The SDK can be iterated independently; the wallet ships less often.
+- ordpool-sdk already absorbs every other Bitcoin-data utility we own
+  (parsers, signing helpers, marketplace adapters). Putting the cat
+  flows there too is the architecturally honest move.
+
+Plan and ADRs (1–14) for the broader ecosystem live at
+`/Users/johanneshoppe/Work/ordpool/CAT21-WALLET-FORK-PLAN.md` and
+should be read as historical context; some ADRs (notably the in-wallet
+mint/offer flows) were superseded by this scope cut on 2026-06-14.
+`SECURITY-REVIEW.md` here in the repo walks the invariants that DO
+apply to the wallet under the new scope.
 
 ---
 

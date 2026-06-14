@@ -17,16 +17,7 @@ export type BitcoinErrorKey =
   | 'InsufficientAmount'
   | 'NoInputsToSign'
   | 'NoOutputsToSign'
-  | 'InscribedUtxos'
-  /* HACK -- Cat21: mint-guarantee errors per Phase 3.2 safety. These fire if a
-   * future refactor breaks the nLockTime=21 or no-RBF sequence invariants. */
-  | 'Cat21MintLockTimeBroken'
-  | 'Cat21MintInputSequenceBroken'
-  /* HACK -- Cat21: buy-offer SIGHASH_ALL guarantee broken (Phase 4.1). Sniping
-   * resistance requires every input to use SIGHASH_ALL. */
-  | 'Cat21OfferSighashBroken'
-  /* HACK -- Cat21: sell-side offer validation failures (Phase 4.2). */
-  | 'Cat21OfferMissingSellerInput'
-  | 'Cat21OfferWrongPostage'
-  | 'Cat21OfferWrongPrice'
-  | 'Cat21OfferBuyerInputUnsigned';
+  | 'InscribedUtxos';
+/* HACK -- Cat21: cat-specific error keys lived here for the mint/offer
+ * builders (Cat21Mint*, Cat21Offer*). Builders moved to ordpool-sdk per
+ * CLAUDE.md scope cut (2026-06-14); errors moved with them. */
