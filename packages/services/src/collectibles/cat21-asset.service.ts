@@ -1,18 +1,18 @@
 import { injectable } from 'inversify';
 
-import type { InscriptionAsset } from '@leather.io/models';
+import type { Cat21Asset } from '@leather.io/models';
 
 import { Cat21OrdApiClient } from '../infrastructure/api/cat21-ord/cat21-ord-api.client';
 import { AccountRequest } from '../types';
-import { mapOrdInscriptionToInscriptionAsset } from './collectibles.utils';
+import { mapOrdCat21ToCat21Asset } from './collectibles.utils';
 
 /**
  * Returns the cats held by the addresses bound to the given account.
  *
  * Per ADR-9, cat21-ord is the sole authority for cat data. This service walks
  * the account's zero-index payer addresses (native segwit + taproot) and asks
- * cat21-ord for the inscriptions at each, then fetches per-inscription metadata
- * to build the `InscriptionAsset` shape the existing collectibles UI renders.
+ * cat21-ord for the cats at each, then fetches per-cat metadata to build the
+ * `Cat21Asset` shape the collectibles UI renders.
  *
  * The walk is intentionally limited to the zero-index payer addresses for now;
  * full descriptor expansion (gap-limited xpub walk) is a later phase. Cat21 is
@@ -20,13 +20,13 @@ import { mapOrdInscriptionToInscriptionAsset } from './collectibles.utils';
  * concern, not a fast-path UI concern.
  */
 @injectable()
-export class InscriptionsService {
+export class Cat21AssetService {
   constructor(private readonly cat21OrdClient: Cat21OrdApiClient) {}
 
-  public async getAccountInscriptions(
+  public async getAccountCat21Assets(
     request: AccountRequest,
     signal?: AbortSignal
-  ): Promise<InscriptionAsset[]> {
+  ): Promise<Cat21Asset[]> {
     if (!request.account.bitcoin) return [];
 
     const addresses = this.collectAddresses(request);
@@ -35,26 +35,26 @@ export class InscriptionsService {
     try {
       const results = await Promise.all(
         addresses.map(address =>
-          this.cat21OrdClient.fetchAddressInscriptions(address, { signal }).then(
-            res => ({ address, inscriptions: res.inscriptions }),
-            () => ({ address, inscriptions: [] as string[] })
+          this.cat21OrdClient.fetchAddressCat21s(address, { signal }).then(
+            res => ({ address, catIds: res.inscriptions }),
+            () => ({ address, catIds: [] as string[] })
           )
         )
       );
 
-      const inscriptionIds = results.flatMap(r => r.inscriptions);
-      if (inscriptionIds.length === 0) return [];
+      const catIds = results.flatMap(r => r.catIds);
+      if (catIds.length === 0) return [];
 
-      const inscriptionDetails = await Promise.all(
-        inscriptionIds.map(id =>
-          this.cat21OrdClient.fetchInscription(id, { signal }).then(
-            inscription => mapOrdInscriptionToInscriptionAsset(inscription),
+      const catDetails = await Promise.all(
+        catIds.map(id =>
+          this.cat21OrdClient.fetchCat21(id, { signal }).then(
+            cat => mapOrdCat21ToCat21Asset(cat),
             () => undefined
           )
         )
       );
 
-      return inscriptionDetails.filter((asset): asset is InscriptionAsset => Boolean(asset));
+      return catDetails.filter((asset): asset is Cat21Asset => Boolean(asset));
     } catch {
       return [];
     }

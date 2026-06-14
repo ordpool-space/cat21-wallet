@@ -5,12 +5,17 @@ import { z } from 'zod';
  * schemas mirror the JSON shapes documented in CAT21-WALLET-FORK-PLAN.md ADR-12.
  *
  * Every schema uses `.passthrough()` so future ord field additions never break
- * the parse — only the fields we name explicitly are guaranteed shape-checked. */
+ * the parse — only the fields we name explicitly are guaranteed shape-checked.
+ *
+ * Wire-format JSON field names that ord controls (e.g. `inscriptions: [...]`
+ * on the address + output endpoints) are kept verbatim. The TypeScript types
+ * surfaced from these schemas use cat-flavoured names. */
 
 /**
- * `GET /inscription/<id>` — per-cat metadata.
+ * `GET /inscription/<id>` — per-cat metadata. The URL component `inscription`
+ * is ord's path name and we do not rename ord's URL space.
  */
-export const ordInscriptionSchema = z
+export const ordCat21Schema = z
   .object({
     id: z.string(),
     number: z.number(),
@@ -25,22 +30,26 @@ export const ordInscriptionSchema = z
   })
   .passthrough();
 
-export type OrdInscription = z.infer<typeof ordInscriptionSchema>;
+export type OrdCat21 = z.infer<typeof ordCat21Schema>;
 
 /**
- * `GET /address/<addr>` — list of inscription IDs at a bitcoin address.
+ * `GET /address/<addr>` — list of cat IDs at a bitcoin address. The wire-level
+ * field name `inscriptions` is ord's JSON output; the parsed type uses
+ * `inscriptions` to keep the parser straightforward and the schema's
+ * `.passthrough()` honest.
  */
-export const ordAddressInscriptionsSchema = z
+export const ordAddressCat21sSchema = z
   .object({
     inscriptions: z.array(z.string()),
   })
   .passthrough();
 
-export type OrdAddressInscriptions = z.infer<typeof ordAddressInscriptionsSchema>;
+export type OrdAddressCat21s = z.infer<typeof ordAddressCat21sSchema>;
 
 /**
  * `GET /output/<outpoint>` — UTXO classification. Cat-bearing outputs list the
- * inscription IDs they carry; non-cat outputs list an empty array.
+ * cat IDs they carry; non-cat outputs list an empty array. Wire-level field
+ * name `inscriptions` is ord's choice.
  */
 export const ordOutputSchema = z
   .object({

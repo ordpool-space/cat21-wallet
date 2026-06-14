@@ -1,17 +1,17 @@
 import { ORD_IO_URL } from '@leather.io/constants';
 import {
+  Cat21Asset,
+  Cat21MimeType,
   CryptoAssetCategories,
   CryptoAssetChains,
   CryptoAssetProtocols,
-  InscriptionAsset,
-  InscriptionMimeType,
 } from '@leather.io/models';
 
 import { dateToUnixTimestamp } from '../time';
 
-export function whenInscriptionMimeType<T>(
+export function whenCat21MimeType<T>(
   mimeType: string,
-  branches: { [k in InscriptionMimeType]?: () => T }
+  branches: { [k in Cat21MimeType]?: () => T }
 ) {
   if (mimeType.startsWith('audio/') && branches.audio) {
     return branches.audio();
@@ -36,10 +36,10 @@ export function whenInscriptionMimeType<T>(
   }
   if (branches.other) return branches.other();
 
-  throw new Error('Unhandled inscription type');
+  throw new Error('Unhandled cat21 content type');
 }
 
-export interface CreateInscriptionData {
+export interface CreateCat21Data {
   readonly id: string;
   readonly number: number;
   readonly contentSrc: string;
@@ -53,19 +53,23 @@ export interface CreateInscriptionData {
   readonly thumbnailSrc?: string;
 }
 
-export function createInscriptionAsset(data: CreateInscriptionData): InscriptionAsset {
+export function createCat21Asset(data: CreateCat21Data): Cat21Asset {
+  /* ordinals.com serves the bytes for any inscription id, including cat-bearing
+   * ones, behind /preview and /content. These URLs are kept here for rendering;
+   * ord's `inscription` URL component is its on-the-wire path name (we do not
+   * rename ord's URL space). */
   const ordinalPreviewSrc = `https://ordinals.com/preview/${data.id}`;
   const ordIoSrc = `${ORD_IO_URL}/content/${data.id}`;
   const thumbnailSrc = data.thumbnailSrc ?? ordinalPreviewSrc;
   const primarySrc = data.contentSrc || ordinalPreviewSrc;
   const preview = `https://ordinals.hiro.so/inscription/${data.id}`;
-  const title = `Inscription ${data.number}`;
+  const title = `Cat #${data.number}`;
   const [txid, output, offset] = data.satPoint.split(':');
 
   const sharedInfo = {
     chain: CryptoAssetChains.bitcoin,
     category: CryptoAssetCategories.nft,
-    protocol: CryptoAssetProtocols.inscription,
+    protocol: CryptoAssetProtocols.cat21,
     id: data.id,
     number: data.number,
     output,
@@ -89,54 +93,54 @@ export function createInscriptionAsset(data: CreateInscriptionData): Inscription
     };
   }
 
-  return whenInscriptionMimeType<InscriptionAsset>(data.mimeType, {
+  return whenCat21MimeType<Cat21Asset>(data.mimeType, {
     audio: () => ({
       ...sharedInfo,
       mimeType: 'audio',
-      name: 'inscription',
+      name: 'cat21',
       src: primarySrc,
     }),
     gltf: () => ({
       ...sharedInfo,
       mimeType: 'gltf',
-      name: 'inscription',
+      name: 'cat21',
       src: primarySrc,
     }),
     html: () => ({
       ...sharedInfo,
       mimeType: 'html',
-      name: 'inscription',
+      name: 'cat21',
       src: primarySrc,
     }),
     image: () => ({
       ...sharedInfo,
       mimeType: 'image',
-      name: 'inscription',
+      name: 'cat21',
       thumbnailSrc: ordIoSrc,
       src: primarySrc,
     }),
     svg: () => ({
       ...sharedInfo,
       mimeType: 'svg',
-      name: 'inscription',
+      name: 'cat21',
       src: primarySrc,
     }),
     text: () => ({
       ...sharedInfo,
       mimeType: 'text',
-      name: 'inscription',
+      name: 'cat21',
       src: data.contentSrc,
     }),
     video: () => ({
       ...sharedInfo,
       mimeType: 'video',
-      name: 'inscription',
+      name: 'cat21',
       src: primarySrc,
     }),
     other: () => ({
       ...sharedInfo,
       mimeType: 'other',
-      name: 'inscription',
+      name: 'cat21',
       src: data.contentSrc ?? '',
     }),
   });

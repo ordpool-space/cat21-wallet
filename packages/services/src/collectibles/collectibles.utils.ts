@@ -1,35 +1,32 @@
-import type { InscriptionAsset } from '@leather.io/models';
-import { createInscriptionAsset } from '@leather.io/utils';
+import type { Cat21Asset } from '@leather.io/models';
+import { createCat21Asset } from '@leather.io/utils';
 
-import type { OrdInscription } from '../infrastructure/api/cat21-ord/cat21-ord-api.client';
+import type { OrdCat21 } from '../infrastructure/api/cat21-ord/cat21-ord-api.client';
 
 export function sortByBlockHeight(a: { blockHeight: number }, b: { blockHeight: number }) {
   return b.blockHeight - a.blockHeight;
 }
 
-/* HACK -- Cat21: ord-shape → InscriptionAsset translator per ADR-12. Replaces
- * the BIS-shape mapper (`mapBisInscriptionToCreateInscriptionData`) that was
- * removed in #2358. cat21-ord's response field names differ from BIS's; the
- * mapping is otherwise structurally identical. */
-export function mapOrdInscriptionToInscriptionAsset(
-  inscription: OrdInscription
-): InscriptionAsset {
-  return createInscriptionAsset({
-    id: inscription.id,
-    number: inscription.number,
+/* HACK -- Cat21: ord-shape → Cat21Asset translator per ADR-12. cat21-ord's
+ * on-the-wire field names (snake_case `content_type`, `genesis_height`) map
+ * into the camelCase Cat21Asset shape the collectibles UI consumes. */
+export function mapOrdCat21ToCat21Asset(cat: OrdCat21): Cat21Asset {
+  return createCat21Asset({
+    id: cat.id,
+    number: cat.number,
     contentSrc: '',
-    mimeType: inscription.content_type,
-    ownerAddress: inscription.address ?? '',
-    satPoint: inscription.satpoint,
+    mimeType: cat.content_type,
+    ownerAddress: cat.address ?? '',
+    satPoint: cat.satpoint,
     genesisBlockHash: '',
-    genesisTimestamp: inscription.timestamp,
-    genesisBlockHeight: inscription.genesis_height,
+    genesisTimestamp: cat.timestamp,
+    genesisBlockHeight: cat.genesis_height,
     outputValue: '0',
   });
 }
 
 /* HACK -- Cat21: block-height sort per ADR-12, ord field name. */
-export function sortOrdInscriptionByBlockHeight(a: OrdInscription, b: OrdInscription) {
+export function sortOrdCat21ByBlockHeight(a: OrdCat21, b: OrdCat21) {
   return b.genesis_height - a.genesis_height;
 }
 

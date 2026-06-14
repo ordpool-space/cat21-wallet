@@ -11,21 +11,19 @@ export interface CollectibleView {
   isBns?: boolean;
 }
 
-/* HACK -- Cat21: branched form restored per ADR-12 (was a single-branch sip9
- * lookup after #2358). 'inscription' is how cat21-ord cats surface; subtitle
- * "Ordinal inscription" is intentionally generic so the existing collectibles
- * grid renders them without a cat-specific UI path. Cat-flavored title/subtitle
- * (e.g. "Cat #21" + rarity band) belongs to a later cat-specific phase. */
+/* HACK -- Cat21: branched form per ADR-12. The cat protocol branch renders
+ * cats with a "Cat #N" title and a "CAT-21" subtitle so the existing
+ * collectibles grid surfaces them without a cat-specific UI path. */
 export function createCollectibleView(asset: NonFungibleCryptoAsset): CollectibleView {
   const key = serializeAssetId(getAssetId(asset));
 
   switch (asset.protocol) {
-    case 'inscription':
+    case 'cat21':
       return {
         key,
         protocol: asset.protocol,
-        title: `# ${asset.number}`,
-        subtitle: 'Ordinal inscription',
+        title: `Cat #${asset.number}`,
+        subtitle: 'CAT-21',
         asset,
       };
     case 'sip9': {

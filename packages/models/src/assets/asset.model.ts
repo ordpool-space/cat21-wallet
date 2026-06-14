@@ -1,4 +1,4 @@
-import { InscriptionMimeType } from '../inscription-mime-type.model';
+import { Cat21MimeType } from '../cat21-mime-type.model';
 import { Sip9Asset } from './sip9-asset.model';
 
 export const CryptoAssetChains = {
@@ -16,10 +16,10 @@ export const FungibleCryptoAssetProtocols = {
 } as const;
 export const NonFungibleCryptoAssetProtocols = {
   sip9: 'sip9',
-  /* HACK -- Cat21: 'inscription' protocol re-added per ADR-12. Cat21 cats present
-   * to the asset list as inscription-shaped assets so the existing collectibles UI
-   * surface can render them without a new code path. */
-  inscription: 'inscription',
+  /* HACK -- Cat21: 'cat21' protocol per ADR-12. Cats surface as a dedicated
+   * non-fungible protocol so the existing collectibles UI can render them
+   * without a separate code path. */
+  cat21: 'cat21',
 } as const;
 export const CryptoAssetProtocols = {
   ...FungibleCryptoAssetProtocols,
@@ -77,15 +77,14 @@ export interface BaseNonFungibleCryptoAsset extends BaseCryptoAsset {
   readonly protocol: NonFungibleCryptoAssetProtocol;
 }
 
-/* HACK -- Cat21: InscriptionAsset re-added per ADR-12 (restored from
- * leather-io/mono@a6460b4d, parent of #2358). cat21-ord serves cats as
- * inscription-shaped records; surfacing them via this type lets the existing
- * collectibles pipeline render them with minimal divergence from upstream. */
-export interface InscriptionAsset extends BaseNonFungibleCryptoAsset {
+/* HACK -- Cat21: Cat21Asset per ADR-12. cat21-ord serves cats as
+ * inscription-shaped records on the wire; the parsed type surfaced to the
+ * collectibles pipeline carries cat-flavoured field names. */
+export interface Cat21Asset extends BaseNonFungibleCryptoAsset {
   readonly chain: 'bitcoin';
-  readonly protocol: 'inscription';
+  readonly protocol: 'cat21';
   readonly id: string;
-  readonly mimeType: InscriptionMimeType;
+  readonly mimeType: Cat21MimeType;
   readonly number: number;
   readonly address: string;
   readonly title: string;
@@ -101,7 +100,7 @@ export interface InscriptionAsset extends BaseNonFungibleCryptoAsset {
   readonly genesisBlockHeight: number;
 }
 
-export type NonFungibleCryptoAsset = Sip9Asset | InscriptionAsset;
+export type NonFungibleCryptoAsset = Sip9Asset | Cat21Asset;
 
 export type CryptoAsset = FungibleCryptoAsset | NonFungibleCryptoAsset;
 

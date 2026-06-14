@@ -11,11 +11,11 @@ import { Sip10BalancesService } from './balances/sip10-balances.service';
 import { StxBalancesService } from './balances/stx-balances.service';
 import { BnsService } from './bns/bns.service';
 import { BitcoinCoinSelectionService } from './coin-selection/bitcoin-coin-selection.service';
+import { Cat21AssetService } from './collectibles/cat21-asset.service';
 import { CollectiblesService } from './collectibles/collectibles.service';
-/* HACK -- Cat21: InscriptionsService + Cat21OrdApiClient re-registered per
+/* HACK -- Cat21: Cat21AssetService + Cat21OrdApiClient re-registered per
  * ADR-12. autobind picks them up automatically, but the accessor functions
  * below give the consumer side a stable lookup name. */
-import { InscriptionsService } from './collectibles/inscriptions.service';
 import { Sip9sService } from './collectibles/sip9s.service';
 import { Cat21OrdApiClient } from './infrastructure/api/cat21-ord/cat21-ord-api.client';
 import { SlipstreamApiClient } from './infrastructure/api/slipstream/slipstream-api.client';
@@ -195,8 +195,8 @@ export function getSignInService() {
   return getServicesContainer().get(SignInService);
 }
 /* HACK -- Cat21: cat-asset surface accessors per ADR-12. */
-export function getInscriptionsService() {
-  return getServicesContainer().get(InscriptionsService);
+export function getCat21AssetService() {
+  return getServicesContainer().get(Cat21AssetService);
 }
 export function getCat21OrdApiClient() {
   return getServicesContainer().get(Cat21OrdApiClient);

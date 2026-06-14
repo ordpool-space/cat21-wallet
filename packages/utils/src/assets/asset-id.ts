@@ -40,11 +40,11 @@ export function getAssetId(asset: CryptoAsset): CryptoAssetId {
       };
     case 'sip9':
       return createSip9AssetId(asset);
-    /* HACK -- Cat21: 'inscription' branch re-added per ADR-12 (restored from
-     * leather-io/mono@a6460b4d). Wire format unchanged from upstream. */
-    case 'inscription':
+    /* HACK -- Cat21: cat protocol branch per ADR-12. Id is the underlying
+     * inscription id (ord wire format) which uniquely keys the cat. */
+    case 'cat21':
       return {
-        protocol: 'inscription',
+        protocol: 'cat21',
         id: asset.id,
       };
     default:
