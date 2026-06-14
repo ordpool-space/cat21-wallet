@@ -96,7 +96,40 @@ const manifest = {
       description: 'Opens Cat21 Wallet',
     },
   },
-  host_permissions: ['*://*/*'],
+  /* HACK -- Cat21: narrowed host_permissions per SECURITY-REVIEW.md Phase 8.
+   * Each pattern is justified below. Anything we missed manifests as a
+   * blocked fetch in DevTools - easier to discover than an undetected
+   * outbound call. Leather upstream uses an open host pattern because it
+   * talks to a broad set of Stacks + Bitcoin + DEX hosts; we cut the
+   * surface to the Cat21-essential hosts plus the Leather plumbing that
+   * still runs in the background (market data, fee rates). */
+  host_permissions: [
+    // Cat-data backbone (our infrastructure).
+    'https://ord.cat21.space/*',
+    'https://*.ordpool.space/*',
+    // ord proxy + content (cat content bytes; recursive inscriptions).
+    'https://ord.io/*',
+    'https://ordinals.com/*',
+    'https://ordinals.hiro.so/*',
+    // Bitcoin mempool + broadcast.
+    'https://mempool.space/*',
+    'https://*.mempool.space/*',
+    'https://blockstream.info/*',
+    // Slipstream direct-to-miner fallback per ADR-6.
+    'https://slipstream.mara.com/*',
+    // Leather upstream plumbing still firing in the background:
+    //   - api.leather.io: market data, fee rates, native-token price list
+    //   - api.hiro.so: Bitcoin tx + fee endpoints reused from Stacks path
+    'https://api.leather.io/*',
+    'https://api.hiro.so/*',
+    // The inpage script is injected into every page; the content-script
+    // injection itself is governed by the content_scripts.matches field
+    // and not by host_permissions, but dapps that talk back to their own
+    // origin need a permissive origin grant for the postMessage pipe to
+    // work. Local dev hosts:
+    'http://localhost/*',
+    'http://127.0.0.1/*',
+  ],
   content_security_policy: {
     extension_pages: contentSecurityPolicyEnvironment[WALLET_ENVIRONMENT],
   },
