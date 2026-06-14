@@ -83,9 +83,9 @@ NOT expose mint, buy, or sell tools, and will not in v1.
 
 ## SDK-side surface that consumers build with
 
-The pieces that used to live in the wallet now ship in ordpool-sdk and
-are what dapps / bots / cat21.space integrate against. Wallet doesn't
-build PSBTs; the SDK does, and the wallet signs what the SDK delivers.
+PSBT construction, broadcast orchestration, offer validation, and the
+agent-mode policy gate all live in ordpool-sdk. The wallet signs what
+the SDK delivers; dapps and bots integrate against the SDK directly.
 
 | SDK module | Exports | Purpose |
 |---|---|---|

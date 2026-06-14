@@ -1,19 +1,15 @@
 # Cat21 Wallet — Security Review
 
-This audit walks each invariant the wallet is responsible for under its
-post-scope-cut shape (see CLAUDE.md → "What this repo is — scope").
-Every claim cites file + line.
+This audit walks each invariant the wallet is responsible for. Every
+claim cites file + line.
 
-The wallet's responsibilities are limited to:
+The wallet's responsibilities (see CLAUDE.md → "What this repo is — scope"):
 
   (a) display cats and respect nLockTime=21
   (b) offer an MCP server
 
 PSBT construction, broadcast orchestration, agent-mode policy, and
-Slipstream fallback live in `ordpool-sdk`. Invariants that used to be
-checked here (mint-builder asserts, offer SIGHASH_ALL guarantees, offer
-validator) moved to the SDK on 2026-06-14. The audit below covers only
-what remains in the wallet.
+Slipstream fallback live in `ordpool-sdk`.
 
 ## 1. RBF replacement preserves nLockTime
 
@@ -138,25 +134,8 @@ lib.
 
 ## Audit metadata
 
-- Performed: 2026-06-14 (initial Phase 7), updated 2026-06-14
-  post scope cut.
+- Performed: 2026-06-14.
 - Audit script: this document; spot checks in
   `packages/bitcoin/src/`, `packages/services/src/`,
   `tools/src/mcp-host/`, `apps/extension/src/app/features/dialogs/`.
 - Reviewer: hans-crypto.
-
-## Items that moved to ordpool-sdk
-
-For historical reference: these invariants used to be enforced inside
-the wallet and now live in `ordpool-sdk`:
-
-- Mint PSBT `nLockTime = 21` + sequence range.
-- Buy-offer PSBT SIGHASH_ALL on every input.
-- Seller-side offer validation (postage, price, signed buyer inputs).
-- Agent-mode policy gate (per-action / daily caps, fee ceiling, floor
-  price, counterparty allowlist).
-- Mempool / Slipstream broadcast dispatcher.
-
-The SDK is the entity responsible for these invariants. The wallet
-signs what the SDK delivers and preserves nLockTime through any tx
-operation we own (currently just RBF replacement).

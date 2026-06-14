@@ -40,21 +40,14 @@ See `CLAUDE.md` for the upstream Leather developer guide; the workflow conventio
 | Polite window providers | `packages/provider/src/index.ts` + `add-leather-to-providers.ts` | `window.Cat21Provider` always; `window.LeatherProvider` only when real Leather is not installed |
 | MCP host (NMH bridge) | `tools/src/mcp-host/` | Read-only tool surface (list_cats, wallet_status, cat21_ord_status) over Chrome NMH |
 
-Code that used to live here and moved to `ordpool-sdk` per the
-2026-06-14 scope cut:
-
-| What | Now in ordpool-sdk |
-|---|---|
-| Cat21 mint PSBT builder | `src/cat21-mint/cat21.service.helper.ts` (`createInput`, `createTransaction`) |
-| Buy-offer PSBT builder | `src/cat21-offer/cat21-offer.helper.ts` (`buildCat21BuyOfferPsbt`) |
-| Offer validator (seller-side) | `src/cat21-offer/cat21-offer.helper.ts` (`validateCat21BuyOfferPsbt`) |
-| Agent-mode policy gate | `src/agent-mode/agent-policy.helper.ts` (`evaluateAgentPolicy`) |
-| Broadcast dispatcher | `src/cat21-broadcast/broadcast.helper.ts` (`broadcastCat21`, `decideBroadcastChannel`) |
-| Slipstream client | `src/cat21-broadcast/slipstream.helper.ts` (`submitToSlipstream`) |
+PSBT construction, broadcast orchestration, offer validation, and the
+agent-mode policy gate live in
+[`ordpool-sdk`](https://github.com/ordpool-space/ordpool-sdk). The
+wallet signs what the SDK delivers.
 
 See `INTEGRATION-ORDPOOL-SDK.md` for the contract dapps and the SDK
-should code against, including the layered-security model that defines
-which validation step belongs where.
+code against, including the layered-security model that defines which
+validation step belongs where.
 
 ## License
 

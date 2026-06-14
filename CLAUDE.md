@@ -237,12 +237,10 @@ line we add here is one we have to defend forever.
   (parsers, signing helpers, marketplace adapters). Putting the cat
   flows there too is the architecturally honest move.
 
-Plan and ADRs (1–14) for the broader ecosystem live at
+Plan and ADRs for the broader ecosystem live at
 `/Users/johanneshoppe/Work/ordpool/CAT21-WALLET-FORK-PLAN.md` and
-should be read as historical context; some ADRs (notably the in-wallet
-mint/offer flows) were superseded by this scope cut on 2026-06-14.
-`SECURITY-REVIEW.md` here in the repo walks the invariants that DO
-apply to the wallet under the new scope.
+should be read as historical context. `SECURITY-REVIEW.md` here in
+the repo walks the invariants the wallet enforces today.
 
 ---
 
