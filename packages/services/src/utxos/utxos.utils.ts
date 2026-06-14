@@ -122,6 +122,10 @@ export function getUtxoTotals(
     confirmed: confirmedUtxos,
     inbound: unconfirmedUtxos,
     outbound: outboundUtxos,
+    /* HACK -- Cat21: empty `protected` bucket per ADR-12. The cat-bearing UTXO
+     * classification belongs to the coin-control phase; this slot exists now so
+     * the caller signature matches the revived BtcBalancesService. */
+    protected: [],
     dust: dustUtxos,
     unspendable: unspendableUtxos,
     available: availableUtxos,

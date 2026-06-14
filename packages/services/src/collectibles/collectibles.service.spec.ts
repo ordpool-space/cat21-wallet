@@ -4,6 +4,8 @@ import type { AccountAddresses, Sip9Asset } from '@leather.io/models';
 
 import type { BnsService } from '../bns/bns.service';
 import { CollectiblesService } from './collectibles.service';
+/* HACK -- Cat21: InscriptionsService import added per ADR-12 widening. */
+import type { InscriptionsService } from './inscriptions.service';
 import type { Sip9sService } from './sip9s.service';
 
 describe(CollectiblesService.name, () => {
@@ -32,7 +34,19 @@ describe(CollectiblesService.name, () => {
     getAccountBnsNames: vi.fn().mockResolvedValue([]),
   } as unknown as BnsService;
 
-  const collectiblesService = new CollectiblesService(mockSip9sService, mockBnsService);
+  /* HACK -- Cat21: InscriptionsService stub added per ADR-12 to satisfy the
+   * widened CollectiblesService constructor. The existing Stacks NFT
+   * assertions don't depend on inscriptions, so the stub returns an empty
+   * array. A cat-flavoured collectibles spec lives separately. */
+  const mockInscriptionsService = {
+    getAccountInscriptions: vi.fn().mockResolvedValue([]),
+  } as unknown as InscriptionsService;
+
+  const collectiblesService = new CollectiblesService(
+    mockSip9sService,
+    mockBnsService,
+    mockInscriptionsService
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();

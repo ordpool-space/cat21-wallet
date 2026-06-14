@@ -65,6 +65,11 @@ export class BtcBalancesService {
    * Gets BTC balance for given account, denominated in both BTC and quote currency.
    *
    * Balance reflects combined balance of all taproot (m/86') and segwit (m/84') addresses under provided account index.
+   *
+   * Per ADR-12, the cat-bearing UTXO bucket (`utxos.protected`) is folded into
+   * `unspendable` here so cat-holding UTXOs reduce `availableBalance` without
+   * needing a separate `protectedBalance` slot on `BtcBalance`. The bucket is
+   * empty until cat21-ord-driven coin-control wiring lands.
    */
   public async getBtcAccountBalance(
     request: AccountRequest,
@@ -76,7 +81,10 @@ export class BtcBalancesService {
     const inboundBalance = createMoney(sumUtxoValues(utxos.inbound), 'BTC');
     const outboundBalance = createMoney(sumUtxoValues(utxos.outbound), 'BTC');
     const dustBalance = createMoney(sumUtxoValues(utxos.dust), 'BTC');
-    const unspendableBalance = createMoney(sumUtxoValues(utxos.unspendable), 'BTC');
+    const unspendableBalance = createMoney(
+      sumUtxoValues([...utxos.unspendable, ...utxos.protected]),
+      'BTC'
+    );
 
     const btcMarketData = await this.marketDataService.getMarketData(btcAsset, signal);
 

@@ -20,6 +20,10 @@ export interface UtxoTotals {
   confirmed: OwnedUtxo[];
   inbound: OwnedUtxo[];
   outbound: OwnedUtxo[];
+  /* HACK -- Cat21: `protected` bucket re-added per ADR-12. Holds cat-bearing
+   * UTXOs that must not be spent by the BTC send flow. Currently always empty
+   * — cat21-ord-driven UTXO classification is a coin-control phase task. */
+  protected: OwnedUtxo[];
   dust: OwnedUtxo[];
   unspendable: OwnedUtxo[];
   available: OwnedUtxo[];
@@ -29,6 +33,7 @@ export const emptyUtxos: UtxoTotals = {
   confirmed: [],
   inbound: [],
   outbound: [],
+  protected: [],
   dust: [],
   unspendable: [],
   available: [],
@@ -67,6 +72,7 @@ export class UtxosService {
       confirmed: [...nativeSegwitUtxos.confirmed, ...taprootUtxos.confirmed],
       inbound: [...nativeSegwitUtxos.inbound, ...taprootUtxos.inbound],
       outbound: [...nativeSegwitUtxos.outbound, ...taprootUtxos.outbound],
+      protected: [...nativeSegwitUtxos.protected, ...taprootUtxos.protected],
       dust: [...nativeSegwitUtxos.dust, ...taprootUtxos.dust],
       unspendable: [...nativeSegwitUtxos.unspendable, ...taprootUtxos.unspendable],
       available: [...nativeSegwitUtxos.available, ...taprootUtxos.available],
