@@ -1,7 +1,7 @@
 {
   "name": "leather-mono",
-  "author": "Leather Wallet",
-  "description": "Leather wallet shared code",
+  "author": "ordpool-space",
+  "description": "Cat21 Wallet — hot wallet for active CAT-21 cat trading. Fork of leather-io/mono per CAT21-WALLET-FORK-PLAN.md ADR-14.",
   "version": "2.7.2",
   "license": "MIT",
   "type": "module",

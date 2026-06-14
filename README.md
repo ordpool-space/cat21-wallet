@@ -1,71 +1,24 @@
-# Leather Mono
+# Cat21 Wallet
 
-The purpose of this monorepo is to provide a single home for core Leather functionality. The monorepo uses [`pnpm` workspaces](https://pnpm.io/workspaces) and [Turborepo](https://turbo.build/repo/docs). Packages are found under `packages/*`. Apps are found under `apps/*`.
+> Hot wallet for active CAT-21 cat trading. Bitcoin L1 mainnet only.
+
+Cat21 Wallet is a fork of [Leather](https://github.com/leather-io/mono) that has been hidden-down to BTC L1 only and rebranded around the CAT-21 protocol. It mints cats, accepts ord-style buyer-initiated offers in both directions, and exposes an MCP server so AI agents can autonomously trade cats within user-configured policy.
+
+This is a hot wallet, not a vault. Valuable cats stay in your existing wallet (Xverse, hardware wallet, multisig). Transfer cats into Cat21 Wallet when you want to trade them; transfer them back to cold storage when you are done.
+
+## Lineage
+
+Cat21 Wallet is a non-fork clone of [`leather-io/mono`](https://github.com/leather-io/mono) at `a6460b4d` (the parent of [PR #2358](https://github.com/leather-io/mono/pull/2358), the last upstream commit where the inscription stack was alive). Upstream sync is via the `upstream` remote on a quarterly cadence. Original Leather commits retain their original authors; the rebranding and CAT-21 additions are authored under hans-crypto.
+
+The plan that drives this fork lives in the workspace at [`CAT21-WALLET-FORK-PLAN.md`](https://github.com/ordpool-space/headquarter). See ADR-14 for the repo setup that keeps this repo independent of upstream Leather on GitHub's fork graph.
 
 ## Installation
 
 1. `pnpm i` at the `mono` root
 2. Run `pnpm build`
 
-## Architecture
-
-![Leather architecture diagram](https://raw.githubusercontent.com/leather-io/mono/refs/heads/architecture/leather-architecture.svg)
-
-- [Architecture](docs/core/ARCHITECTURE.md)
-- [Monorepo](docs/core/MONOREPO.md)
-
-Coding standards are enforced through the use of
-
-- `eslint`
-- `prettier`
-- `typescript`
-- `syncpack`
-- `ls-lint`
-
-### Monorepo core packages
-
-The current packages are listed below
-
-- [ESLint](packages/eslint-config/README.md)
-- [Prettier](packages/prettier-config/README.md)
-- [TSconfig](packages/tsconfig-config/README.md)
-
-## Running code quality checks with git hooks
-
-Configure code checks to run during pre-commit and/or pre-push hooks. Each check maps directly to a script in the root package.json.
-
-1. Copy `.env.example` to `.env`.
-2. Enable specific checks for each hook::
-
-```
-PRE_COMMIT=format,lint
-PRE_PUSH=syncpack:lint,typecheck,lint:filenames
-```
-
-In most cases, setting PRE_COMMIT is sufficient, as errors from remaining checks are
-uncommon, and typechecking is handled by editors.
-
-Local checks are optional and configurable to suit developer preferences. On GitHub, these
-checks run automatically on every push through [Code checks](.github/workflows/code-checks.yml), as part of the CI workflow.
-
-### Updating pnpm version
-
-To update pnpm, use the helper script which updates all required locations:
-
-```bash
-./scripts/update-pnpm-version.sh <version>
-```
-
-This updates `.prototools`, `.github/actions/provision/action.yml`, and `package.json` in one command.
-
-### Documentation
-
-Documentation has been provided from the outset and can be found in `docs/tools/` along with a [TEMPLATE.md](docs/core/TEMPLATE.md) file
-
-### Development with extension
-
-To be able to develop packages and test those in extension, check out this [guide](docs/extension-development.md)
+See `CLAUDE.md` for the upstream Leather developer guide; the workflow conventions (Conventional Commits, verification pipeline, Code style) apply to this fork as well per ADR-11.
 
 ## License
 
-[MIT](LICENSE) © [Leather Wallet LLC](https://github.com/leather-io/mono)
+[MIT](LICENSE). Original Leather code is © Leather Wallet LLC; CAT-21 specific additions are © ordpool-space contributors. All under MIT.
