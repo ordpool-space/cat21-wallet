@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { handleMcpRequest } from './host.js';
-import { CAT21_MCP_TOOLS } from './protocol.js';
+import { handleMcpRequest, handleExtensionMessage } from './host.js';
+import {
+  CAT21_MCP_TOOLS,
+  CAT21_MUTATING_TOOLS,
+} from './protocol.js';
 
 describe('MCP host request handler', () => {
   it('lists the v1 tool surface', () => {
@@ -70,4 +73,48 @@ describe('MCP host request handler', () => {
     expect(res.error?.code).toBe(-32601);
     expect(res.error?.message).toContain('unknown tool');
   });
+
+  it('lists all 4 cat21_* mutating tools in the v1 surface', () => {
+    const res = handleMcpRequest({ jsonrpc: '2.0', id: 100, method: 'tools/list' });
+    const names = (res.result?.tools as { name: string }[]).map(t => t.name);
+    for (const tool of CAT21_MUTATING_TOOLS) {
+      expect(names).toContain(tool);
+    }
+  });
+
+  // The mutating-tool dispatch: 8a returns "extension not connected" when
+  // there's no extension peer (matches the read-only cat21_ord_status
+  // shape); when peer IS connected the stub returns a -32603 with a
+  // "not yet implemented in this NMH build (iter 8b)" hint. 8b will
+  // replace the second branch with the real correlated NMH dispatch.
+
+  it.each(CAT21_MUTATING_TOOLS)(
+    '%s rejects with "extension not connected" when no peer is connected',
+    tool => {
+      const res = handleMcpRequest({
+        jsonrpc: '2.0',
+        id: `pre-${tool}`,
+        method: 'tools/call',
+        params: { name: tool, arguments: {} },
+      });
+      expect(res.error?.code).toBe(-32603);
+      expect(res.error?.message).toContain('extension not connected');
+    }
+  );
+
+  it.each(CAT21_MUTATING_TOOLS)(
+    '%s rejects with "not yet implemented" when the extension IS connected (8a stub)',
+    tool => {
+      // Connect the extension by feeding a hello message.
+      handleExtensionMessage({ type: 'hello' });
+      const res = handleMcpRequest({
+        jsonrpc: '2.0',
+        id: `post-${tool}`,
+        method: 'tools/call',
+        params: { name: tool, arguments: {} },
+      });
+      expect(res.error?.code).toBe(-32603);
+      expect(res.error?.message).toContain('not yet implemented');
+    }
+  );
 });

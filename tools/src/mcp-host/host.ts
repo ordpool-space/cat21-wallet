@@ -22,6 +22,8 @@
 
 import {
   CAT21_MCP_TOOLS,
+  CAT21_MUTATING_TOOLS,
+  Cat21MutatingTool,
   McpJsonRpcRequest,
   McpJsonRpcResponse,
   NmhMessageDecoder,
@@ -143,7 +145,33 @@ function handleToolCall(
       },
     };
   }
+  if ((CAT21_MUTATING_TOOLS as readonly string[]).includes(name)) {
+    return handleMutatingToolCall(id, name as Cat21MutatingTool, _args);
+  }
   return jsonRpcError(id, -32601, `unknown tool ${name}`);
+}
+
+/**
+ * Translate a cat21_* MCP tool call into an NMH message for the extension,
+ * await the typed Cat21RpcResult, and surface it back to the MCP client.
+ *
+ * Implementation lands in 8b. The stubs commit returns "not implemented"
+ * so end-to-end testing harnesses (Claude Desktop's tool listing) see the
+ * tool surface but no destructive action fires.
+ */
+function handleMutatingToolCall(
+  id: number | string,
+  name: Cat21MutatingTool,
+  _args: Record<string, unknown>
+): McpJsonRpcResponse {
+  if (!extensionConnected) {
+    return jsonRpcError(id, -32603, 'extension not connected');
+  }
+  return jsonRpcError(
+    id,
+    -32603,
+    `${name} not yet implemented in this NMH build (iter 8b)`
+  );
 }
 
 function jsonRpcError(id: number | string, code: number, message: string): McpJsonRpcResponse {

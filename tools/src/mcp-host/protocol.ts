@@ -7,14 +7,19 @@
  *   1. Speak NMH to Chrome: 4-byte little-endian length prefix + JSON body.
  *   2. Speak MCP JSON-RPC to clients: per the MCP spec.
  *
- * The MCP tool surface is read-only in v1:
+ * The MCP tool surface is split into read-only probes and mutating cat21_*
+ * actions. The mutating actions translate into NMH messages that the
+ * extension's background page dispatches to `Cat21RpcService`. The agent-
+ * mode policy gate fires in the extension, not here — the host is just a
+ * typed-tool front door.
+ *
  *   - `list_cats`        : query the extension for cats held in the active wallet.
  *   - `wallet_status`    : reachability + which account is active.
  *   - `cat21_ord_status` : forward the /status response from cat21-ord.
- *
- * Mutating tools (mint, buy, sell-accept) are deferred. They require the
- * agent-mode policy gate and a user-visible confirmation path inside the
- * extension, both of which sit on top of this transport layer.
+ *   - `cat21_mint`         : mint a new cat with `nLockTime=21`.
+ *   - `cat21_transfer`     : transfer an owned cat to a recipient address.
+ *   - `cat21_create_offer` : publish a structured sell-listing.
+ *   - `cat21_accept_offer` : sign + broadcast an inbound buy-offer PSBT.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -104,4 +109,98 @@ export const CAT21_MCP_TOOLS = [
       '(default https://ord.cat21.space).',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'cat21_mint',
+    description:
+      'Mint a new cat. The wallet builds and signs a CAT-21 mint transaction ' +
+      '(nLockTime=21). Returns { txid, channel } on success.',
+    inputSchema: {
+      type: 'object',
+      required: ['recipient', 'feeRate'],
+      properties: {
+        recipient: { type: 'string', description: 'Address where the cat lands.' },
+        feeRate: { type: 'number', description: 'Sat/vB.' },
+        tip: {
+          type: 'object',
+          properties: {
+            address: { type: 'string' },
+            value: { type: 'number' },
+          },
+        },
+        mode: { type: 'string', enum: ['manual', 'autonomous'] },
+      },
+    },
+  },
+  {
+    name: 'cat21_transfer',
+    description:
+      'Transfer an owned cat to a recipient. The wallet builds a transfer tx ' +
+      'that preserves the cat on output 0. Returns { txid, channel } on success.',
+    inputSchema: {
+      type: 'object',
+      required: ['catId', 'recipient', 'feeRate'],
+      properties: {
+        catId: { type: 'string', description: 'Cat id in <txid>i<index> form.' },
+        recipient: { type: 'string' },
+        feeRate: { type: 'number' },
+        mode: { type: 'string', enum: ['manual', 'autonomous'] },
+      },
+    },
+  },
+  {
+    name: 'cat21_create_offer',
+    description:
+      'Publish a structured sell-listing for an owned cat. Does NOT broadcast ' +
+      'a tx; returns { catId, sellerUtxo, priceSats, paymentAddress } for the ' +
+      'agent to forward to a marketplace.',
+    inputSchema: {
+      type: 'object',
+      required: ['catId', 'priceSats', 'paymentAddress'],
+      properties: {
+        catId: { type: 'string' },
+        priceSats: { type: 'number' },
+        paymentAddress: { type: 'string' },
+        mode: { type: 'string', enum: ['manual', 'autonomous'] },
+      },
+    },
+  },
+  {
+    name: 'cat21_accept_offer',
+    description:
+      'Sign + broadcast an inbound buy-offer PSBT. The wallet validates the ' +
+      'PSBT against expectedCatId / expectedPriceSats / expectedSellerUtxo, ' +
+      'signs only input 0, and broadcasts. Returns { txid, channel } on success.',
+    inputSchema: {
+      type: 'object',
+      required: ['offerPsbt', 'expectedCatId', 'expectedPriceSats', 'expectedSellerUtxo'],
+      properties: {
+        offerPsbt: { type: 'string', description: 'Hex or base64 PSBT bytes.' },
+        expectedCatId: { type: 'string' },
+        expectedPriceSats: { type: 'number' },
+        expectedSellerUtxo: {
+          type: 'object',
+          required: ['txid', 'vout'],
+          properties: {
+            txid: { type: 'string' },
+            vout: { type: 'number' },
+          },
+        },
+        mode: { type: 'string', enum: ['manual', 'autonomous'] },
+      },
+    },
+  },
 ] as const;
+
+/**
+ * Tool names the host dispatches to the extension's Cat21RpcService.
+ * Read-only probes (list_cats, wallet_status, cat21_ord_status) stay
+ * out of this list — they have local responses or query simpler state.
+ */
+export const CAT21_MUTATING_TOOLS = [
+  'cat21_mint',
+  'cat21_transfer',
+  'cat21_create_offer',
+  'cat21_accept_offer',
+] as const;
+
+export type Cat21MutatingTool = (typeof CAT21_MUTATING_TOOLS)[number];
