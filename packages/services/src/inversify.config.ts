@@ -18,6 +18,8 @@ import { CollectiblesService } from './collectibles/collectibles.service';
 import { InscriptionsService } from './collectibles/inscriptions.service';
 import { Sip9sService } from './collectibles/sip9s.service';
 import { Cat21OrdApiClient } from './infrastructure/api/cat21-ord/cat21-ord-api.client';
+import { SlipstreamApiClient } from './infrastructure/api/slipstream/slipstream-api.client';
+import { Cat21BroadcastService } from './mint/cat21-broadcast.service';
 import { BitcoinTransactionFeesService } from './fees/bitcoin-transaction-fees.service';
 import { StacksTransactionFeesService } from './fees/stacks-transaction-fees.service';
 import { BnsV2ApiClient } from './infrastructure/api/bns-v2/bns-v2-api.client';
@@ -198,6 +200,13 @@ export function getInscriptionsService() {
 }
 export function getCat21OrdApiClient() {
   return getServicesContainer().get(Cat21OrdApiClient);
+}
+/* HACK -- Cat21: mint broadcast accessors per Phase 3.3 (ADR-6). */
+export function getCat21BroadcastService() {
+  return getServicesContainer().get(Cat21BroadcastService);
+}
+export function getSlipstreamApiClient() {
+  return getServicesContainer().get(SlipstreamApiClient);
 }
 
 /*
