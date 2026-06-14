@@ -117,38 +117,51 @@ review can flag it. Otherwise: leave it.
 
 ---
 
-## HARD RULE #6: The wallet does not guess intent from PSBT bytes
+## HARD RULE #6: Intent is always declared, never inferred from PSBT bytes
 
-The wallet is the **last** step in the signing chain, not the security
-gate. Security happens upstream:
+Two RPC surfaces, two distinct paths into the wallet — both share the
+"intent is declared" rule but they declare it differently:
 
-```
-1. Agent / dapp DECLARES intent (build a buy-offer for cat X at price Y)
-2. ordpool-sdk's agent-policy gates the DECLARED intent against user policy
-3. ordpool-sdk constructs the PSBT from the validated intent
-4. SDK consumer (cat21.space, a bot) optionally re-validates the PSBT
-   matches the declared intent via validateCat21BuyOfferPsbt etc.
-5. signPsbt RPC reaches the wallet → wallet shows Leather's standard
-   confirmation UI (inputs, outputs, fee) → user confirms → wallet signs
-```
+### Path 1 — generic `signPsbt` (third-party-wallet dapps via cat21.space)
 
-The wallet does NOT:
+The wallet behaves exactly like upstream Leather: standard signPsbt
+confirmation UI showing inputs / outputs / fee, user clicks, wallet
+signs. The intent was declared upstream by cat21.space when it built
+the PSBT; the wallet is a dumb signer here.
 
-- Inspect PSBT bytes to figure out "this is a buy-offer" vs "this is a
-  transfer" vs "this is something I don't recognise".
-- Run a Cat21-specific validator on signPsbt input before showing the
-  standard prompt.
-- Carry a classifier (`isCat21OfferShape`, `classifyCat21Psbt`, …) that
-  reverse-engineers caller intent from raw bytes.
+### Path 2 + 3 — typed `cat21_*` RPC methods (cat21-wallet's own surface)
 
-Why: PSBT-shape detection is a Sisyphean fight against ever-more-creative
-crafting. Every heuristic eventually gets bypassed. Putting the smarts in
-the wallet duplicates work that the agent-policy + SDK-consumer-side
-validator already do better and earlier. The wallet's job is to show the
-user the bytes it's about to sign and ask for a click. That's it.
+The wallet exposes typed methods (`cat21_mint`, `cat21_transfer`,
+`cat21_createOffer`, `cat21_acceptOffer`) where the **caller passes
+the intent as structured parameters**, not as opaque PSBT bytes. The
+wallet then:
 
-What the wallet IS responsible for (these are NOT intent-guessing —
-they are conservative structural defaults):
+1. enforces unbypassable invariants on the intent itself (pure
+   functions, easy to audit, 100% test coverage required),
+2. builds the PSBT from the intent using ordpool-sdk (wallet owns
+   the bytes it will sign),
+3. post-build, re-asserts that the bytes match the intent (defence
+   in depth against SDK drift),
+4. either prompts the user (Path 2 manual mode) or signs silently
+   (Path 3 autonomous mode, when all four mode-resolution guards pass
+   — see "Cat21 RPC architecture" below).
+
+The wallet NEVER:
+
+- Inspects PSBT bytes to *figure out* what kind of action they
+  represent. The action kind is encoded in the RPC method name.
+- Carries a classifier (`isCat21OfferShape`, `classifyCat21Psbt`)
+  that reverse-engineers caller intent from raw bytes.
+- Runs cat21-shape detection on generic `signPsbt` input. If the
+  dapp wants the wallet to use cat21-specific UX or safe-guards,
+  it must call a `cat21_*` method. Else: dumb signer.
+
+PSBT-shape detection is a Sisyphean fight against ever-more-creative
+crafting. Every heuristic eventually gets bypassed. The fix is
+typed-RPC: the caller declares the action, the wallet enforces.
+
+What the wallet IS responsible for outside the RPC surface (these are
+NOT intent-guessing — they are conservative structural defaults):
 
 - **Cat-bearing UTXO protection** (`utxos.service.ts`). The BTC send
   coin-selection never picks a UTXO that holds a cat. No intent is
@@ -156,10 +169,6 @@ they are conservative structural defaults):
 - **nLockTime preservation through RBF** (`use-btc-increase-fee.ts`).
   Any replacement tx carries the original locktime through verbatim.
   No intent is inferred; we preserve a structural property.
-
-If you find yourself writing code in this repo that tries to figure out
-what a PSBT means — stop. That code belongs in ordpool-sdk or in a
-specific SDK consumer (cat21.space, a bot), not here.
 
 ---
 
@@ -181,61 +190,222 @@ The local repo already has user.name + user.email set; verify with
 
 ## What this repo is — scope
 
-Bitcoin-L1-only browser-extension wallet that does **exactly two things**:
+Bitcoin-L1-only browser-extension wallet that serves **three user
+paths** for the four CAT-21 actions (mint, transfer, create offer,
+accept offer):
 
-**(a) Display cats and respect nLockTime=21.**
+**Path 1 — third-party-wallet users (Xverse / Leather / Unisat / …).**
 
-  Read cat-bearing UTXOs from cat21-ord. Surface cats in the asset list.
-  Refuse to spend cat-bearing UTXOs from the BTC send flow (UTXO
-  protection). Preserve `nLockTime` through any tx we sign — most
-  notably, through RBF replacement via Leather's increase-fee flow
-  (HARD RULE #1).
+  They reach the wallet only as Path 1's signing endpoint via the
+  generic `signPsbt` RPC. cat21.space (or another SDK consumer)
+  built and validated the PSBT; the wallet shows Leather's standard
+  confirmation UI and signs. The wallet's behaviour here is
+  upstream-Leather behaviour.
 
-**(b) Offer an MCP server.**
+**Path 2 — cat21-wallet users in manual mode (humans).**
 
-  A Chrome Native Messaging Host (`tools/src/mcp-host/`) exposes a
-  read-only tool surface (`list_cats`, `wallet_status`,
-  `cat21_ord_status`) to local MCP clients like Claude Desktop or
-  Cursor. Mutating actions go through the existing `signPsbt` RPC; the
-  SDK is responsible for building the PSBT and asking the wallet to
-  sign it.
+  cat21-wallet exposes typed `cat21_*` RPC methods. The user invokes
+  them either via the in-extension UI (popup-driven action buttons)
+  or via a dapp that knows about Cat21 Wallet. Cat21-themed
+  confirmation dialogs show the parsed intent — cat preview, price,
+  counterparty — and ask for a click before signing. **The path the
+  maintainer uses for any deal big enough to deserve human attention.**
 
-**That is the complete scope. Nothing more, nothing less.**
+**Path 3 — cat21-wallet users in YOLO / agent mode (the Bazaar).**
 
-Everything else lives in `ordpool-sdk`:
+  An MCP bot connected over the Chrome Native Messaging Host bridge
+  invokes the same typed `cat21_*` RPC methods. When all four
+  mode-resolution guards pass (caller declared autonomous, transport
+  is NMH, user has agent-mode enabled, agent-policy gate allows the
+  intent), the wallet signs silently without a prompt. Any guard
+  failure downgrades to Path 2 (or hard-fails if the policy denies).
+
+**Also a permanent responsibility, across all three paths**: display
+cats from cat21-ord, refuse to spend cat-bearing UTXOs from the BTC
+send flow (UTXO protection), preserve `nLockTime` through any tx the
+wallet builds — most notably RBF replacement (HARD RULE #1).
+
+The MCP host (`tools/src/mcp-host/`) exposes a read-only tool surface
+(`list_cats`, `wallet_status`, `cat21_ord_status`) to local MCP
+clients. The mutating Cat21 actions go through the typed `cat21_*`
+RPC methods on `window.Cat21Provider`, not the MCP tool surface.
+
+### What stays in ordpool-sdk
+
+The build / validate / policy / broadcast code lives in
+`ordpool-sdk` because three consumers need the same logic (cat21.space,
+cat21-wallet's manual flows, cat21-wallet's autonomous flows):
 
 - Mint PSBT construction (cat21-shaped, nLockTime=21).
 - Buy-offer / sell-accept PSBT construction (ord-style, SIGHASH_ALL).
-- Offer validation before signing.
+- Offer validation.
 - Broadcast orchestration (mempool / Slipstream dispatcher).
-- Agent-mode policy gating (per-action caps, daily cap, floor price,
+- Agent-mode policy gate (per-action caps, daily cap, floor price,
   counterparty allowlist).
-- Marathon Slipstream fallback for oversize/non-standard txs.
+- Marathon Slipstream client.
 
-This split keeps the wallet small, auditable, and reviewable. Adding
-flows to the wallet that ordpool-sdk could host instead is **rejected
-on sight** — the wallet's surface is its security boundary, and every
-line we add here is one we have to defend forever.
+The wallet imports the SDK and calls those functions from its
+`cat21_*` RPC handlers. **Duplicating SDK logic into the wallet is
+rejected on sight** — three consumers need to stay in sync.
 
 ### What the wallet must therefore NOT contain
 
-- No in-extension mint UI (`/cat21-mint` etc.). Mint UI lives on
-  `cat21.space` / `ordpool.space` and reaches the wallet via
-  `window.Cat21Provider.request('signPsbt', ...)`.
-- No in-extension offer-construction UI. Offer UX lives on the SDK
-  side.
-- No bundled PSBT builders for mint or offer. The SDK builds; the
-  wallet signs.
-- No agent-mode policy gate inside the wallet. The SDK gates; the
-  wallet signs what the SDK delivers.
+- No in-extension cat21 construction *forms* for third-party-wallet
+  users. Path 1's UX lives on `cat21.space`.
+- No PSBT-shape classifier that reverse-engineers what a generic
+  `signPsbt` payload represents (HARD RULE #6).
+- No duplicate PSBT builders. The wallet's `cat21_*` RPC handlers
+  call ordpool-sdk to construct bytes; they don't re-implement what
+  the SDK already exports.
+- No duplicate agent-policy logic. The wallet's mode resolver
+  delegates to `evaluateAgentPolicy` from ordpool-sdk; the same gate
+  protects all three paths.
 
 ### Why this split
 
-- Smaller wallet = smaller attack surface = faster security review.
-- The SDK can be iterated independently; the wallet ships less often.
-- ordpool-sdk already absorbs every other Bitcoin-data utility we own
-  (parsers, signing helpers, marketplace adapters). Putting the cat
-  flows there too is the architecturally honest move.
+- The SDK is the shared logic across three consumers; duplicating
+  any of it into the wallet creates drift the moment one consumer
+  needs to evolve.
+- Smaller wallet code = smaller attack surface for the part that
+  holds keys = faster security review.
+- ordpool-sdk already absorbs every other Bitcoin-data utility we
+  own (parsers, signing helpers, marketplace adapters). The cat
+  flows fit the same shape.
+
+---
+
+## Cat21 RPC architecture (Path 2 + Path 3)
+
+These decisions are pinned. Any change requires a new HARD RULE
+section justifying it.
+
+### Methods (typed, intent-declared)
+
+| Method | Intent shape (summary) |
+|---|---|
+| `cat21_mint` | `{ recipient, feeRate, tip?, mode? }` |
+| `cat21_transfer` | `{ catId, recipient, feeRate, mode? }` |
+| `cat21_createOffer` | `{ catId, priceSats, paymentAddress, mode? }` |
+| `cat21_acceptOffer` | `{ offerPsbt, expectedCatId, expectedPriceSats, expectedSellerUtxo, mode? }` |
+
+`mode` defaults to `'manual'` when omitted. `'autonomous'` is honored
+only when all four mode-resolution guards pass.
+
+### Naming
+
+Always `cat21_<verb>` prefix. No `cat_*`, no `mintCat21`, no `:` or
+`.` separators. Methods get camelCase verbs (`createOffer`, not
+`create_offer`).
+
+### Pipeline (same for every method)
+
+```
+1. Parse + validate intent params (Zod-style, throws on shape error)
+2. Enforce hard invariants (pure functions, unbypassable, 100% test
+   coverage — these are the safety core of the wallet)
+3. Resolve signing mode:
+     declared mode + transport + policy.enabled + policy.evaluate(intent)
+4. Build PSBT via ordpool-sdk (wallet owns the bytes)
+5. Post-build assertions (defence in depth: bytes must match intent)
+6. Sign:
+     mode == 'manual'     → show Cat21-themed confirmation → click → sign
+     mode == 'autonomous' → silent sign
+7. Broadcast via ordpool-sdk (mempool first, Slipstream on >400k weight)
+8. Return { txid }
+```
+
+### Pinned decisions
+
+1. **Agent-mode activation UX (Path 3)**: First-run wizard explaining
+   what agent-mode does + policy walkthrough. **After the wizard,
+   agent-mode is ON by default.** User can disable in Settings. The
+   product stance: cat21-wallet is the Bazaar; bots are the headline.
+
+2. **Policy storage**: per-account. Each account holds its own
+   `AgentPolicy` struct (`maxSpendPerActionSats`, `dailyCapSats`,
+   `maxFeeRateSatPerVbyte`, `floorPriceSatsPerCat`,
+   `allowedCounterparties`, `enabled`). Stored in Redux state,
+   serialised alongside other account-bound settings (encrypted with
+   the seed password per existing Leather pattern).
+
+3. **`cat21_acceptOffer` intent mismatch**: hard error in both modes.
+   Never accept a PSBT whose decoded fields disagree with the
+   declared `expectedCatId / expectedPriceSats / expectedSellerUtxo`
+   — not in autonomous, not in manual. The user's intent is the
+   protocol; bytes that don't match are presumed adversarial.
+
+4. **Confirmation UI (Path 2)**: Cat21-themed. Cat preview SVG via
+   ordpool-parser's mooncat-parser, rarity-band badge, counterparty
+   address truncated with copy button, plain-language headline
+   ("Sell **Cat #42** for **21 000 sats**"), small details drawer
+   for byte-skeptics.
+
+5. **NMH multi-tenancy**: single agent only. One NMH binary, one
+   `allowed_origins` entry pinning our extension ID, one policy
+   slot. Per-agent policies are punted to a future ADR.
+
+6. **Caps apply to BOTH modes**. Policy gates Path 2 manual flows
+   the same way it gates Path 3 autonomous flows. Mistakes happen
+   fast; the cap is a backstop against a misclicked zero or a
+   pasted-wrong address. Manual mode adds a user prompt; it does
+   not skip the cap. (Override path TBD — likely password re-entry
+   for breaking a per-action cap on purpose, never for the daily
+   cap.)
+
+7. **Network endpoints**: prefer our own infrastructure; Leather's
+   public endpoints (`api.leather.io`, `api.hiro.so`) will not
+   tolerate us long-term. Configurable in Settings for power users.
+
+| Surface | Default | Rationale |
+|---|---|---|
+| Mempool API + tx broadcast | `https://api.ordpool.space` | Our cloudflared tunnel → ordpool-backend → electrs |
+| cat21 indexer | `https://ord.cat21.space` | Our cat21-ord on happysrv |
+| Slipstream fallback | `https://slipstream.mara.com` | Marathon-operated; only external default we keep |
+| Market data | TBD — pull from `api.ordpool.space` or self-host | Replace `api.leather.io` before Leather notices |
+| Fee estimates | TBD — pull from `api.ordpool.space` | Replace `api.hiro.so` for the same reason |
+
+Any new outbound endpoint added to the wallet is a HARD RULE
+question: does it live on infrastructure we control, or does the
+operator depend on a third party's goodwill?
+
+8. **MCP host scope (unchanged)**: read-only tools only
+   (`list_cats`, `wallet_status`, `cat21_ord_status`). Mutating
+   actions for Path 3 go through the typed `cat21_*` RPC methods
+   over the NMH bridge, not as MCP tools. Reason: the wallet's
+   typed-RPC signing flow is the security boundary; piping a
+   second mutating surface through the MCP tool schema duplicates
+   work and creates an alternate attack surface to defend.
+
+### Layout
+
+```
+apps/extension/src/background/cat21/
+  invariants/
+    mint-invariants.ts            ← pure functions, 100% covered
+    transfer-invariants.ts
+    create-offer-invariants.ts
+    accept-offer-invariants.ts
+  builders/
+    mint-builder.ts               ← thin wrappers around ordpool-sdk
+    transfer-builder.ts
+    create-offer-builder.ts
+    accept-offer-validator.ts     ← wraps validateCat21BuyOfferPsbt
+  cat21-rpc.service.ts            ← orchestrates pipeline above
+  mode-resolver.ts                ← the security boundary
+
+apps/extension/src/background/messaging/rpc-methods/
+  cat21-mint.ts                   ← thin: parse params → call rpc.service
+  cat21-transfer.ts
+  cat21-create-offer.ts
+  cat21-accept-offer.ts
+
+apps/extension/src/app/pages/rpc-cat21-mint/        ← Path 2 confirmation UI
+apps/extension/src/app/pages/rpc-cat21-transfer/
+apps/extension/src/app/pages/rpc-cat21-create-offer/
+apps/extension/src/app/pages/rpc-cat21-accept-offer/
+
+apps/extension/src/app/store/agent-policy/          ← per-account policy slice + wizard UI
+```
 
 Plan and ADRs for the broader ecosystem live at
 `/Users/johanneshoppe/Work/ordpool/CAT21-WALLET-FORK-PLAN.md` and
@@ -406,19 +576,23 @@ Phase 1.1. A call to any `stx_*` method returns `METHOD_NOT_FOUND`.
 
 ## Network surfaces
 
+Prefer our own infrastructure. Per the Cat21 RPC architecture
+decision #7, Leather's public endpoints will not tolerate us long-
+term; we migrate to `*.ordpool.space` as the default. The manifest's
+`host_permissions` is narrowed to this exact list
+(`generate-manifest.js`).
+
 | Host | Why | Configurable |
 |---|---|---|
 | `https://ord.cat21.space` | cat21-ord; sole authority for cat data | yes, via settings |
-| `https://api.ordpool.space` | ordpool backend; inscription preview, recursive inscriptions | no |
-| `https://mempool.space`, `https://blockstream.info` | BTC mempool + tx broadcast | upstream-managed |
-| `https://slipstream.mara.com` | direct-to-miner submission for oversize txs (ADR-6) | no |
-| `https://ord.io`, `https://ordinals.com`, `https://ordinals.hiro.so` | cat content bytes + preview URLs | no |
-| `https://api.leather.io` | upstream market data, fee rates, native-token prices | upstream-managed |
-| `https://api.hiro.so` | shared Bitcoin fee endpoints | upstream-managed |
+| `https://api.ordpool.space` | ordpool backend; mempool API, tx broadcast, market data, fee estimates, inscription preview, recursive inscriptions | yes, via settings |
+| `https://slipstream.mara.com` | direct-to-miner submission for oversize txs | yes, via settings |
+| `https://ord.io`, `https://ordinals.com`, `https://ordinals.hiro.so` | cat content bytes + preview URLs (external by design) | no |
+| `https://mempool.space`, `https://blockstream.info` | legacy upstream fallback during the migration off Leather endpoints; remove once `api.ordpool.space` is the only mempool default | no |
+| `https://api.leather.io`, `https://api.hiro.so` | currently fires for market data + fee estimates; migration target is `api.ordpool.space`. Remove from `host_permissions` once the migration lands | no |
 
-The manifest's `host_permissions` is narrowed to this exact list
-(generate-manifest.js). Anything we missed surfaces as a blocked fetch
-in DevTools.
+Anything we missed surfaces as a blocked fetch in DevTools — easier to
+discover than an undetected outbound call.
 
 ---
 
