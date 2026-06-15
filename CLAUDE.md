@@ -305,6 +305,97 @@ prose is the explanation. They drift apart at your peril.
 
 ---
 
+## HARD RULE #10: PSBT logic comes from ordpool-sdk, imported via `/core`
+
+Every CAT-21 PSBT the wallet signs is built by `ordpool-sdk`.
+`buildCat21MintPsbt`, `buildCat21TransferPsbt`, `buildCat21BuyOfferPsbt`,
+`validateCat21BuyOfferPsbt`, `evaluateAgentPolicy`, `submitToSlipstream`
+— all live in the SDK. The wallet does NOT keep its own copies.
+
+**Imports come from `'ordpool-sdk/core'`, never bare `'ordpool-sdk'`.**
+
+The SDK ships two entry points:
+
+| Entry point | What's in it | For |
+|---|---|---|
+| `'ordpool-sdk'` | Everything, including Angular `@Injectable` services (`WalletService`, `Cat21Service`, `Cat21MintOrchestrator`, …) | cat21.space (Angular app) |
+| `'ordpool-sdk/core'` | Pure-functional helpers + types + enums. Zero `@angular/*` imports. | cat21-wallet (React + Webpack), any plain Node consumer |
+
+Importing from `'ordpool-sdk'` in the wallet would drag
+`@angular/core` into the extension bundle (the fesm2022 bundle has
+`import * as i0 from '@angular/core'` at the top, unavoidable since
+five SDK services genuinely use Angular). The architecture spec at
+`apps/extension/src/__architecture__/architecture.spec.ts` sweeps
+every source file under `src/` and rejects any `import|export ...
+from 'ordpool-sdk'`. CI is red the moment one slips in.
+
+### How the wallet consumes the SDK
+
+`apps/extension/package.json`:
+
+```json
+"ordpool-sdk": "link:../../../ordpool-sdk"
+```
+
+The link points at the SDK repo root; resolution lands on the
+`exports` map in `ordpool-sdk/package.json`:
+
+```json
+"./core": {
+  "types": "./dist-core/core.d.ts",
+  "default": "./dist-core/core.js"
+}
+```
+
+So the wallet imports **compiled CommonJS bytes** from
+`ordpool-sdk/dist-core/`, NOT the TypeScript source. Editing SDK
+source without rebuilding leaves the wallet running against stale
+bytes — the silent failure mode.
+
+### Staleness guard (mandatory)
+
+The wallet's pre-hooks (`pretest:unit`, `prebuild`, `pretypecheck`)
+run `node scripts/check-sdk-fresh.cjs` before vitest / webpack /
+tsc. The guard:
+
+- Walks `ordpool-sdk/src/` (excluding `*.spec.ts`) and
+  `ordpool-sdk/dist-core/`, compares newest mtime of each.
+- If `src/` is newer, exits 1 with a coloured "STALE" message
+  listing both timestamps and the rebuild command.
+- If `dist-core/` doesn't exist, exits 1 with the build command.
+- Runs in ~10ms; silent when fresh.
+
+### Dev workflow
+
+```bash
+# heavy SDK editing: keep this running in a side terminal
+pnpm sdk:watch        # tsc -p tsconfig.core.json --watch
+
+# one-button rebuild (when the guard fires)
+pnpm sdk:build        # cd …/ordpool-sdk && npm run build:core
+
+# manual check (rarely needed; the pre-hooks do it for you)
+pnpm check:sdk-fresh
+```
+
+### When you add a new pure helper to the SDK
+
+1. Add the file under `ordpool-sdk/src/`.
+2. Export from its own file as usual.
+3. Re-export from `ordpool-sdk/src/core.ts` so it ships via the
+   `/core` subpath.
+4. Add the source file to the `include` list in
+   `ordpool-sdk/tsconfig.core.json`.
+5. `npm run build:core` (or `pnpm sdk:build` from the wallet) to
+   regenerate `dist-core/`.
+
+If the new helper drags Angular (uses `@Injectable`, `InjectionToken`,
+`HttpClient`, etc.), it CANNOT live in `core.ts` — it stays in
+`ordpool-sdk/src/index.ts` only and the wallet can't consume it.
+That's the rule the wallet's architecture spec is encoding for you.
+
+---
+
 ## What this repo is — scope
 
 Bitcoin-L1-only browser-extension wallet that serves **three user

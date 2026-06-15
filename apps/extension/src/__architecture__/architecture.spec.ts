@@ -366,7 +366,7 @@ describe('CLAUDE.md still pins the rules these specs encode', () => {
 
   it('lists every HARD RULE referenced by these specs', () => {
     const claude = read(join(REPO_ROOT, 'CLAUDE.md'));
-    for (let i = 1; i <= 9; i++) {
+    for (let i = 1; i <= 10; i++) {
       expect(claude).toMatch(new RegExp(`HARD RULE #${i}:`));
     }
   });
