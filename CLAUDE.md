@@ -6,46 +6,71 @@ suggestions; the rest is map + history.
 
 ---
 
-## HARD RULE #1: WE DO NOT BREAK nLockTime=21 — EVER
+## HARD RULE #1: every cat-touching tx we build carries nLockTime=21
 
-The CAT-21 protocol marker is `nLockTime = 21` on the mint transaction.
-A cat exists if and only if that field landed on chain with that value.
-**Any operation that drops or alters nLockTime on a cat-bearing or
-cat-minting transaction kills the cat.**
+The CAT-21 protocol marker is `nLockTime = 21`. cat21-ord reads the
+field structurally (`tx.lock_time == 21` → mint a cat at the first sat
+of the first output) and the spec at
+[`cat21/README.md`](https://github.com/ordpool-space/cat21) allows a
+single CAT-21 ordinal to carry multiple cats through repeated minting.
 
-The 2024 Xverse incident is the lesson: a third-party wallet replaced a
-pending CAT-21 mint with a higher-fee replacement that did not carry
-the locktime through, and the cat was lost. We do not repeat this.
+**Our wallet builds every cat-touching tx with `nLockTime=21` by default.**
+Maximum cats per tx, on principle. The genesis-cat holder's intent is
+that every transaction we control mints another cat onto the ordinal it
+moves — sell, transfer, accept, mint, all of them.
+
+`nLockTime=21` is **data, not a time-lock**: block 21 was mined in 2009,
+so the field has no consensus meaning. It's pure protocol-marker bytes.
 
 ### What this means concretely
 
 | Operation | Rule | Where enforced |
 |---|---|---|
-| Building a mint tx | `nLockTime = 21`. Hard runtime assert. | `packages/bitcoin/src/transactions/generate-cat21-mint-transaction.ts` |
-| Mint input sequences | `< 0xfffffffe` (signals BIP-125 RBF) AND `< 0xffffffff` (so locktime is still honored). Default we ship: `0xfffffffd`. | `CAT21_MINT_INPUT_SEQUENCE` |
-| Replacing a CAT-21 tx via RBF | Replacement MUST keep `nLockTime = 21`. Hard runtime assert. | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` |
-| Spending a cat-bearing UTXO | Either deliberately (sell/transfer flow) with the cat preserved on output 0, OR refused because the UTXO is `protected`. | `packages/services/src/utxos/utxos.service.ts`, `packages/bitcoin/src/transactions/generate-cat21-buy-offer-psbt.ts` |
-| Allowing RBF | Yes, allowed. The protection is in the cat21-wallet code path that builds the replacement; ordpool-sdk has its own enforcement layer. | n/a — by policy |
+| Building a mint tx | `lockTime = 21`. Hard runtime assert. | `apps/extension/src/background/cat21/builders/mint-builder.ts` |
+| Building a transfer tx | `lockTime = 21`. Hard runtime assert. | `apps/extension/src/background/cat21/builders/transfer-builder.ts` |
+| Building a buy-offer PSBT (buyer-initiated, our SDK) | `lockTime = 21`. Hard runtime assert. | `ordpool-sdk/src/cat21-offer/cat21-offer.helper.ts → buildCat21BuyOfferPsbt` |
+| Cat21wallet input sequence on any tx we build | `0xfffffffd` (RBF allowed; our own accelerate flow preserves `lockTime=21` through replacement). | `CAT21_WALLET_MINT_INPUT_SEQUENCE` in `mint-builder.ts` |
+| Other-wallet mint input sequence | `0xfffffffe` (RBF disabled; locks third-party accelerate UIs out of touching the marker). | `ordpool-sdk/src/cat21-mint/cat21.service.helper.ts` |
+| Replacing a CAT-21 tx via RBF (our accelerate path) | Replacement MUST keep `lockTime = 21`. Hard runtime assert. | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` |
+| Cat-bearing UTXO in plain BTC send | Refused; UTXO lives in `protected` bucket. | `packages/services/src/utxos/utxos.service.ts` |
+| Accepting an inbound buy-offer PSBT (we sign, we don't build) | Sign as-is regardless of lockTime. Buyer's choice; missing `21` is their missed bonus mint, not a cat loss. The popup displays the inbound lockTime so a human seller sees what they're signing. | `apps/extension/src/background/cat21/builders/accept-offer-validator.ts`, `apps/extension/src/background/cat21/cat21-rpc.service.ts → acceptOffer` |
+| RBF by other tooling on our broadcast txs | Out of our control. Their replacement is a new tx with new signatures; if they drop `lockTime=21`, missed mint, not lost cat. | n/a — by design |
 
-### What this does NOT mean
+### Why our code defaults to 21 everywhere
 
-- We do **not** ban RBF on CAT-21 mints. RBF is a legitimate Bitcoin
-  user feature and the wallet must support it. The protection is at
-  the *replacement-construction* layer: any replacement tx we build for
-  a CAT-21 mint pins `nLockTime = 21` and asserts it before broadcast.
-- The ordpool-sdk maintains its own RBF policy independently. The
-  wallet does not duplicate that policy; we just guarantee that any
-  tx we sign on behalf of a CAT-21 flow carries the correct locktime.
+Cats are immutable. Once a sat is a CAT-21 ordinal, it stays one — ordinal
+theory carries the existing cat through any future tx whether or not
+that tx mints a fresh one. The cost of skipping `lockTime=21` on a
+transfer or offer-acceptance is **a missed free cat on the same sat**,
+not a destroyed cat. We default to taking the free cat every time.
 
-### How to verify when touching tx-builder code
+### Mint protection: the 2024 Xverse incident is the lesson
 
-1. Add or modify a builder under `packages/bitcoin/src/transactions/`.
-2. Re-run `pnpm --filter @leather.io/bitcoin test:unit`.
-3. The spec `generate-cat21-mint-transaction.spec.ts` pins
-   `tx.lockTime === 21` and the sequence range. If you change either
-   without changing the spec to match, you are about to ship a bug.
-4. Any new tx flow that touches cat-bearing UTXOs gets a corresponding
-   "locktime preserved" assert + spec.
+A third-party wallet replaced a pending CAT-21 mint with a higher-fee
+replacement that did not preserve `lockTime = 21`, and that mint was
+lost. The protection that keeps this from happening on our infrastructure:
+
+- Our own mints use `sequence = 0xfffffffd` (RBF on); our accelerate
+  code path preserves `lockTime = 21` through any replacement.
+- Mints we generate via the SDK for other wallets use
+  `sequence = 0xfffffffe` (RBF off) so their accelerate UI can't fire
+  at all.
+
+This protection is **mint-only**. Transfers and offers don't need it:
+the original cat is already on chain by the time those flows run, so a
+third-party RBF that drops the marker just costs the user the bonus
+mint, not the original cat.
+
+### How to verify when touching cat-flow builder code
+
+1. Add or modify a builder under `apps/extension/src/background/cat21/builders/`.
+2. Re-run `pnpm --filter @leather.io/extension test:unit -- src/background/cat21`.
+3. The architecture spec at `apps/extension/src/__architecture__/architecture.spec.ts`
+   pins the positive invariants per builder (mint, transfer). If you
+   change a builder without changing the spec to match, the spec goes red.
+4. Any new cat-flow builder gets the same shape: `lockTime: CAT21_LOCK_TIME`
+   in the constructor, `sequence: CAT21_WALLET_MINT_INPUT_SEQUENCE` on
+   every input, post-build asserts on lockTime + sequence + SIGHASH_ALL.
 
 ---
 
