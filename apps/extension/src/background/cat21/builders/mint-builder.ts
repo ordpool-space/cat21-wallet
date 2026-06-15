@@ -10,12 +10,19 @@ import type { Cat21MintIntent, Validated } from '../types';
 export const CAT21_LOCK_TIME = 21;
 
 /**
- * Cat21-wallet's mint input sequence — RBF-signalling, lockTime-enforced.
- * See `ordpool-sdk/.claude/CLAUDE.md` "CAT-21 mints — RBF policy
+ * Cat21-wallet's mint input sequence — RBF-signalling. See
+ * `ordpool-sdk/.claude/CLAUDE.md` "CAT-21 mints — RBF policy
  * (per-wallet)" for why we pick `0xfffffffd` while every other wallet
- * picks `0xfffffffe`. Our increase-fee flow guarantees lockTime
- * preservation through RBF replacement (see cat21-wallet HARD RULE #1),
- * so signalling RBF is safe AND useful for the cat21wallet path.
+ * picks `0xfffffffe`. Our increase-fee flow preserves `lockTime=21`
+ * through any RBF replacement (cat21-wallet HARD RULE #1), so allowing
+ * RBF here is safe AND useful — the user can fee-bump a stuck mint
+ * without rebuilding it.
+ *
+ * The choice is purely about RBF UX. `lockTime=21` has no consensus
+ * meaning (block 21 was mined in 2009), so `0xfffffffe` vs `0xfffffffd`
+ * would produce identical cat-mint outcomes from the protocol's
+ * standpoint. The sequence value gates which wallets' accelerate UIs
+ * fire on the tx.
  */
 export const CAT21_WALLET_MINT_INPUT_SEQUENCE = 0xfffffffd;
 
@@ -94,9 +101,11 @@ export const CAT21_CHANGE_DUST_LIMIT_SATS = 546;
  *
  * Hard invariants the result holds (asserted before return):
  *
- *   1. Transaction `lockTime === 21`.
+ *   1. Transaction `lockTime === 21` (CAT-21 protocol marker; data,
+ *      not a time-lock).
  *   2. Every input carries `sequence === 0xfffffffd` (RBF-signalling,
- *      lockTime-enforced).
+ *      cat21wallet path — our accelerate flow preserves the marker
+ *      through any replacement).
  *   3. Output 0 = recipient (intent.recipient), value 546 sats. The
  *      cat lives on the first sat of this output.
  *   4. Output 1 = change to `paymentAddress` (only when above dust).

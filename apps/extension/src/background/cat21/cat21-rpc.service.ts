@@ -93,10 +93,18 @@ export interface Cat21RpcDeps {
    * `inputIndexes` constrains the wallet to sign ONLY those input
    * positions. This is the security boundary against an inbound PSBT
    * that interleaves buyer-funded UTXOs the seller's key could
-   * coincidentally sign. For mint and transfer, the wallet builds the
-   * PSBT so it knows every input is its own (pass `'all'`). For accept-
-   * offer, the PSBT comes from a buyer and the seller MUST sign input 0
-   * only — pass `[0]`.
+   * coincidentally sign.
+   *
+   * Pass `'all'` for mint and transfer: those PSBTs are wallet-built,
+   * every input is one of ours, every input is meant to be signed.
+   * (Both flows are CAT-21 mints — `lockTime=21` set by their builder
+   * — so SIGHASH_ALL on every input also locks the marker in.)
+   *
+   * Pass `[0]` for accept-offer: the PSBT comes from a buyer, the
+   * seller's key must touch ONLY the cat-bearing input at index 0.
+   * Whatever lockTime the buyer set is committed to by the seller's
+   * signature too — that's by design; per the policy in HARD RULE #1,
+   * we accept inbound as-is.
    */
   signWithConfirmation(
     psbt: Uint8Array,
@@ -113,6 +121,9 @@ export interface Cat21RpcDeps {
    * Delegate into the SDK's `validateCat21BuyOfferPsbt`. Wired by the
    * dispatcher at startup; tests stub it. Returning a typed validation
    * result keeps the service untyped against ordpool-sdk's exports.
+   * Per HARD RULE #1 we accept any inbound lockTime; the validator only
+   * checks the price + payment-address + sighash invariants, never
+   * locktime.
    */
   validateBuyOfferPsbt(args: {
     psbt: Uint8Array;
@@ -125,7 +136,8 @@ export interface Cat21RpcDeps {
    * Autonomous-mode signer: signs without prompting.
    *
    * Same `inputIndexes` semantics as `signWithConfirmation` — `'all'`
-   * for self-built PSBTs (mint, transfer); `[0]` for accept-offer.
+   * for wallet-built CAT-21 mint txs (mint, transfer); `[0]` for
+   * accept-offer where the PSBT was buyer-built.
    */
   signSilently(psbt: Uint8Array, inputIndexes: 'all' | number[]): Promise<SignedTx>;
   /** Broadcast dispatcher (mempool / Slipstream per weight). */

@@ -340,8 +340,9 @@ accept offer):
 
 **Also a permanent responsibility, across all three paths**: display
 cats from cat21-ord, refuse to spend cat-bearing UTXOs from the BTC
-send flow (UTXO protection), preserve `nLockTime` through any tx the
-wallet builds — most notably RBF replacement (HARD RULE #1).
+send flow (UTXO protection), and set `nLockTime=21` on every cat-
+touching tx the wallet builds — mint, transfer, offer, and any RBF
+replacement (HARD RULE #1).
 
 The MCP host (`tools/src/mcp-host/`) is the agent's interface for
 Path 3: it exposes the four mutating actions
