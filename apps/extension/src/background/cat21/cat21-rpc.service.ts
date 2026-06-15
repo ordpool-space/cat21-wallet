@@ -19,6 +19,7 @@ import {
   Cat21OfferValidation,
   KnownOrdinalWalletType,
   Network,
+  buildCat21MintPsbt,
   buildCat21TransferPsbt,
 } from 'ordpool-sdk/core';
 
@@ -28,7 +29,6 @@ import {
 } from './invariants/mint-invariants';
 import { enforceTransferInvariants } from './invariants/transfer-invariants';
 import { enforceCreateOfferInvariants } from './invariants/create-offer-invariants';
-import { buildMintPsbt } from './builders/mint-builder';
 import { buildListing } from './builders/listing-builder';
 import { validateAcceptOffer } from './builders/accept-offer-validator';
 import { enforceAcceptOfferInvariants, ValidatedAcceptOffer } from './invariants/accept-offer-invariants';
@@ -231,11 +231,25 @@ export class Cat21RpcService {
 
     let built;
     try {
-      built = buildMintPsbt({
-        intent: validated,
-        fundingUtxo,
-        paymentAddress: accountCtx.paymentAddress,
-        network: accountCtx.network,
+      built = buildCat21MintPsbt({
+        walletType: KnownOrdinalWalletType.cat21wallet,
+        network: walletNetworkToSdkNetwork(accountCtx.network),
+        fundingInput: {
+          txid: fundingUtxo.txid,
+          vout: fundingUtxo.vout,
+          value: fundingUtxo.value,
+          scriptPubKey: fundingUtxo.scriptPubKey,
+          tapInternalKey: fundingUtxo.tapInternalKey,
+        },
+        destinations: {
+          recipientAddress: validated.recipient,
+          senderChangeAddress: accountCtx.paymentAddress,
+          tip:
+            validated.tip && validated.tip.value > 0
+              ? { address: validated.tip.address, valueSats: validated.tip.value }
+              : undefined,
+        },
+        feeSats: estimatedFee,
       });
     } catch (err) {
       return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
@@ -257,7 +271,7 @@ export class Cat21RpcService {
       return denied('broadcast-failed', errorDetail(err));
     }
 
-    this.deps.recordSpend(546 + tipValue + built.fee);
+    this.deps.recordSpend(546 + tipValue + estimatedFee);
     return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
 

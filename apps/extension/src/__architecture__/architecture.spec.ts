@@ -156,47 +156,41 @@ describe('HARD RULE #1 — nLockTime=21 cannot be silently dropped', () => {
   });
 });
 
-describe('HARD RULE #1 (extended) — mint-builder pins lockTime=21 + sequence 0xfffffffd', () => {
+describe('HARD RULE — mint logic lives in the SDK, not inline in the wallet', () => {
 
-  it('mint-builder declares the CAT-21 lockTime constant as exactly 21', () => {
-    const src = read(
-      join(
-        EXTENSION_ROOT,
-        'src/background/cat21/builders/mint-builder.ts'
-      )
-    );
-    expect(src).toMatch(/export const CAT21_LOCK_TIME\s*=\s*21\s*;/);
+  it('the wallet has NO inline mint-builder file (deleted; SDK is authority)', () => {
+    expect(() =>
+      read(join(EXTENSION_ROOT, 'src/background/cat21/builders/mint-builder.ts'))
+    ).toThrow();
   });
 
-  it('mint-builder declares the cat21wallet input sequence as exactly 0xfffffffd', () => {
+  it('Cat21RpcService imports buildCat21MintPsbt from ordpool-sdk/core', () => {
     const src = read(
-      join(
-        EXTENSION_ROOT,
-        'src/background/cat21/builders/mint-builder.ts'
-      )
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
     );
-    expect(src).toMatch(/export const CAT21_WALLET_MINT_INPUT_SEQUENCE\s*=\s*0xfffffffd\s*;/);
+    expect(src).toMatch(/buildCat21MintPsbt[\s\S]{0,300}from\s+['"]ordpool-sdk\/core['"]/);
   });
 
-  it('mint-builder constructs the transaction with lockTime=CAT21_LOCK_TIME', () => {
+  it('Cat21RpcService.mint body calls the SDK helper (not a local function)', () => {
     const src = read(
-      join(
-        EXTENSION_ROOT,
-        'src/background/cat21/builders/mint-builder.ts'
-      )
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
     );
-    expect(src).toMatch(/new btc\.Transaction\(\s*\{\s*lockTime:\s*CAT21_LOCK_TIME/);
+    const match = src.match(/async mint\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
+    expect(match).not.toBeNull();
+    expect(match![1]).toMatch(/buildCat21MintPsbt\(/);
   });
 
-  it('mint-builder asserts both invariants before return', () => {
+  it('Cat21RpcService.mint passes walletType=KnownOrdinalWalletType.cat21wallet', () => {
+    // The cat21wallet path uses 0xfffffffd sequence in the SDK helper. If
+    // a future refactor accidentally drops the walletType arg, the SDK
+    // defaults to the non-cat21wallet path (0xfffffffe) and the 2024
+    // Xverse-style breakage returns. Pin it positively here.
     const src = read(
-      join(
-        EXTENSION_ROOT,
-        'src/background/cat21/builders/mint-builder.ts'
-      )
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
     );
-    expect(src).toMatch(/tx\.lockTime\s*!==\s*CAT21_LOCK_TIME/);
-    expect(src).toMatch(/input\.sequence\s*!==\s*CAT21_WALLET_MINT_INPUT_SEQUENCE/);
+    // At least two occurrences: mint + transfer.
+    const matches = src.match(/walletType:\s*KnownOrdinalWalletType\.cat21wallet/g) ?? [];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 });
 
