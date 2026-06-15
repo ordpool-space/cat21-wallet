@@ -265,33 +265,38 @@ describe('HARD RULE — createOffer never builds a tx, never broadcasts, never s
   });
 });
 
-describe('HARD RULE #1 (transfer-builder) — transfers must NOT carry lockTime=21', () => {
+describe('HARD RULE #1 (transfer-builder) — transfers carry lockTime=21 + sequence 0xfffffffd', () => {
 
-  it('transfer-builder constructs Transaction without a lockTime field', () => {
-    // Setting lockTime=21 on a transfer would forge a "fake mint" marker
-    // on a non-mint tx, polluting cat21-ord's index. The transfer builder
-    // therefore omits the lockTime option, letting btc.Transaction default
-    // to 0. This regex matches `new btc.Transaction({` followed by anything
-    // up to the closing `})` and asserts `lockTime:` is NOT in that block.
+  it('transfer-builder constructs the Transaction with lockTime=CAT21_LOCK_TIME', () => {
     const src = read(
       join(
         EXTENSION_ROOT,
         'src/background/cat21/builders/transfer-builder.ts'
       )
     );
-    const constructorBlock = src.match(/new btc\.Transaction\(\s*\{[^}]*\}/);
-    expect(constructorBlock).not.toBeNull();
-    expect(constructorBlock![0]).not.toMatch(/lockTime/);
+    expect(src).toMatch(/new btc\.Transaction\(\s*\{\s*lockTime:\s*CAT21_LOCK_TIME/);
   });
 
-  it('transfer-builder source does NOT reference CAT21_LOCK_TIME', () => {
+  it('transfer-builder uses the cat21wallet input sequence on every input', () => {
     const src = read(
       join(
         EXTENSION_ROOT,
         'src/background/cat21/builders/transfer-builder.ts'
       )
     );
-    expect(src).not.toMatch(/CAT21_LOCK_TIME/);
+    expect(src).toMatch(/sequence:\s*CAT21_WALLET_MINT_INPUT_SEQUENCE/);
+  });
+
+  it('transfer-builder asserts lockTime + sequence + SIGHASH_ALL before return', () => {
+    const src = read(
+      join(
+        EXTENSION_ROOT,
+        'src/background/cat21/builders/transfer-builder.ts'
+      )
+    );
+    expect(src).toMatch(/tx\.lockTime\s*!==\s*CAT21_LOCK_TIME/);
+    expect(src).toMatch(/input\.sequence\s*!==\s*CAT21_WALLET_MINT_INPUT_SEQUENCE/);
+    expect(src).toMatch(/input\.sighashType\s*!==\s*btc\.SigHash\.ALL/);
   });
 });
 

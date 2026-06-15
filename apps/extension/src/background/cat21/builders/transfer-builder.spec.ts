@@ -83,10 +83,18 @@ describe('buildTransferPsbt', () => {
     }
   });
 
-  it('does NOT set lockTime=21 (transfer is not a mint)', () => {
+  it('sets lockTime=21 (every cat-touching tx we build is a mint)', () => {
     const result = buildTransferPsbt(makeArgs());
     const tx = btc.Transaction.fromPSBT(result.psbt);
-    expect(tx.lockTime).toBe(0);
+    expect(tx.lockTime).toBe(21);
+  });
+
+  it('sets every input sequence to 0xfffffffd (RBF-signalling, cat21wallet path)', () => {
+    const result = buildTransferPsbt(makeArgs());
+    const tx = btc.Transaction.fromPSBT(result.psbt);
+    for (let i = 0; i < tx.inputsLength; i++) {
+      expect(tx.getInput(i).sequence).toBe(0xfffffffd);
+    }
   });
 
   it('emits change above dust as output 1 (after cat output)', () => {

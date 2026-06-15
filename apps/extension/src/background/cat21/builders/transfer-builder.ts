@@ -1,6 +1,10 @@
 import * as btc from '@scure/btc-signer';
 
 import type { Cat21TransferIntent, Validated } from '../types';
+import {
+  CAT21_LOCK_TIME,
+  CAT21_WALLET_MINT_INPUT_SEQUENCE,
+} from './mint-builder';
 
 /**
  * Cat-output postage. Same as mint and offer — 546 sats keeps cat output
@@ -62,15 +66,24 @@ export interface BuildTransferPsbtResult {
  *              must be spent to output 0 to preserve ownership.
  *   Input 1  — funding UTXO (may equal cat UTXO when surplus value
  *              covers the fee; in that case input 1 is omitted).
- *   Output 0 — recipient address, 546 sats. Cat lands here.
- *   Output 1 — change to payment address (when above dust).
+ *   Output 0 — recipient address, 546 sats. The cat lands here AND a
+ *              new cat is revealed on the same satoshi.
  *
- * Hard invariants:
- *   - Input 0's first sat carries the cat → output 0's first sat
- *     receives it (no nLockTime restriction for transfers, since the
- *     cat is already minted; HARD RULE #1 nLockTime preservation
- *     applies to RBF-replacements of mints, not to transfers).
- *   - Every input carries SIGHASH_ALL.
+ * Hard invariants (asserted before return):
+ *   1. `lockTime === 21`. Every cat-touching tx our code builds is a
+ *      CAT-21 mint by policy — a transfer mints a new cat onto the same
+ *      ordinal that already carries the original cat. Per the protocol
+ *      spec, a single CAT-21 ordinal can carry multiple cats through
+ *      repeated minting.
+ *   2. Every input carries `sequence === 0xfffffffd` (RBF-signalling).
+ *      Sequence is purely about RBF UX — block 21 was mined in 2009,
+ *      so the lockTime field has no consensus meaning, it's a data
+ *      marker. `0xfffffffd` lets our own accelerate flow fee-bump the
+ *      tx; that flow is required to preserve `lockTime=21` through any
+ *      replacement.
+ *   3. Every input carries SIGHASH_ALL. The signature commits to
+ *      lockTime, so the marker is cryptographically locked the moment
+ *      the input is signed.
  *
  * Coin selection (find one or two UTXOs that cover postage + fee) is
  * the caller's responsibility.
@@ -78,12 +91,11 @@ export interface BuildTransferPsbtResult {
 export function buildTransferPsbt(args: BuildTransferPsbtArgs): BuildTransferPsbtResult {
   const scureNetwork = args.network === 'mainnet' ? btc.NETWORK : btc.TEST_NETWORK;
   const tx = new btc.Transaction({
+    lockTime: CAT21_LOCK_TIME,
     allowLegacyWitnessUtxo: true,
     disableScriptCheck: true,
   });
 
-  // Input 0: cat-bearing UTXO. Sequence stays default (final);
-  // transfers don't need RBF signalling — the cat is minted, not in flight.
   addInput(tx, args.catUtxo);
 
   const usesSeparateFundingInput = !sameUtxo(args.catUtxo, args.fundingUtxo);
@@ -91,7 +103,8 @@ export function buildTransferPsbt(args: BuildTransferPsbtArgs): BuildTransferPsb
     addInput(tx, args.fundingUtxo);
   }
 
-  // Output 0: recipient (the cat).
+  // Output 0: recipient. Cat ordinal travels here via FIFO; lockTime=21
+  // mints a fresh cat onto the same sat in the same tx.
   tx.addOutputAddress(
     args.intent.recipient,
     BigInt(TRANSFER_CAT_OUTPUT_SATS),
@@ -117,9 +130,21 @@ export function buildTransferPsbt(args: BuildTransferPsbtArgs): BuildTransferPsb
     tx.addOutputAddress(args.paymentAddress, BigInt(change), scureNetwork);
   }
 
-  // Hard assert: every input carries SIGHASH_ALL.
+  // Hard post-build asserts. Match mint-builder's positive invariant
+  // shape — same constants, same failure mode.
+  if (tx.lockTime !== CAT21_LOCK_TIME) {
+    throw new Error(
+      `CAT-21 invariant violated: lockTime=${tx.lockTime}, expected ${CAT21_LOCK_TIME}`
+    );
+  }
   for (let i = 0; i < tx.inputsLength; i++) {
-    if (tx.getInput(i).sighashType !== btc.SigHash.ALL) {
+    const input = tx.getInput(i);
+    if (input.sequence !== CAT21_WALLET_MINT_INPUT_SEQUENCE) {
+      throw new Error(
+        `CAT-21 invariant violated: input ${i} sequence=${input.sequence}, expected ${CAT21_WALLET_MINT_INPUT_SEQUENCE}`
+      );
+    }
+    if (input.sighashType !== btc.SigHash.ALL) {
       throw new Error(
         `CAT-21 invariant violated: input ${i} sighashType is not SIGHASH_ALL`
       );
@@ -139,6 +164,7 @@ function addInput(tx: btc.Transaction, utxo: TransferUtxo): void {
   const inputBase = {
     txid: utxo.txid,
     index: utxo.vout,
+    sequence: CAT21_WALLET_MINT_INPUT_SEQUENCE,
     sighashType: btc.SigHash.ALL,
     witnessUtxo: {
       script: utxo.scriptPubKey,
