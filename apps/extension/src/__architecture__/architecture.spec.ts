@@ -265,38 +265,64 @@ describe('HARD RULE — createOffer never builds a tx, never broadcasts, never s
   });
 });
 
-describe('HARD RULE #1 (transfer-builder) — transfers carry lockTime=21 + sequence 0xfffffffd', () => {
+describe('HARD RULE — transfer logic lives in the SDK, not inline in the wallet', () => {
 
-  it('transfer-builder constructs the Transaction with lockTime=CAT21_LOCK_TIME', () => {
-    const src = read(
-      join(
-        EXTENSION_ROOT,
-        'src/background/cat21/builders/transfer-builder.ts'
-      )
-    );
-    expect(src).toMatch(/new btc\.Transaction\(\s*\{\s*lockTime:\s*CAT21_LOCK_TIME/);
+  it('the wallet has NO inline transfer-builder file (deleted; SDK is authority)', () => {
+    expect(() =>
+      read(join(EXTENSION_ROOT, 'src/background/cat21/builders/transfer-builder.ts'))
+    ).toThrow();
   });
 
-  it('transfer-builder uses the cat21wallet input sequence on every input', () => {
+  it('Cat21RpcService imports buildCat21TransferPsbt from ordpool-sdk/core', () => {
     const src = read(
-      join(
-        EXTENSION_ROOT,
-        'src/background/cat21/builders/transfer-builder.ts'
-      )
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
     );
-    expect(src).toMatch(/sequence:\s*CAT21_WALLET_MINT_INPUT_SEQUENCE/);
+    expect(src).toMatch(/buildCat21TransferPsbt[\s\S]{0,200}from\s+['"]ordpool-sdk\/core['"]/);
   });
 
-  it('transfer-builder asserts lockTime + sequence + SIGHASH_ALL before return', () => {
+  it('Cat21RpcService.transfer body calls the SDK helper (not a local function)', () => {
     const src = read(
-      join(
-        EXTENSION_ROOT,
-        'src/background/cat21/builders/transfer-builder.ts'
-      )
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
     );
-    expect(src).toMatch(/tx\.lockTime\s*!==\s*CAT21_LOCK_TIME/);
-    expect(src).toMatch(/input\.sequence\s*!==\s*CAT21_WALLET_MINT_INPUT_SEQUENCE/);
-    expect(src).toMatch(/input\.sighashType\s*!==\s*btc\.SigHash\.ALL/);
+    const match = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
+    expect(match).not.toBeNull();
+    expect(match![1]).toMatch(/buildCat21TransferPsbt\(/);
+  });
+
+  it('Cat21RpcService.transfer passes walletType=KnownOrdinalWalletType.cat21wallet', () => {
+    // The cat21wallet path uses 0xfffffffd sequence in the SDK helper. If
+    // a future refactor accidentally drops the walletType arg, the SDK
+    // defaults to the non-cat21wallet path (0xfffffffe), breaking our
+    // own RBF flow. Pin it positively here.
+    const src = read(
+      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
+    );
+    expect(src).toMatch(/walletType:\s*KnownOrdinalWalletType\.cat21wallet/);
+  });
+});
+
+describe('HARD RULE — every wallet SDK import comes from ordpool-sdk/core, not bare ordpool-sdk', () => {
+
+  it('no source file imports from bare "ordpool-sdk" (must use /core to avoid Angular pull-in)', () => {
+    const files = findFiles([join(EXTENSION_ROOT, 'src')], SOURCE_EXTS);
+    const offenders: string[] = [];
+    for (const file of files) {
+      const src = read(file);
+      // Match real ES import/export forms only:
+      //   import ... from 'ordpool-sdk'
+      //   import 'ordpool-sdk'
+      //   export ... from 'ordpool-sdk'
+      // Each pattern requires the literal string at start-of-line (with
+      // optional whitespace) so that the rule's own description text
+      // inside this spec doesn't self-trip.
+      const hasBareImport =
+        /^\s*import[^'"]*['"]ordpool-sdk['"]/m.test(src) ||
+        /^\s*export[^'"]*from\s+['"]ordpool-sdk['"]/m.test(src);
+      if (hasBareImport) {
+        offenders.push(relative(EXTENSION_ROOT, file));
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });
 

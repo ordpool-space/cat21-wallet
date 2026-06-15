@@ -15,16 +15,31 @@ import {
   resolveSigningMode,
 } from './mode-resolver';
 import {
+  Cat21TransferCatInput,
+  Cat21OfferValidation,
+  KnownOrdinalWalletType,
+  Network,
+  buildCat21TransferPsbt,
+} from 'ordpool-sdk/core';
+
+import {
   MintInvariantError,
   enforceMintInvariants,
 } from './invariants/mint-invariants';
 import { enforceTransferInvariants } from './invariants/transfer-invariants';
 import { enforceCreateOfferInvariants } from './invariants/create-offer-invariants';
 import { buildMintPsbt } from './builders/mint-builder';
-import { TransferUtxo, buildTransferPsbt } from './builders/transfer-builder';
 import { buildListing } from './builders/listing-builder';
-import { Cat21OfferValidation, validateAcceptOffer } from './builders/accept-offer-validator';
+import { validateAcceptOffer } from './builders/accept-offer-validator';
 import { enforceAcceptOfferInvariants, ValidatedAcceptOffer } from './invariants/accept-offer-invariants';
+
+/**
+ * Alias for the SDK's cat-bearing-UTXO type. Kept under the wallet's
+ * old name so callers / specs that referenced `TransferUtxo` continue
+ * to type-check without churn. New code should use the SDK type
+ * directly.
+ */
+export type TransferUtxo = Cat21TransferCatInput;
 
 /**
  * Funding UTXO shape accepted by every cat21 builder. The wallet's
@@ -283,12 +298,17 @@ export class Cat21RpcService {
 
     const estimatedFee = Math.ceil(validated.feeRate * 220);
     const requiredSats = 546 + estimatedFee;
-    let fundingUtxo: Cat21FundingUtxo | TransferUtxo;
-    if (catUtxo.value >= requiredSats) {
-      fundingUtxo = catUtxo;
-    } else {
+    const fundingInputs: Cat21TransferCatInput[] = [];
+    if (catUtxo.value < requiredSats) {
       try {
-        fundingUtxo = this.deps.pickFundingUtxo(requiredSats - catUtxo.value);
+        const fundingUtxo = this.deps.pickFundingUtxo(requiredSats - catUtxo.value);
+        fundingInputs.push({
+          txid: fundingUtxo.txid,
+          vout: fundingUtxo.vout,
+          value: fundingUtxo.value,
+          scriptPubKey: fundingUtxo.scriptPubKey,
+          tapInternalKey: fundingUtxo.tapInternalKey,
+        });
       } catch (err) {
         return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
       }
@@ -296,12 +316,16 @@ export class Cat21RpcService {
 
     let built;
     try {
-      built = buildTransferPsbt({
-        intent: validated,
+      built = buildCat21TransferPsbt({
+        walletType: KnownOrdinalWalletType.cat21wallet,
+        network: walletNetworkToSdkNetwork(accountCtx.network),
         catUtxo,
-        fundingUtxo,
-        paymentAddress: accountCtx.paymentAddress,
-        network: accountCtx.network,
+        fundingInputs,
+        destinations: {
+          recipientAddress: validated.recipient,
+          senderChangeAddress: accountCtx.paymentAddress,
+        },
+        feeSats: estimatedFee,
       });
     } catch (err) {
       return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
@@ -323,7 +347,7 @@ export class Cat21RpcService {
       return denied('broadcast-failed', errorDetail(err));
     }
 
-    this.deps.recordSpend(546 + built.fee);
+    this.deps.recordSpend(546 + estimatedFee);
     return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
 
@@ -489,6 +513,15 @@ export class Cat21RpcService {
     this.deps.recordSpend(validation.pricePaidSats);
     return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
+}
+
+/**
+ * Map the wallet's coarse network label to the SDK's `Network` enum.
+ * Wallet currently exposes only `'mainnet' | 'testnet'`; testnet maps
+ * to Testnet3 (the chain ordpool defaults to in tests).
+ */
+function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet'): Network {
+  return net === 'mainnet' ? Network.Mainnet : Network.Testnet3;
 }
 
 function denied(reason: Cat21RpcDenyReason, detail?: string): Cat21RpcResult {
