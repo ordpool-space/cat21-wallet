@@ -1,5 +1,6 @@
 import { AddressTransactionWithTransfers, Transaction } from '@stacks/stacks-blockchain-api-types';
 import dayjs from 'dayjs';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 
 import type { StacksBlock } from '@app/query/sbtc/get-stacks-block.query';
 import type { SbtcDeposit } from '@app/query/sbtc/sbtc-deposits.query';
@@ -10,6 +11,15 @@ import type {
   TransactionListStacksTx,
 } from './transaction-list.model';
 import { createTxDateFormatList } from './transaction-list.utils';
+
+// Pin "now" to a safe-from-tz-boundaries instant (mid-morning UTC, which
+// is the same calendar day in every IANA-named tz). Without this, the
+// "Today"/"Yesterday" assertions flake whenever the host clock crosses
+// UTC midnight while the system tz offset shifts the local calendar day —
+// the test computes `today = new Date().toISOString()` (UTC) while the
+// production code under test formats the same instant via local-tz
+// dayjs.tz(), and the two day strings disagree.
+const FROZEN_NOW = new Date('2026-06-15T12:00:00Z');
 
 function createFakeTx(tx: Partial<Transaction>) {
   return {
@@ -32,6 +42,16 @@ function createFakeDeposit(block: Partial<StacksBlock>) {
 }
 
 describe(createTxDateFormatList.name, () => {
+
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FROZEN_NOW);
+  });
+
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+
   test('grouping by date', () => {
     const mockBitcoinTx = {
       blockchain: 'bitcoin',
