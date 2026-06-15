@@ -320,6 +320,176 @@ describe('HARD RULE — every wallet SDK import comes from ordpool-sdk/core, not
   });
 });
 
+describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet handler binding', () => {
+
+  // Round-2 audit Finding 6 asked the wallet-side architecture spec to
+  // require that every name in KnownCat21RpcMethod has a matching SDK
+  // module-level export. Concretely: when someone adds a fifth cat21_*
+  // action, this spec goes red until they wire it through to either an
+  // SDK helper or a documented wallet-local builder.
+  //
+  // The contract is hardcoded here as a table — the spec is the
+  // source of truth for "what RPC methods exist + what each one is
+  // bound to". A new method without a row fails the iteration; an old
+  // method whose binding drifts (the imported SDK symbol disappears,
+  // the wallet-local file is deleted) fails the per-row assertions.
+
+  interface Cat21RpcMethodBinding {
+    /** Wire-level method name (matches MCP tool name + chrome.runtime message type). */
+    methodName: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer';
+    /** Cat21RpcService method that handles it. */
+    serviceMethod: 'mint' | 'transfer' | 'createOffer' | 'acceptOffer';
+    /**
+     * Either an SDK symbol the service imports from `ordpool-sdk/core`,
+     * OR a path to a wallet-local builder file. SDK is preferred per the
+     * "concentrate logic in the SDK" workspace rule; wallet-local is
+     * acceptable when the SDK has no equivalent yet (currently:
+     * listing-builder for create_offer, accept-offer-validator wrapper
+     * for accept_offer which delegates to the SDK validator via the
+     * Cat21RpcDeps.validateBuyOfferPsbt callback).
+     */
+    handlerBinding:
+      | { kind: 'sdk-symbol'; symbol: string }
+      | { kind: 'wallet-local-file'; relativePath: string }
+      | { kind: 'dep-callback'; depName: string };
+  }
+
+  const KNOWN_CAT21_RPC_METHODS: Cat21RpcMethodBinding[] = [
+    {
+      methodName: 'cat21_mint',
+      serviceMethod: 'mint',
+      handlerBinding: { kind: 'sdk-symbol', symbol: 'buildCat21MintPsbt' },
+    },
+    {
+      methodName: 'cat21_transfer',
+      serviceMethod: 'transfer',
+      handlerBinding: { kind: 'sdk-symbol', symbol: 'buildCat21TransferPsbt' },
+    },
+    {
+      methodName: 'cat21_create_offer',
+      serviceMethod: 'createOffer',
+      // create_offer publishes a structured listing, NOT a PSBT. The
+      // SDK's buildCat21BuyOfferPsbt is the BUYER-side builder (used
+      // by cat21.space or any non-wallet buyer), not the seller-side
+      // listing publisher we run here.
+      handlerBinding: {
+        kind: 'wallet-local-file',
+        relativePath: 'src/background/cat21/builders/listing-builder.ts',
+      },
+    },
+    {
+      methodName: 'cat21_accept_offer',
+      serviceMethod: 'acceptOffer',
+      // accept-offer signs an inbound buyer-built PSBT. The validation
+      // delegates to the SDK's validateCat21BuyOfferPsbt via the
+      // Cat21RpcDeps.validateBuyOfferPsbt callback (so the wallet
+      // stays untyped against ordpool-sdk's exports here). The
+      // wallet-local accept-offer-validator file wraps the call.
+      handlerBinding: {
+        kind: 'dep-callback',
+        depName: 'validateBuyOfferPsbt',
+      },
+    },
+  ];
+
+  it('the table covers all four wallet RPC methods (no more, no less)', () => {
+    const names = KNOWN_CAT21_RPC_METHODS.map(m => m.methodName).sort();
+    expect(names).toEqual([
+      'cat21_accept_offer',
+      'cat21_create_offer',
+      'cat21_mint',
+      'cat21_transfer',
+    ]);
+  });
+
+  it.each(KNOWN_CAT21_RPC_METHODS)(
+    'Cat21RpcService implements the $serviceMethod method for $methodName',
+    binding => {
+      const src = read(
+        join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
+      );
+      // Allow the method to be async (which it is for all four today)
+      // OR sync (so a future contributor doesn't break the spec on a
+      // stylistic refactor).
+      const methodRegex = new RegExp(
+        `\\b(async\\s+)?${binding.serviceMethod}\\s*\\(`
+      );
+      expect(src).toMatch(methodRegex);
+    }
+  );
+
+  it.each(KNOWN_CAT21_RPC_METHODS)(
+    '$methodName binding is wired ($handlerBinding.kind)',
+    binding => {
+      if (binding.handlerBinding.kind === 'sdk-symbol') {
+        // SDK-symbol bindings: the service imports the symbol from
+        // 'ordpool-sdk/core' AND the corresponding service method body
+        // references it.
+        const src = read(
+          join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
+        );
+        const sym = binding.handlerBinding.symbol;
+        // Import statement contains the symbol and resolves through
+        // 'ordpool-sdk/core'.
+        expect(src).toMatch(
+          new RegExp(`${sym}[\\s\\S]{0,400}from\\s+['"]ordpool-sdk/core['"]`)
+        );
+        // The corresponding method body actually calls it.
+        const methodMatch = src.match(
+          new RegExp(
+            `\\b(?:async\\s+)?${binding.serviceMethod}\\([\\s\\S]*?\\)[^{]*\\{([\\s\\S]*?)\\n {2}\\}\\n`
+          )
+        );
+        expect(methodMatch).not.toBeNull();
+        expect(methodMatch![1]).toMatch(new RegExp(`${sym}\\(`));
+      } else if (binding.handlerBinding.kind === 'wallet-local-file') {
+        // Wallet-local-file bindings: the named file must exist.
+        const path = join(EXTENSION_ROOT, binding.handlerBinding.relativePath);
+        expect(() => read(path)).not.toThrow();
+      } else {
+        // Dep-callback bindings: the Cat21RpcDeps interface MUST declare
+        // the callback, and the service method body MUST call it through
+        // `this.deps.<depName>(`.
+        const src = read(
+          join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
+        );
+        const dep = binding.handlerBinding.depName;
+        // Interface declaration.
+        expect(src).toMatch(new RegExp(`${dep}\\s*\\(`));
+        // Method body call site.
+        const methodMatch = src.match(
+          new RegExp(
+            `\\b(?:async\\s+)?${binding.serviceMethod}\\([\\s\\S]*?\\)[^{]*\\{([\\s\\S]*?)\\n {2}\\}\\n`
+          )
+        );
+        expect(methodMatch).not.toBeNull();
+        // Allow either direct dep usage or wrapper helper that uses it.
+        const accessesDep =
+          new RegExp(`this\\.deps\\.${dep}\\b`).test(methodMatch![1]) ||
+          new RegExp(`${dep}\\b`).test(methodMatch![1]);
+        expect(accessesDep).toBe(true);
+      }
+    }
+  );
+
+  it('AgentActionKind on the SDK side uses the literal four wallet RPC names', () => {
+    // This is the second half of Round-2 audit Finding 6: the SDK's
+    // policy gate `kind` union must be the identity-function of the
+    // wallet's RPC method names. Round-1 closed this; the assertion
+    // here pins it so a future SDK rename (e.g. back to 'mint' / 'buy'
+    // / 'sell-accept') goes red on the wallet side.
+    const src = read(
+      join(REPO_ROOT, '../ordpool-sdk/src/agent-mode/agent-policy.types.ts')
+    );
+    expect(src).toMatch(/'cat21_mint'/);
+    expect(src).toMatch(/'cat21_transfer'/);
+    expect(src).toMatch(/'cat21_create_offer'/);
+    expect(src).toMatch(/'cat21_accept_offer'/);
+    // Negative: the old names are gone.
+    expect(src).not.toMatch(/['"]sell-accept['"]/);
+  });
+});
+
 describe('HARD RULE #2 — cat-bearing UTXOs are never picked by BTC coin selection', () => {
 
   it('utxos.service folds the protected bucket into unspendable downstream', () => {
