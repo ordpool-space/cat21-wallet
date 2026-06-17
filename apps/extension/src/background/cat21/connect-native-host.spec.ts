@@ -52,15 +52,17 @@ function makeFakeDispatcher(
   result: { ok: true; value: { txid: string } } | { ok: false; value: { reason: string } }
 ): Cat21Dispatcher {
   return {
-    handle: vi.fn(async (msg, _transport) => ({
-      type: `${msg.type}:result` as
-        | 'cat21_mint:result'
-        | 'cat21_transfer:result'
-        | 'cat21_create_offer:result'
-        | 'cat21_accept_offer:result',
-      requestId: msg.requestId,
-      result,
-    })),
+    handle: vi.fn(msg =>
+      Promise.resolve({
+        type: `${msg.type}:result` as
+          | 'cat21_mint:result'
+          | 'cat21_transfer:result'
+          | 'cat21_create_offer:result'
+          | 'cat21_accept_offer:result',
+        requestId: msg.requestId,
+        result,
+      })
+    ),
   } as unknown as Cat21Dispatcher;
 }
 
