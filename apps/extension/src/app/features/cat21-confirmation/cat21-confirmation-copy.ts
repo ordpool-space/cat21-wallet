@@ -20,8 +20,7 @@ import type {
  *   - the React layer becomes a thin presentational shell that just
  *     renders the title / paragraphs / buttons from this struct
  */
-// HACK -- Cat21: removed `export` (React popup consumer lands in iter 11b). HARD RULE #5 — restore on wire-up.
-interface Cat21ConfirmationCopy {
+export interface Cat21ConfirmationCopy {
   /** Dialog title shown at the top, e.g. "Mint a CAT-21 cat?". */
   title: string;
   /**

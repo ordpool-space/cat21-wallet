@@ -145,7 +145,7 @@
         "src/background/messaging/rpc-request-utils.ts",
         "src/app/store/agent-policy/agent-policy.selectors.ts",
         "src/app/store/agent-policy/agent-policy.hooks.ts",
-        "src/app/features/cat21-confirmation/cat21-confirmation-copy.ts"
+        "src/app/features/cat21-confirmation/**"
       ]
     },
     "apps/mobile": {
