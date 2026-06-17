@@ -102,7 +102,12 @@ export const agentPolicySlice = createSlice({
   },
 });
 
-/** @knipignore -- HACK Cat21: actions consumed by wizard UI (iter 10b) + dispatcher wiring. */
+/** @knipignore -- HACK Cat21: `incrementSpentToday` is dispatched by the
+ * dispatcher's `recordSpend` dep (post-broadcast), wired through
+ * `makeAgentPolicyDeps` which knip can't trace into the background
+ * entrypoint chain. `resetSpentTodayForAccount` is consumed by a
+ * future settings affordance. Both stay exported.
+ */
 export const {
   setPolicyForAccount,
   clearPolicyForAccount,
