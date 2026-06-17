@@ -96,13 +96,13 @@ jobs:
       # Cache disabled across this trusted-build pipeline on purpose.
       # zizmor flags package-manager cache as a cache-poisoning attack
       # surface; the build artifact is small enough that the extra ~30s
-      # is worth eliminating that surface entirely.
+      # is worth eliminating that surface entirely. The inline `zizmor:`
+      # comment below suppresses the false-positive on setup-node, which
+      # zizmor flags even when no `cache:` key is set.
       - name: setup-node
-        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3 # zizmor: ignore[cache-poisoning]
         with:
           node-version-file: '.nvmrc'
-          # HACK -- Cat21: leave cache implicit (no `cache:` key) so no
-          # built-in caching kicks in. The build is fresh from registry.
 
       - name: setup-pnpm
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2  # v4.0.0
