@@ -59,5 +59,9 @@ export function getProtocolDisplayLabel(protocol: CryptoAssetProtocol): string {
     nativeBtc: t`Bitcoin`,
     nativeStx: t`Stacks`,
     sip10: t`SIP-010`,
+    // HACK -- Cat21: cat21 protocol added to CryptoAssetProtocol; mobile
+    // mirrors the label. Bonus shipping target — wire-up of the actual
+    // mobile cat21 UI lands later.
+    cat21: t`CAT-21`,
   }[protocol];
 }

@@ -26,7 +26,8 @@ export function mapOrdCat21ToCat21Asset(cat: OrdCat21): Cat21Asset {
 }
 
 /* HACK -- Cat21: block-height sort per ADR-12, ord field name. */
-export function sortOrdCat21ByBlockHeight(a: OrdCat21, b: OrdCat21) {
+// HACK -- Cat21: removed `export` keyword (cat21 collectibles util pre-wired; restore on consumer wire-up). HARD RULE #5 — restore on wire-up.
+function sortOrdCat21ByBlockHeight(a: OrdCat21, b: OrdCat21) {
   return b.genesis_height - a.genesis_height;
 }
 

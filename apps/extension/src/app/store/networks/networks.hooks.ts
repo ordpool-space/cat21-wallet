@@ -57,6 +57,7 @@ export function useCurrentStacksNetworkState(): StacksNetwork {
   );
 }
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export function useNetworksActions() {
   const dispatch = useAppDispatch();
 

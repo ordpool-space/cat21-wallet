@@ -77,12 +77,20 @@ export function useCollectiblesAnalytics({
   useEffect(() => {
     if (!collectibles.length) return;
 
+    // HACK -- Cat21: upstream Leather Remeda 2.21.2 + TS 5.9.3 inference
+    // dead-end on `countBy(identity())` — verified pristine in
+    // leather-io/mono@dev 2026-06-17. The added `(collectibles as any)`
+    // and outer cast unblock the inference without changing behaviour.
+    // Bonus: NonFungibleCryptoAsset's Cat21 branch lacks `.content`, so
+    // we widen to `any` for the contentType pluck. HARD RULE #5 — file
+    // is upstream; revert on next upstream sync if Remeda fixes the
+    // inference and we drop the Cat21 union widening.
     const byContentType = pipe(
-      collectibles,
-      map(collectible => collectible.content?.contentType),
+      collectibles as any[],
+      map((collectible: any) => collectible.content?.contentType),
       filter(isDefined),
       countBy(identity())
-    );
+    ) as Record<string, number>;
 
     analytics.track('collectibles_summary', {
       platform: 'mobile',

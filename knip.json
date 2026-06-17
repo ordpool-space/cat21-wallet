@@ -24,11 +24,13 @@
     "prebuild",
     "only-allow",
     "pinact",
-    "sed"
+    "sed",
+    "gh"
   ],
   "ignoreUnresolved": [
     "metro-minify-terser",
-    "/\\+types/"
+    "/\\+types/",
+    "./locales/en/messages"
   ],
   "ignore": [
     "*/**/*.spec.{ts,tsx}",
@@ -113,11 +115,34 @@
         "@types/webpack",
         "@redux-devtools/cli",
         "blns",
-        "web-ext-submit"
+        "web-ext-submit",
+        "buffer",
+        "@noble/secp256k1",
+        "base64url",
+        "ecdsa-sig-formatter",
+        "ordpool-sdk",
+        "react-hook-form",
+        "@hookform/resolvers"
       ],
       "ignore": [
         "src/shared/global-types.ts",
-        "src/shared/models/global-types.ts"
+        "src/shared/models/global-types.ts",
+        "src/app/common/unsafe-auth-response.ts",
+        "src/app/common/url-join.ts",
+        "src/background/cat21/**",
+        "src/app/pages/network/**",
+        "src/background/messaging/rpc-methods/sign-stacks-message.ts",
+        "src/background/messaging/rpc-methods/stx-*.ts",
+        "src/shared/rpc/methods/sign-stacks-message.ts",
+        "src/app/features/dialogs/transaction-action-dialog/cancel-stacks-transaction-sheet.tsx",
+        "src/app/features/dialogs/transaction-action-dialog/increase-stacks-fee-sheet.tsx",
+        "src/app/features/dialogs/transaction-action-dialog/stacks-transaction-action-sheet.tsx",
+        "src/app/features/dialogs/transaction-action-dialog/components/**",
+        "src/app/features/dialogs/transaction-action-dialog/hooks/use-stacks-transaction-action.ts",
+        "src/app/features/ledger/**",
+        "src/app/query/stacks/**",
+        "src/app/pages/swap-legacy/**",
+        "src/background/messaging/rpc-request-utils.ts"
       ]
     },
     "apps/mobile": {

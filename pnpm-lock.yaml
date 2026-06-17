@@ -330,6 +330,9 @@ importers:
       browserify-fs:
         specifier: 1.0.0
         version: 1.0.0
+      buffer:
+        specifier: 6.0.3
+        version: 6.0.3
       compare-versions:
         specifier: 6.1.0
         version: 6.1.0

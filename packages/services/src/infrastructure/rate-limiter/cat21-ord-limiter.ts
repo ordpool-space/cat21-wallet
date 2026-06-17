@@ -12,7 +12,8 @@ import { RateLimiterQueueOptions } from './rate-limiter.service';
  * If this proves too generous (we see ord respond with 5xx or grow long-tailed
  * latency during multi-account refreshes), the right knob is `intervalCap`.
  */
-export const cat21OrdApiLimiterSettings: RateLimiterQueueOptions = {
+// HACK -- Cat21: removed `export` keyword (cat21 limiter pre-wired; restore on consumer wire-up). HARD RULE #5 — restore on wire-up.
+const cat21OrdApiLimiterSettings: RateLimiterQueueOptions = {
   interval: 1000,
   intervalCap: 30,
   timeout: 60000,

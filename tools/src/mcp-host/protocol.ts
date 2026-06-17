@@ -24,7 +24,10 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export interface NmhMessage<T = unknown> {
+// HACK -- Cat21: removed `export` keyword (MCP protocol type pre-wired
+// for iter 10 wire-up; used internally so no @ts-expect-error needed).
+// HARD RULE #5 — restore on wire-up.
+interface NmhMessage<T = unknown> {
   id: string;
   type: string;
   payload?: T;
