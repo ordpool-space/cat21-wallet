@@ -800,7 +800,7 @@ Active on push/PR (safety net):
 
 Tag-gated trusted build (the deliverable):
 
-- `.github/workflows/cat21:trusted-build.yml` — runs only on
+- `.github/workflows/extension:trusted-build.yml` — runs only on
   GitHub-hosted runners, refuses self-hosted, pins every action by
   sha, uses `--frozen-lockfile`, emits a sigstore attestation via
   `actions/attest-build-provenance@v1.4.0`.

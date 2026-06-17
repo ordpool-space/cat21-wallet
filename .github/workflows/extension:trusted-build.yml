@@ -1,4 +1,4 @@
-name: cat21:trusted-build
+name: extension:trusted-build
 
 # Purpose: produce the canonical Cat21 Wallet extension ZIP exclusively on
 # GitHub-hosted runners, with a verifiable provenance attestation. The threat

@@ -6,7 +6,21 @@ defaults:
   run:
     shell: bash
 # HACK -- Cat21: was auto-triggered upstream. Disabled in our fork: this workflow either pushes to leather-io destinations (npm, Chrome Web Store, deploy) or covers surface we do not ship (mobile, web). Manual trigger only.
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      # HACK -- Cat21: declared so actionlint accepts `inputs.platform` references
+      # below. Upstream Leather had this declared; reinstated when we made `mobile`
+      # a bonus shipping target on 2026-06-17.
+      platform:
+        description: Which platforms to deploy
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - ios
+          - android
 
 
 concurrency:
@@ -16,7 +30,7 @@ concurrency:
 jobs:
   ios-build:
     name: ios-build
-    if: github.ref_name == 'dev' && (inputs.platform == 'all' || inputs.platform == 'ios')
+    if: github.ref_name == 'main' && (inputs.platform == 'all' || inputs.platform == 'ios')
     runs-on: macos-26
     timeout-minutes: 90
     steps:
@@ -74,7 +88,7 @@ jobs:
   ios-submit:
     name: ios-submit
     needs: ios-build
-    if: github.ref_name == 'dev' && (inputs.platform == 'all' || inputs.platform == 'ios')
+    if: github.ref_name == 'main' && (inputs.platform == 'all' || inputs.platform == 'ios')
     runs-on: macos-26
     environment: ios:production
     timeout-minutes: 30
@@ -123,7 +137,7 @@ jobs:
  
   android-build:
     name: android-build
-    if: github.ref_name == 'dev' && (inputs.platform == 'all' || inputs.platform == 'android')
+    if: github.ref_name == 'main' && (inputs.platform == 'all' || inputs.platform == 'android')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -194,7 +208,7 @@ jobs:
   android-submit:
     name: android-submit
     needs: android-build
-    if: github.ref_name == 'dev' && (inputs.platform == 'all' || inputs.platform == 'android')
+    if: github.ref_name == 'main' && (inputs.platform == 'all' || inputs.platform == 'android')
     runs-on: ubuntu-latest
     permissions:
       contents: read

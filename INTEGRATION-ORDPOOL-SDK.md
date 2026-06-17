@@ -146,7 +146,7 @@ gh attestation verify cat21-wallet-extension.zip \
   --repo ordpool-space/cat21-wallet
 ```
 
-The trusted-build workflow in `.github/workflows/cat21:trusted-build.yml`
+The trusted-build workflow in `.github/workflows/extension:trusted-build.yml`
 produces the attestation. A pass means GitHub's OIDC identity signed a
 provenance saying this exact byte sequence came out of this exact commit
 in this exact repository on a GitHub-hosted runner.
