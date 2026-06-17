@@ -2,9 +2,8 @@ import { useState } from 'react';
 
 import { Stack } from 'leather-styles/jsx';
 
-import type { Sip9Asset } from '@leather.io/models';
-
 import type { CollectibleView } from '@leather.io/features';
+import type { Sip9Asset } from '@leather.io/models';
 
 import { Sip9Card } from '../collectibles/components/sip9-card';
 import { CollectibleDetailsHeader } from './collectible-details-header';

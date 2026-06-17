@@ -37,7 +37,10 @@ type CreateOfferInvariantViolation =
   | 'payment-address-wrong-network';
 
 export class CreateOfferInvariantError extends Error {
-  constructor(public readonly reason: CreateOfferInvariantViolation, detail?: string) {
+  constructor(
+    public readonly reason: CreateOfferInvariantViolation,
+    detail?: string
+  ) {
     super(detail ? `${reason}: ${detail}` : reason);
     this.name = 'CreateOfferInvariantError';
   }

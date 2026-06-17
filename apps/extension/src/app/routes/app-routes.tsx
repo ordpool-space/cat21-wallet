@@ -254,7 +254,6 @@ function useAppRoutes() {
             }
           />
 
-
           <Route
             path={RouteUrls.ManageTokens}
             element={

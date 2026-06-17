@@ -18,3 +18,8 @@ worker-configuration.d.ts
 expo-env.d.ts
 ios/
 android/
+
+# HACK -- Cat21: React Router type codegen — generated at build time, format
+# noise out of our control. (apps/web isn't a Cat21 shipping target either.)
+.react-router/
+**/.react-router/

@@ -17,10 +17,10 @@ import { CollectiblesService } from './collectibles/collectibles.service';
  * ADR-12. autobind picks them up automatically, but the accessor functions
  * below give the consumer side a stable lookup name. */
 import { Sip9sService } from './collectibles/sip9s.service';
-import { Cat21OrdApiClient } from './infrastructure/api/cat21-ord/cat21-ord-api.client';
 import { BitcoinTransactionFeesService } from './fees/bitcoin-transaction-fees.service';
 import { StacksTransactionFeesService } from './fees/stacks-transaction-fees.service';
 import { BnsV2ApiClient } from './infrastructure/api/bns-v2/bns-v2-api.client';
+import { Cat21OrdApiClient } from './infrastructure/api/cat21-ord/cat21-ord-api.client';
 import { HiroStacksApiClient } from './infrastructure/api/hiro/hiro-stacks-api.client';
 import { LeatherApiClient } from './infrastructure/api/leather/leather-api.client';
 import { LeatherAuthApiClient } from './infrastructure/api/leather/leather-auth-api.client';

@@ -84,9 +84,7 @@ export function resolveSigningMode(args: {
    */
   evaluateAgentPolicy(
     intent: Cat21Intent
-  ):
-    | { allowed: true }
-    | { allowed: false; reason: string; detail?: string };
+  ): { allowed: true } | { allowed: false; reason: string; detail?: string };
 }): 'autonomous' | 'manual' {
   if (args.intent.mode !== 'autonomous') {
     return 'manual';

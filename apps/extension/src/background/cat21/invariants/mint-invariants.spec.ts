@@ -21,7 +21,6 @@ function makeIntent(over: Partial<Cat21MintIntent> = {}): Cat21MintIntent {
 }
 
 describe('enforceMintInvariants', () => {
-
   it('returns a Validated<Cat21MintIntent> for a well-formed mainnet mint', () => {
     const result = enforceMintInvariants(makeIntent(), 'mainnet');
     expect(result.recipient).toBe(MAINNET_P2TR);
@@ -29,10 +28,7 @@ describe('enforceMintInvariants', () => {
   });
 
   it('returns a Validated<Cat21MintIntent> for a well-formed testnet mint', () => {
-    const result = enforceMintInvariants(
-      makeIntent({ recipient: TESTNET_P2WPKH }),
-      'testnet'
-    );
+    const result = enforceMintInvariants(makeIntent({ recipient: TESTNET_P2WPKH }), 'testnet');
     expect(result.recipient).toBe(TESTNET_P2WPKH);
   });
 
@@ -101,10 +97,7 @@ describe('enforceMintInvariants', () => {
 
   it('throws MintInvariantError(tip-address-invalid) when tip exists with garbage address', () => {
     try {
-      enforceMintInvariants(
-        makeIntent({ tip: { address: 'garbage', value: 1000 } }),
-        'mainnet'
-      );
+      enforceMintInvariants(makeIntent({ tip: { address: 'garbage', value: 1000 } }), 'mainnet');
       throw new Error('did not throw');
     } catch (err) {
       expect(err).toBeInstanceOf(MintInvariantError);
@@ -127,10 +120,7 @@ describe('enforceMintInvariants', () => {
 
   it('throws MintInvariantError(tip-value-negative) when tip.value < 0', () => {
     try {
-      enforceMintInvariants(
-        makeIntent({ tip: { address: MAINNET_P2WPKH, value: -1 } }),
-        'mainnet'
-      );
+      enforceMintInvariants(makeIntent({ tip: { address: MAINNET_P2WPKH, value: -1 } }), 'mainnet');
       throw new Error('did not throw');
     } catch (err) {
       expect(err).toBeInstanceOf(MintInvariantError);
@@ -189,10 +179,7 @@ describe('enforceMintInvariants', () => {
     // Pin first-violation-wins ordering so a future refactor doesn't accidentally
     // surface a different reason. Both fields are wrong; tip-value-negative fires.
     try {
-      enforceMintInvariants(
-        makeIntent({ tip: { address: 'garbage', value: -1 } }),
-        'mainnet'
-      );
+      enforceMintInvariants(makeIntent({ tip: { address: 'garbage', value: -1 } }), 'mainnet');
       throw new Error('did not throw');
     } catch (err) {
       expect(err).toBeInstanceOf(MintInvariantError);

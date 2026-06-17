@@ -123,11 +123,7 @@ export function getUtxoTotals(
   ];
   const dustUtxos = confirmedUtxos.filter(isDustUtxo);
   const protectedUtxos = confirmedUtxos.filter(filterMatchesAnyUtxoId(catBearingUtxoIds));
-  const unspendableUtxos = selectUniqueUtxoIds([
-    ...outboundUtxos,
-    ...dustUtxos,
-    ...protectedUtxos,
-  ]);
+  const unspendableUtxos = selectUniqueUtxoIds([...outboundUtxos, ...dustUtxos, ...protectedUtxos]);
   const availableUtxos = confirmedUtxos.filter(filterOutMatchesAnyUtxoId(unspendableUtxos));
   return {
     confirmed: confirmedUtxos,

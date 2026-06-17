@@ -64,16 +64,10 @@ export class Cat21AssetService {
     const bitcoin = request.account.bitcoin;
     if (!bitcoin) return [];
     const addresses: string[] = [];
-    if (
-      !request.exclusions?.taprootAddresses &&
-      bitcoin.zeroIndexTaprootPayerAddress
-    ) {
+    if (!request.exclusions?.taprootAddresses && bitcoin.zeroIndexTaprootPayerAddress) {
       addresses.push(bitcoin.zeroIndexTaprootPayerAddress);
     }
-    if (
-      !request.exclusions?.nativeSegwitAddresses &&
-      bitcoin.zeroIndexNativeSegwitPayerAddress
-    ) {
+    if (!request.exclusions?.nativeSegwitAddresses && bitcoin.zeroIndexNativeSegwitPayerAddress) {
       addresses.push(bitcoin.zeroIndexNativeSegwitPayerAddress);
     }
     return addresses;

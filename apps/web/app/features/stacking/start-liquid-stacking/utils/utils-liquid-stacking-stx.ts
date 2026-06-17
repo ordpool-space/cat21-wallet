@@ -107,6 +107,7 @@ interface CreateHandleSubmitArgs {
 export function createDepositStxMutationOptions({ leather, network }: CreateHandleSubmitArgs) {
   return {
     mutationKey: ['deposit-stx', leather, network],
+    // eslint-disable-next-line @typescript-eslint/require-await -- HACK: upstream Leather web (apps/web non-shipping in Cat21 wallet); the no-await is a TanStack mutationFn idiom.
     mutationFn: async (values: LiquidStackingFormValues) => {
       const liquidStackStxOptions = getOptions(values, network);
       analytics.track('liquid_stacking_started', {

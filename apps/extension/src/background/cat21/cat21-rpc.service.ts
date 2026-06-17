@@ -1,3 +1,27 @@
+import {
+  Cat21OfferValidation,
+  Cat21TransferCatInput,
+  KnownOrdinalWalletType,
+  Network,
+  buildCat21MintPsbt,
+  buildCat21TransferPsbt,
+} from 'ordpool-sdk/core';
+
+import { validateAcceptOffer } from './builders/accept-offer-validator';
+import { buildListing } from './builders/listing-builder';
+import {
+  ValidatedAcceptOffer,
+  enforceAcceptOfferInvariants,
+} from './invariants/accept-offer-invariants';
+import { enforceCreateOfferInvariants } from './invariants/create-offer-invariants';
+import { MintInvariantError, enforceMintInvariants } from './invariants/mint-invariants';
+import { enforceTransferInvariants } from './invariants/transfer-invariants';
+import {
+  AgentModeFlag,
+  Cat21Transport,
+  ModeResolverError,
+  resolveSigningMode,
+} from './mode-resolver';
 import type {
   Cat21AcceptOfferIntent,
   Cat21CreateOfferIntent,
@@ -8,30 +32,6 @@ import type {
   Cat21TransferIntent,
   Validated,
 } from './types';
-import {
-  AgentModeFlag,
-  Cat21Transport,
-  ModeResolverError,
-  resolveSigningMode,
-} from './mode-resolver';
-import {
-  Cat21TransferCatInput,
-  Cat21OfferValidation,
-  KnownOrdinalWalletType,
-  Network,
-  buildCat21MintPsbt,
-  buildCat21TransferPsbt,
-} from 'ordpool-sdk/core';
-
-import {
-  MintInvariantError,
-  enforceMintInvariants,
-} from './invariants/mint-invariants';
-import { enforceTransferInvariants } from './invariants/transfer-invariants';
-import { enforceCreateOfferInvariants } from './invariants/create-offer-invariants';
-import { buildListing } from './builders/listing-builder';
-import { validateAcceptOffer } from './builders/accept-offer-validator';
-import { enforceAcceptOfferInvariants, ValidatedAcceptOffer } from './invariants/accept-offer-invariants';
 
 /**
  * Alias for the SDK's cat-bearing-UTXO type. Kept under the wallet's
@@ -93,9 +93,9 @@ export interface BroadcastResult {
 export interface Cat21RpcDeps {
   getAccountContext(): Cat21AccountContext;
   agentMode: AgentModeFlag;
-  evaluateAgentPolicy(intent: Cat21Intent):
-    | { allowed: true }
-    | { allowed: false; reason: string; detail?: string };
+  evaluateAgentPolicy(
+    intent: Cat21Intent
+  ): { allowed: true } | { allowed: false; reason: string; detail?: string };
   /** Picks one funding UTXO sufficient for `requiredSats`. Throws if none. */
   pickFundingUtxo(requiredSats: number): Cat21FundingUtxo;
   /**
@@ -258,9 +258,10 @@ export class Cat21RpcService {
 
     let signed: SignedTx;
     try {
-      signed = mode === 'manual'
-        ? await this.deps.signWithConfirmation(built.psbt, validated, 'all')
-        : await this.deps.signSilently(built.psbt, 'all');
+      signed =
+        mode === 'manual'
+          ? await this.deps.signWithConfirmation(built.psbt, validated, 'all')
+          : await this.deps.signSilently(built.psbt, 'all');
     } catch (err) {
       return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
     }
@@ -276,10 +277,7 @@ export class Cat21RpcService {
     return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
 
-  async transfer(
-    intent: Cat21TransferIntent,
-    transport: Cat21Transport
-  ): Promise<Cat21RpcResult> {
+  async transfer(intent: Cat21TransferIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
     const accountCtx = this.deps.getAccountContext();
 
     let validated: Validated<Cat21TransferIntent>;
@@ -352,9 +350,10 @@ export class Cat21RpcService {
 
     let signed: SignedTx;
     try {
-      signed = mode === 'manual'
-        ? await this.deps.signWithConfirmation(built.psbt, validated, 'all')
-        : await this.deps.signSilently(built.psbt, 'all');
+      signed =
+        mode === 'manual'
+          ? await this.deps.signWithConfirmation(built.psbt, validated, 'all')
+          : await this.deps.signSilently(built.psbt, 'all');
     } catch (err) {
       return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
     }
@@ -510,9 +509,10 @@ export class Cat21RpcService {
 
     let signed: SignedTx;
     try {
-      signed = mode === 'manual'
-        ? await this.deps.signWithConfirmation(validated.psbtBytes, validated, [0])
-        : await this.deps.signSilently(validated.psbtBytes, [0]);
+      signed =
+        mode === 'manual'
+          ? await this.deps.signWithConfirmation(validated.psbtBytes, validated, [0])
+          : await this.deps.signSilently(validated.psbtBytes, [0]);
     } catch (err) {
       return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
     }

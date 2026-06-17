@@ -25,7 +25,10 @@ type TransferInvariantViolation =
   | 'fee-rate-above-sanity-ceiling';
 
 export class TransferInvariantError extends Error {
-  constructor(public readonly reason: TransferInvariantViolation, detail?: string) {
+  constructor(
+    public readonly reason: TransferInvariantViolation,
+    detail?: string
+  ) {
     super(detail ? `${reason}: ${detail}` : reason);
     this.name = 'TransferInvariantError';
   }

@@ -31,7 +31,6 @@ function makeArgs(overrides: Partial<BuildListingArgs> = {}): BuildListingArgs {
 }
 
 describe('buildListing', () => {
-
   it('emits a listing with all four fields', () => {
     const listing = buildListing(makeArgs());
     expect(listing).toMatchObject({

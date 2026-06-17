@@ -20,9 +20,8 @@
  * enforces this by grepping for `Cat21RpcService` references in
  * `inpage/`, `content-scripts/`, and `packages/provider/`.
  */
-
-import { Cat21Transport } from './mode-resolver';
 import { Cat21RpcDeps, Cat21RpcService } from './cat21-rpc.service';
+import { Cat21Transport } from './mode-resolver';
 import type {
   Cat21AcceptOfferIntent,
   Cat21CreateOfferIntent,
@@ -39,6 +38,7 @@ import type {
  */
 // HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
 // @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
 const CAT21_NMH_HOST_NAME = 'space.cat21.wallet';
 
 /**
@@ -47,11 +47,7 @@ const CAT21_NMH_HOST_NAME = 'space.cat21.wallet';
  * (string). The dispatcher normalises to `requestId`.
  */
 export interface Cat21DispatcherMessage {
-  type:
-    | 'cat21_mint'
-    | 'cat21_transfer'
-    | 'cat21_create_offer'
-    | 'cat21_accept_offer';
+  type: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer';
   requestId: string;
   intent: Cat21Intent;
 }
@@ -95,16 +91,10 @@ export class Cat21Dispatcher {
         result = await this.service.transfer(msg.intent as Cat21TransferIntent, transport);
         break;
       case 'cat21_create_offer':
-        result = await this.service.createOffer(
-          msg.intent as Cat21CreateOfferIntent,
-          transport
-        );
+        result = await this.service.createOffer(msg.intent as Cat21CreateOfferIntent, transport);
         break;
       case 'cat21_accept_offer':
-        result = await this.service.acceptOffer(
-          msg.intent as Cat21AcceptOfferIntent,
-          transport
-        );
+        result = await this.service.acceptOffer(msg.intent as Cat21AcceptOfferIntent, transport);
         break;
       default: {
         const exhaustive: never = msg.type;

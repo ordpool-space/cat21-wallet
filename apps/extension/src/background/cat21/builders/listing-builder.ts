@@ -28,9 +28,7 @@ export interface BuildListingArgs {
  * builder's only job is to assemble the `Cat21RpcListingSuccess.listing`
  * payload from the validated intent + resolved seller UTXO.
  */
-export function buildListing(
-  args: BuildListingArgs
-): Cat21RpcListingSuccess['listing'] {
+export function buildListing(args: BuildListingArgs): Cat21RpcListingSuccess['listing'] {
   return {
     catId: args.intent.catId,
     sellerUtxo: { txid: args.sellerUtxo.txid, vout: args.sellerUtxo.vout },

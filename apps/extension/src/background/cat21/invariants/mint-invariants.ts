@@ -25,7 +25,10 @@ type MintInvariantViolation =
   | 'tip-value-negative';
 
 export class MintInvariantError extends Error {
-  constructor(public readonly reason: MintInvariantViolation, detail?: string) {
+  constructor(
+    public readonly reason: MintInvariantViolation,
+    detail?: string
+  ) {
     super(detail ? `${reason}: ${detail}` : reason);
     this.name = 'MintInvariantError';
   }

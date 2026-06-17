@@ -42,7 +42,6 @@ function createFakeDeposit(block: Partial<StacksBlock>) {
 }
 
 describe(createTxDateFormatList.name, () => {
-
   beforeAll(() => {
     vi.useFakeTimers();
     vi.setSystemTime(FROZEN_NOW);

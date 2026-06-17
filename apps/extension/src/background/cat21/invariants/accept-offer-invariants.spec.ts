@@ -41,9 +41,7 @@ function makeIntent(overrides: Partial<Cat21AcceptOfferIntent> = {}): Cat21Accep
 }
 
 describe('enforceAcceptOfferInvariants', () => {
-
   describe('expected-cat-id-malformed', () => {
-
     it('throws when expectedCatId is not a string', () => {
       expect(() =>
         enforceAcceptOfferInvariants(
@@ -66,7 +64,6 @@ describe('enforceAcceptOfferInvariants', () => {
   });
 
   describe('expected-price boundaries', () => {
-
     it('throws when expectedPriceSats is 0', () => {
       expect(() =>
         enforceAcceptOfferInvariants(makeIntent({ expectedPriceSats: 0 }), 'mainnet')
@@ -106,7 +103,6 @@ describe('enforceAcceptOfferInvariants', () => {
   });
 
   describe('expected-seller-utxo structure', () => {
-
     it('throws when expectedSellerUtxo.txid is not 64-char hex', () => {
       expect(() =>
         enforceAcceptOfferInvariants(
@@ -141,11 +137,10 @@ describe('enforceAcceptOfferInvariants', () => {
   });
 
   describe('offer-psbt structure', () => {
-
     it('throws when offerPsbt is an empty string', () => {
-      expect(() =>
-        enforceAcceptOfferInvariants(makeIntent({ offerPsbt: '' }), 'mainnet')
-      ).toThrow('offer-psbt-empty');
+      expect(() => enforceAcceptOfferInvariants(makeIntent({ offerPsbt: '' }), 'mainnet')).toThrow(
+        'offer-psbt-empty'
+      );
     });
 
     it('throws when offerPsbt exceeds the size ceiling', () => {
@@ -187,7 +182,6 @@ describe('enforceAcceptOfferInvariants', () => {
   });
 
   describe('happy path returns the branded intent + decoded bytes', () => {
-
     it('returns an object with psbtBytes attached', () => {
       const result = enforceAcceptOfferInvariants(makeIntent(), 'mainnet');
       expect(result.psbtBytes).toBeInstanceOf(Uint8Array);

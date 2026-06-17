@@ -50,7 +50,10 @@ type AcceptOfferInvariantViolation =
   | 'offer-psbt-not-parseable';
 
 export class AcceptOfferInvariantError extends Error {
-  constructor(public readonly reason: AcceptOfferInvariantViolation, detail?: string) {
+  constructor(
+    public readonly reason: AcceptOfferInvariantViolation,
+    detail?: string
+  ) {
     super(detail ? `${reason}: ${detail}` : reason);
     this.name = 'AcceptOfferInvariantError';
   }
@@ -109,10 +112,7 @@ export function enforceAcceptOfferInvariants(
     !Number.isInteger(utxo.vout) ||
     utxo.vout < 0
   ) {
-    throw new AcceptOfferInvariantError(
-      'expected-seller-utxo-malformed',
-      JSON.stringify(utxo)
-    );
+    throw new AcceptOfferInvariantError('expected-seller-utxo-malformed', JSON.stringify(utxo));
   }
 
   if (typeof intent.offerPsbt !== 'string' || intent.offerPsbt.length === 0) {
@@ -130,10 +130,7 @@ export function enforceAcceptOfferInvariants(
     throw new AcceptOfferInvariantError('offer-psbt-not-parseable', 'neither hex nor base64');
   }
   if (psbtBytes.length < PSBT_MAGIC.length || !startsWithMagic(psbtBytes)) {
-    throw new AcceptOfferInvariantError(
-      'offer-psbt-not-parseable',
-      'missing PSBT magic bytes'
-    );
+    throw new AcceptOfferInvariantError('offer-psbt-not-parseable', 'missing PSBT magic bytes');
   }
   if (psbtBytes.length > ACCEPT_OFFER_PSBT_MAX_BYTES) {
     throw new AcceptOfferInvariantError(

@@ -81,7 +81,8 @@ if (!fs.existsSync(SDK_ROOT)) {
     `${RED}${BOLD}✗ ordpool-sdk not found at ${SDK_ROOT}${RESET}\n` +
       '  The wallet expects the SDK alongside cat21-wallet.\n' +
       '  Clone it: git clone git@github-ord-dev:ordpool-space/ordpool-sdk.git ' +
-      path.resolve(WALLET_EXT_ROOT, '../../../') + '/ordpool-sdk'
+      path.resolve(WALLET_EXT_ROOT, '../../../') +
+      '/ordpool-sdk'
   );
 }
 

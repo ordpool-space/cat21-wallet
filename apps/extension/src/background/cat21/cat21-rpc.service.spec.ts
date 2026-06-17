@@ -2,6 +2,7 @@ import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Cat21OfferValidation } from './builders/accept-offer-validator';
 import {
   BroadcastResult,
   Cat21AccountContext,
@@ -17,7 +18,6 @@ import type {
   Cat21MintIntent,
   Cat21TransferIntent,
 } from './types';
-import type { Cat21OfferValidation } from './builders/accept-offer-validator';
 
 const publicKey = hex.decode('030000000000000000000000000000000000000000000000000000000000000001');
 const p2wpkhMainnet = btc.p2wpkh(publicKey, btc.NETWORK);
@@ -49,9 +49,7 @@ function defaultCatUtxo() {
   };
 }
 
-function makeTransferIntent(
-  overrides: Partial<Cat21TransferIntent> = {}
-): Cat21TransferIntent {
+function makeTransferIntent(overrides: Partial<Cat21TransferIntent> = {}): Cat21TransferIntent {
   return {
     catId: VALID_CAT_ID,
     recipient: p2wpkhMainnet.address!,
@@ -104,7 +102,6 @@ function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
 }
 
 describe('Cat21RpcService.mint', () => {
-
   let deps: SpyDeps;
   let service: Cat21RpcService;
 
@@ -114,7 +111,6 @@ describe('Cat21RpcService.mint', () => {
   });
 
   describe('happy paths', () => {
-
     it('mints in manual mode through popup-confirm signer', async () => {
       const result = await service.mint(makeIntent(), 'popup');
       expect(result.ok).toBe(true);
@@ -129,10 +125,7 @@ describe('Cat21RpcService.mint', () => {
     });
 
     it('mints in autonomous mode through silent signer', async () => {
-      const result = await service.mint(
-        makeIntent({ mode: 'autonomous' }),
-        'mcp-nmh'
-      );
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(true);
       expect(deps.signSilently).toHaveBeenCalled();
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
@@ -146,12 +139,8 @@ describe('Cat21RpcService.mint', () => {
   });
 
   describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
-
     it('returns "transport-not-trusted-for-autonomous" when caller declared autonomous from popup', async () => {
-      const result = await service.mint(
-        makeIntent({ mode: 'autonomous' }),
-        'popup'
-      );
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'popup');
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.value.reason).toBe('transport-not-trusted-for-autonomous');
       // The popup-confirm signer must NOT have fired.
@@ -162,10 +151,7 @@ describe('Cat21RpcService.mint', () => {
     it('returns "agent-disabled" when caller declared autonomous but agent mode is off', async () => {
       deps = makeDeps({ agentMode: { enabled: false } });
       service = new Cat21RpcService(deps);
-      const result = await service.mint(
-        makeIntent({ mode: 'autonomous' }),
-        'mcp-nmh'
-      );
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.value.reason).toBe('agent-disabled');
     });
@@ -179,10 +165,7 @@ describe('Cat21RpcService.mint', () => {
         })),
       });
       service = new Cat21RpcService(deps);
-      const result = await service.mint(
-        makeIntent({ mode: 'autonomous' }),
-        'mcp-nmh'
-      );
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.value.reason).toBe('policy-denied');
@@ -202,12 +185,8 @@ describe('Cat21RpcService.mint', () => {
   });
 
   describe('intent-invariant violations bubble up as typed denials', () => {
-
     it('returns "intent-invariant-violated" on bad recipient address', async () => {
-      const result = await service.mint(
-        makeIntent({ recipient: 'not-a-real-address' }),
-        'popup'
-      );
+      const result = await service.mint(makeIntent({ recipient: 'not-a-real-address' }), 'popup');
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.value.reason).toBe('intent-invariant-violated');
@@ -241,12 +220,9 @@ describe('Cat21RpcService.mint', () => {
   });
 
   describe('signer / broadcast failures surface as broadcast-failed', () => {
-
     it('returns "broadcast-failed" when the signer throws', async () => {
       deps = makeDeps({
-        signWithConfirmation: vi.fn(() =>
-          Promise.reject(new Error('user cancelled'))
-        ),
+        signWithConfirmation: vi.fn(() => Promise.reject(new Error('user cancelled'))),
       });
       service = new Cat21RpcService(deps);
       const result = await service.mint(makeIntent(), 'popup');
@@ -281,7 +257,6 @@ describe('Cat21RpcService.mint', () => {
   });
 
   describe('pipeline ordering', () => {
-
     it('runs invariants BEFORE consulting the agent policy', async () => {
       const result = await service.mint(makeIntent({ feeRate: 0 }), 'popup');
       expect(result.ok).toBe(false);
@@ -296,9 +271,7 @@ describe('Cat21RpcService.mint', () => {
 
     it('signs BEFORE broadcasting (broadcast not called on signer failure)', async () => {
       deps = makeDeps({
-        signWithConfirmation: vi.fn(() =>
-          Promise.reject(new Error('user cancelled'))
-        ),
+        signWithConfirmation: vi.fn(() => Promise.reject(new Error('user cancelled'))),
       });
       service = new Cat21RpcService(deps);
       await service.mint(makeIntent(), 'popup');
@@ -307,34 +280,24 @@ describe('Cat21RpcService.mint', () => {
   });
 
   describe('transport hygiene', () => {
-
     it('passes transport through to the mode resolver verbatim', async () => {
       // Cover both transports by triggering policy denial on each; the
       // resulting denial reason is deterministic regardless of transport
       // when the policy itself denies, but the rejection from "transport
       // wrong for autonomous" requires popup transport.
-      const popupResult = await service.mint(
-        makeIntent({ mode: 'autonomous' }),
-        'popup'
-      );
+      const popupResult = await service.mint(makeIntent({ mode: 'autonomous' }), 'popup');
       expect(
         popupResult.ok === false &&
           popupResult.value.reason === 'transport-not-trusted-for-autonomous'
       ).toBe(true);
 
-      const nmhResult = await service.mint(
-        makeIntent({ mode: 'autonomous' }),
-        'mcp-nmh'
-      );
+      const nmhResult = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(nmhResult.ok).toBe(true);
     });
   });
 
   it('passes a Cat21Intent (Cat21MintIntent in particular) to evaluateAgentPolicy', async () => {
-    await service.mint(
-      makeIntent({ mode: 'autonomous', feeRate: 7 }),
-      'mcp-nmh'
-    );
+    await service.mint(makeIntent({ mode: 'autonomous', feeRate: 7 }), 'mcp-nmh');
     expect(deps.evaluateAgentPolicy).toHaveBeenCalledTimes(1);
     const passedIntent = deps.evaluateAgentPolicy.mock.calls[0][0] as Cat21Intent;
     // TS compile-time check that the type is the union, runtime that the
@@ -344,7 +307,6 @@ describe('Cat21RpcService.mint', () => {
 });
 
 describe('Cat21RpcService.transfer', () => {
-
   let deps: SpyDeps;
   let service: Cat21RpcService;
 
@@ -354,7 +316,6 @@ describe('Cat21RpcService.transfer', () => {
   });
 
   describe('happy paths', () => {
-
     it('transfers in manual mode through popup-confirm signer', async () => {
       const result = await service.transfer(makeTransferIntent(), 'popup');
       expect(result.ok).toBe(true);
@@ -368,10 +329,7 @@ describe('Cat21RpcService.transfer', () => {
     });
 
     it('transfers in autonomous mode through silent signer', async () => {
-      const result = await service.transfer(
-        makeTransferIntent({ mode: 'autonomous' }),
-        'mcp-nmh'
-      );
+      const result = await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(true);
       expect(deps.signSilently).toHaveBeenCalled();
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
@@ -388,12 +346,8 @@ describe('Cat21RpcService.transfer', () => {
   });
 
   describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
-
     it('returns "transport-not-trusted-for-autonomous" on popup transport', async () => {
-      const result = await service.transfer(
-        makeTransferIntent({ mode: 'autonomous' }),
-        'popup'
-      );
+      const result = await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'popup');
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.value.reason).toBe('transport-not-trusted-for-autonomous');
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
@@ -403,10 +357,7 @@ describe('Cat21RpcService.transfer', () => {
     it('returns "agent-disabled" when agent mode is off', async () => {
       deps = makeDeps({ agentMode: { enabled: false } });
       service = new Cat21RpcService(deps);
-      const result = await service.transfer(
-        makeTransferIntent({ mode: 'autonomous' }),
-        'mcp-nmh'
-      );
+      const result = await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.value.reason).toBe('agent-disabled');
     });
@@ -420,10 +371,7 @@ describe('Cat21RpcService.transfer', () => {
         })),
       });
       service = new Cat21RpcService(deps);
-      const result = await service.transfer(
-        makeTransferIntent({ mode: 'autonomous' }),
-        'mcp-nmh'
-      );
+      const result = await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.value.reason).toBe('policy-denied');
@@ -433,12 +381,8 @@ describe('Cat21RpcService.transfer', () => {
   });
 
   describe('intent-invariant violations bubble up as typed denials', () => {
-
     it('returns "intent-invariant-violated" on malformed catId', async () => {
-      const result = await service.transfer(
-        makeTransferIntent({ catId: 'not-a-cat-id' }),
-        'popup'
-      );
+      const result = await service.transfer(makeTransferIntent({ catId: 'not-a-cat-id' }), 'popup');
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.value.reason).toBe('intent-invariant-violated');
@@ -490,7 +434,6 @@ describe('Cat21RpcService.transfer', () => {
   });
 
   describe('signer / broadcast failures', () => {
-
     it('returns "broadcast-failed" when the signer throws', async () => {
       deps = makeDeps({
         signWithConfirmation: vi.fn(() => Promise.reject(new Error('user cancelled'))),
@@ -525,7 +468,6 @@ describe('Cat21RpcService.transfer', () => {
   });
 
   describe('pipeline ordering', () => {
-
     it('runs invariants BEFORE consulting the agent policy', async () => {
       await service.transfer(makeTransferIntent({ catId: 'bad' }), 'popup');
       expect(deps.evaluateAgentPolicy).not.toHaveBeenCalled();
@@ -533,19 +475,13 @@ describe('Cat21RpcService.transfer', () => {
 
     it('resolves mode BEFORE resolving the cat UTXO', async () => {
       // Autonomous rejection on popup transport must skip cat UTXO resolution.
-      await service.transfer(
-        makeTransferIntent({ mode: 'autonomous' }),
-        'popup'
-      );
+      await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'popup');
       expect(deps.resolveCatUtxo).not.toHaveBeenCalled();
     });
   });
 
   it('passes a Cat21TransferIntent to evaluateAgentPolicy', async () => {
-    await service.transfer(
-      makeTransferIntent({ mode: 'autonomous', feeRate: 8 }),
-      'mcp-nmh'
-    );
+    await service.transfer(makeTransferIntent({ mode: 'autonomous', feeRate: 8 }), 'mcp-nmh');
     expect(deps.evaluateAgentPolicy).toHaveBeenCalledTimes(1);
     const passedIntent = deps.evaluateAgentPolicy.mock.calls[0][0] as Cat21Intent;
     expect(passedIntent).toMatchObject({
@@ -557,7 +493,6 @@ describe('Cat21RpcService.transfer', () => {
 });
 
 describe('Cat21RpcService.createOffer', () => {
-
   let deps: SpyDeps;
   let service: Cat21RpcService;
 
@@ -578,7 +513,6 @@ describe('Cat21RpcService.createOffer', () => {
   }
 
   describe('happy paths', () => {
-
     it('returns a listing success on the happy path (manual mode, popup)', async () => {
       const result = await service.createOffer(makeCreateOfferIntent(), 'popup');
       expect(result.ok).toBe(true);
@@ -611,7 +545,10 @@ describe('Cat21RpcService.createOffer', () => {
       if (result.ok && result.value.kind === 'listing') {
         expect(result.value.listing).toMatchObject({
           catId: VALID_CAT_ID,
-          sellerUtxo: expect.objectContaining({ txid: expect.any(String), vout: expect.any(Number) }),
+          sellerUtxo: expect.objectContaining({
+            txid: expect.any(String),
+            vout: expect.any(Number),
+          }),
           priceSats: 100_000,
           paymentAddress: p2wpkhMainnet.address!,
         });
@@ -622,7 +559,6 @@ describe('Cat21RpcService.createOffer', () => {
   });
 
   describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
-
     it('returns "transport-not-trusted-for-autonomous" on popup transport', async () => {
       const result = await service.createOffer(
         makeCreateOfferIntent({ mode: 'autonomous' }),
@@ -666,7 +602,6 @@ describe('Cat21RpcService.createOffer', () => {
   });
 
   describe('intent-invariant violations bubble up as typed denials', () => {
-
     it('returns "intent-invariant-violated" on malformed catId', async () => {
       const result = await service.createOffer(
         makeCreateOfferIntent({ catId: 'not-a-cat-id' }),
@@ -685,14 +620,12 @@ describe('Cat21RpcService.createOffer', () => {
         'popup'
       );
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.value.detail).toContain('payment-address-not-a-bitcoin-address');
+      if (!result.ok)
+        expect(result.value.detail).toContain('payment-address-not-a-bitcoin-address');
     });
 
     it('returns "intent-invariant-violated" on price below dust', async () => {
-      const result = await service.createOffer(
-        makeCreateOfferIntent({ priceSats: 100 }),
-        'popup'
-      );
+      const result = await service.createOffer(makeCreateOfferIntent({ priceSats: 100 }), 'popup');
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.value.detail).toContain('price-below-dust');
     });
@@ -711,7 +644,6 @@ describe('Cat21RpcService.createOffer', () => {
   });
 
   describe('publish flow', () => {
-
     it('returns "broadcast-failed" with listing-cancelled detail when user cancels in manual mode', async () => {
       deps = makeDeps({
         confirmListingPublication: vi.fn(() => Promise.reject(new Error('user cancelled'))),
@@ -743,7 +675,6 @@ describe('Cat21RpcService.createOffer', () => {
   });
 
   describe('pipeline ordering', () => {
-
     it('runs invariants BEFORE consulting the agent policy', async () => {
       await service.createOffer(makeCreateOfferIntent({ catId: 'bad' }), 'popup');
       expect(deps.evaluateAgentPolicy).not.toHaveBeenCalled();
@@ -751,10 +682,7 @@ describe('Cat21RpcService.createOffer', () => {
 
     it('resolves mode BEFORE resolving the cat UTXO', async () => {
       // Autonomous over popup → mode reject → cat lookup skipped.
-      await service.createOffer(
-        makeCreateOfferIntent({ mode: 'autonomous' }),
-        'popup'
-      );
+      await service.createOffer(makeCreateOfferIntent({ mode: 'autonomous' }), 'popup');
       expect(deps.resolveCatUtxo).not.toHaveBeenCalled();
     });
 
@@ -786,7 +714,6 @@ describe('Cat21RpcService.createOffer', () => {
 });
 
 describe('Cat21RpcService.acceptOffer', () => {
-
   let deps: SpyDeps;
   let service: Cat21RpcService;
 
@@ -826,7 +753,6 @@ describe('Cat21RpcService.acceptOffer', () => {
   });
 
   describe('happy paths', () => {
-
     it('accepts an offer in manual mode through popup-confirm signer', async () => {
       const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
       expect(result.ok).toBe(true);
@@ -858,7 +784,6 @@ describe('Cat21RpcService.acceptOffer', () => {
   });
 
   describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
-
     it('returns "transport-not-trusted-for-autonomous" on popup transport', async () => {
       const result = await service.acceptOffer(
         makeAcceptOfferIntent({ mode: 'autonomous' }),
@@ -897,7 +822,6 @@ describe('Cat21RpcService.acceptOffer', () => {
   });
 
   describe('intent-invariant violations bubble up as typed denials', () => {
-
     it('returns "intent-invariant-violated" on malformed expectedCatId', async () => {
       const result = await service.acceptOffer(
         makeAcceptOfferIntent({ expectedCatId: 'bad' }),
@@ -933,7 +857,6 @@ describe('Cat21RpcService.acceptOffer', () => {
   });
 
   describe('inbound-offer-mismatch', () => {
-
     it('returns "inbound-offer-mismatch" when cat21-ord disagrees with intent.expectedSellerUtxo', async () => {
       deps = makeDeps({
         resolveCatUtxo: vi.fn(() => ({
@@ -999,7 +922,6 @@ describe('Cat21RpcService.acceptOffer', () => {
   });
 
   describe('signer / broadcast failures', () => {
-
     it('returns "broadcast-failed" on signer throw', async () => {
       deps = makeDeps({
         signWithConfirmation: vi.fn(() => Promise.reject(new Error('user cancelled'))),
@@ -1025,7 +947,6 @@ describe('Cat21RpcService.acceptOffer', () => {
   });
 
   describe('signer scope (HARD RULE — only input 0)', () => {
-
     it('passes inputIndexes=[0] to signWithConfirmation in manual mode', async () => {
       await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
       const callArgs = deps.signWithConfirmation.mock.calls[0];
@@ -1033,17 +954,13 @@ describe('Cat21RpcService.acceptOffer', () => {
     });
 
     it('passes inputIndexes=[0] to signSilently in autonomous mode', async () => {
-      await service.acceptOffer(
-        makeAcceptOfferIntent({ mode: 'autonomous' }),
-        'mcp-nmh'
-      );
+      await service.acceptOffer(makeAcceptOfferIntent({ mode: 'autonomous' }), 'mcp-nmh');
       const callArgs = deps.signSilently.mock.calls[0];
       expect(callArgs[1]).toEqual([0]);
     });
   });
 
   describe('pipeline ordering', () => {
-
     it('runs invariants BEFORE consulting the agent policy', async () => {
       await service.acceptOffer(makeAcceptOfferIntent({ expectedCatId: 'bad' }), 'popup');
       expect(deps.evaluateAgentPolicy).not.toHaveBeenCalled();

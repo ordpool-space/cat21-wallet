@@ -20,7 +20,6 @@ function makeMintMessage(): Cat21DispatcherMessage {
 }
 
 describe('Cat21Dispatcher', () => {
-
   it('routes cat21_mint to service.mint and tags reply type with :result', async () => {
     const okResult: Cat21RpcResult = {
       ok: true,
@@ -119,7 +118,11 @@ describe('Cat21Dispatcher', () => {
       {
         type: 'cat21_mint',
         requestId: 'req-auto',
-        intent: { recipient: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4', feeRate: 5, mode: 'autonomous' },
+        intent: {
+          recipient: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+          feeRate: 5,
+          mode: 'autonomous',
+        },
       },
       'mcp-nmh'
     );

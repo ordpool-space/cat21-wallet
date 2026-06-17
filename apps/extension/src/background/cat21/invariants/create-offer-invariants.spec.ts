@@ -15,9 +15,7 @@ const testnetAddr = btc.p2wpkh(publicKey, btc.TEST_NETWORK).address!;
 const VALID_CAT_ID = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefi0';
 
 describe('enforceCreateOfferInvariants', () => {
-
   describe('cat-id-malformed', () => {
-
     it('throws when catId is not a string', () => {
       try {
         enforceCreateOfferInvariants(
@@ -67,7 +65,6 @@ describe('enforceCreateOfferInvariants', () => {
   });
 
   describe('price-below-dust', () => {
-
     it('throws when priceSats is 0', () => {
       try {
         enforceCreateOfferInvariants(
@@ -91,7 +88,11 @@ describe('enforceCreateOfferInvariants', () => {
 
     it('accepts priceSats exactly at the dust floor (546)', () => {
       const result = enforceCreateOfferInvariants(
-        { catId: VALID_CAT_ID, priceSats: CREATE_OFFER_PRICE_MIN_SATS, paymentAddress: mainnetAddr },
+        {
+          catId: VALID_CAT_ID,
+          priceSats: CREATE_OFFER_PRICE_MIN_SATS,
+          paymentAddress: mainnetAddr,
+        },
         'mainnet'
       );
       expect(result.priceSats).toBe(546);
@@ -99,7 +100,6 @@ describe('enforceCreateOfferInvariants', () => {
   });
 
   describe('price-above-sanity-ceiling', () => {
-
     it('throws when priceSats exceeds the 21 BTC × 10 ceiling', () => {
       expect(() =>
         enforceCreateOfferInvariants(
@@ -127,7 +127,6 @@ describe('enforceCreateOfferInvariants', () => {
   });
 
   describe('payment-address validity', () => {
-
     it('throws when paymentAddress is not a parseable Bitcoin address', () => {
       expect(() =>
         enforceCreateOfferInvariants(
@@ -173,7 +172,6 @@ describe('enforceCreateOfferInvariants', () => {
   });
 
   describe('happy path returns the branded intent', () => {
-
     it('returns the same intent object on success (no field rewrite)', () => {
       const raw = { catId: VALID_CAT_ID, priceSats: 100_000, paymentAddress: mainnetAddr };
       const result = enforceCreateOfferInvariants(raw, 'mainnet');

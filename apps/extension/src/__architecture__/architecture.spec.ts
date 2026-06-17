@@ -11,11 +11,9 @@
  * RULES. When a rule changes, the spec changes too — together, in the
  * same commit.
  */
-
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = join(fileURLToPath(import.meta.url), '../../../../..');
@@ -63,7 +61,6 @@ function findFiles(roots: string[], extensions: string[]): string[] {
 const SOURCE_EXTS = ['.ts', '.tsx', '.js', '.jsx'];
 
 describe('HARD RULE #6 — browser surface is Leather, cat21_* is internal-only', () => {
-
   it('browser RPC registry contains exactly the Leather-compatible methods', () => {
     const src = read(join(EXTENSION_ROOT, 'src/background/messaging/rpc-message-handler.ts'));
 
@@ -87,9 +84,7 @@ describe('HARD RULE #6 — browser surface is Leather, cat21_* is internal-only'
   it('browser RPC registry registers NO cat21_* method', () => {
     const src = read(join(EXTENSION_ROOT, 'src/background/messaging/rpc-message-handler.ts'));
     // Match active (non-comment) handler registrations.
-    const activeLines = src
-      .split('\n')
-      .filter(l => /^registerRpcRequestHandler\(/.test(l));
+    const activeLines = src.split('\n').filter(l => /^registerRpcRequestHandler\(/.test(l));
     for (const line of activeLines) {
       expect(line).not.toMatch(/cat21_/i);
     }
@@ -121,16 +116,17 @@ describe('HARD RULE #6 — browser surface is Leather, cat21_* is internal-only'
         file: relative(REPO_ROOT, file),
         match: false,
       });
-      expect({ file: relative(REPO_ROOT, file), match: src.includes('cat21-rpc.service') }).toEqual({
-        file: relative(REPO_ROOT, file),
-        match: false,
-      });
+      expect({ file: relative(REPO_ROOT, file), match: src.includes('cat21-rpc.service') }).toEqual(
+        {
+          file: relative(REPO_ROOT, file),
+          match: false,
+        }
+      );
     }
   });
 });
 
 describe('HARD RULE #1 — nLockTime=21 cannot be silently dropped', () => {
-
   it('the increase-fee hook copies the original locktime onto the replacement tx', () => {
     const src = read(
       join(
@@ -157,7 +153,6 @@ describe('HARD RULE #1 — nLockTime=21 cannot be silently dropped', () => {
 });
 
 describe('HARD RULE — mint logic lives in the SDK, not inline in the wallet', () => {
-
   it('the wallet has NO inline mint-builder file (deleted; SDK is authority)', () => {
     expect(() =>
       read(join(EXTENSION_ROOT, 'src/background/cat21/builders/mint-builder.ts'))
@@ -165,16 +160,12 @@ describe('HARD RULE — mint logic lives in the SDK, not inline in the wallet', 
   });
 
   it('Cat21RpcService imports buildCat21MintPsbt from ordpool-sdk/core', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     expect(src).toMatch(/buildCat21MintPsbt[\s\S]{0,300}from\s+['"]ordpool-sdk\/core['"]/);
   });
 
   it('Cat21RpcService.mint body calls the SDK helper (not a local function)', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const match = src.match(/async mint\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(match).not.toBeNull();
     expect(match![1]).toMatch(/buildCat21MintPsbt\(/);
@@ -185,9 +176,7 @@ describe('HARD RULE — mint logic lives in the SDK, not inline in the wallet', 
     // a future refactor accidentally drops the walletType arg, the SDK
     // defaults to the non-cat21wallet path (0xfffffffe) and the 2024
     // Xverse-style breakage returns. Pin it positively here.
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     // At least two occurrences: mint + transfer.
     const matches = src.match(/walletType:\s*KnownOrdinalWalletType\.cat21wallet/g) ?? [];
     expect(matches.length).toBeGreaterThanOrEqual(2);
@@ -195,11 +184,8 @@ describe('HARD RULE — mint logic lives in the SDK, not inline in the wallet', 
 });
 
 describe('HARD RULE — acceptOffer signs ONLY input 0 (the seller cat input)', () => {
-
   it('acceptOffer body passes [0] (not "all") as the inputIndexes to both signers', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const match = src.match(/async acceptOffer\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(match).not.toBeNull();
     const body = match![1];
@@ -210,10 +196,8 @@ describe('HARD RULE — acceptOffer signs ONLY input 0 (the seller cat input)', 
     expect(allOccurrences.length).toBe(0);
   });
 
-  it('mint and transfer pass \'all\' (self-built PSBTs; every input is wallet-owned)', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+  it("mint and transfer pass 'all' (self-built PSBTs; every input is wallet-owned)", () => {
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const mintMatch = src.match(/async mint\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     const transferMatch = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(mintMatch).not.toBeNull();
@@ -225,20 +209,15 @@ describe('HARD RULE — acceptOffer signs ONLY input 0 (the seller cat input)', 
   });
 
   it('Cat21RpcDeps signWithConfirmation + signSilently carry an inputIndexes parameter', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     expect(src).toMatch(/signWithConfirmation\s*\([\s\S]*?inputIndexes:\s*'all'\s*\|\s*number\[\]/);
     expect(src).toMatch(/signSilently\s*\([\s\S]*?inputIndexes:\s*'all'\s*\|\s*number\[\]/);
   });
 });
 
 describe('HARD RULE — createOffer never builds a tx, never broadcasts, never signs', () => {
-
   it('Cat21RpcService.createOffer body does NOT call broadcast, signSilently, or signWithConfirmation', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const match = src.match(/async createOffer\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(match).not.toBeNull();
     const body = match![1];
@@ -249,9 +228,7 @@ describe('HARD RULE — createOffer never builds a tx, never broadcasts, never s
   });
 
   it('listing-builder source contains no PSBT construction primitives', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/builders/listing-builder.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/builders/listing-builder.ts'));
     expect(src).not.toMatch(/btc\./); // No @scure/btc-signer use.
     expect(src).not.toMatch(/Transaction/);
     expect(src).not.toMatch(/toPSBT/);
@@ -260,7 +237,6 @@ describe('HARD RULE — createOffer never builds a tx, never broadcasts, never s
 });
 
 describe('HARD RULE — transfer logic lives in the SDK, not inline in the wallet', () => {
-
   it('the wallet has NO inline transfer-builder file (deleted; SDK is authority)', () => {
     expect(() =>
       read(join(EXTENSION_ROOT, 'src/background/cat21/builders/transfer-builder.ts'))
@@ -268,16 +244,12 @@ describe('HARD RULE — transfer logic lives in the SDK, not inline in the walle
   });
 
   it('Cat21RpcService imports buildCat21TransferPsbt from ordpool-sdk/core', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     expect(src).toMatch(/buildCat21TransferPsbt[\s\S]{0,200}from\s+['"]ordpool-sdk\/core['"]/);
   });
 
   it('Cat21RpcService.transfer body calls the SDK helper (not a local function)', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const match = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(match).not.toBeNull();
     expect(match![1]).toMatch(/buildCat21TransferPsbt\(/);
@@ -288,15 +260,12 @@ describe('HARD RULE — transfer logic lives in the SDK, not inline in the walle
     // a future refactor accidentally drops the walletType arg, the SDK
     // defaults to the non-cat21wallet path (0xfffffffe), breaking our
     // own RBF flow. Pin it positively here.
-    const src = read(
-      join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     expect(src).toMatch(/walletType:\s*KnownOrdinalWalletType\.cat21wallet/);
   });
 });
 
 describe('HARD RULE — every wallet SDK import comes from ordpool-sdk/core, not bare ordpool-sdk', () => {
-
   it('no source file imports from bare "ordpool-sdk" (must use /core to avoid Angular pull-in)', () => {
     const files = findFiles([join(EXTENSION_ROOT, 'src')], SOURCE_EXTS);
     const offenders: string[] = [];
@@ -321,7 +290,6 @@ describe('HARD RULE — every wallet SDK import comes from ordpool-sdk/core, not
 });
 
 describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet handler binding', () => {
-
   // Round-2 audit Finding 6 asked the wallet-side architecture spec to
   // require that every name in KnownCat21RpcMethod has a matching SDK
   // module-level export. Concretely: when someone adds a fifth cat21_*
@@ -405,15 +373,11 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
   it.each(KNOWN_CAT21_RPC_METHODS)(
     'Cat21RpcService implements the $serviceMethod method for $methodName',
     binding => {
-      const src = read(
-        join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-      );
+      const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
       // Allow the method to be async (which it is for all four today)
       // OR sync (so a future contributor doesn't break the spec on a
       // stylistic refactor).
-      const methodRegex = new RegExp(
-        `\\b(async\\s+)?${binding.serviceMethod}\\s*\\(`
-      );
+      const methodRegex = new RegExp(`\\b(async\\s+)?${binding.serviceMethod}\\s*\\(`);
       expect(src).toMatch(methodRegex);
     }
   );
@@ -425,15 +389,11 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
         // SDK-symbol bindings: the service imports the symbol from
         // 'ordpool-sdk/core' AND the corresponding service method body
         // references it.
-        const src = read(
-          join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-        );
+        const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
         const sym = binding.handlerBinding.symbol;
         // Import statement contains the symbol and resolves through
         // 'ordpool-sdk/core'.
-        expect(src).toMatch(
-          new RegExp(`${sym}[\\s\\S]{0,400}from\\s+['"]ordpool-sdk/core['"]`)
-        );
+        expect(src).toMatch(new RegExp(`${sym}[\\s\\S]{0,400}from\\s+['"]ordpool-sdk/core['"]`));
         // The corresponding method body actually calls it.
         const methodMatch = src.match(
           new RegExp(
@@ -450,9 +410,7 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
         // Dep-callback bindings: the Cat21RpcDeps interface MUST declare
         // the callback, and the service method body MUST call it through
         // `this.deps.<depName>(`.
-        const src = read(
-          join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts')
-        );
+        const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
         const dep = binding.handlerBinding.depName;
         // Interface declaration.
         expect(src).toMatch(new RegExp(`${dep}\\s*\\(`));
@@ -478,9 +436,7 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
     // wallet's RPC method names. Round-1 closed this; the assertion
     // here pins it so a future SDK rename (e.g. back to 'mint' / 'buy'
     // / 'sell-accept') goes red on the wallet side.
-    const src = read(
-      join(REPO_ROOT, '../ordpool-sdk/src/agent-mode/agent-policy.types.ts')
-    );
+    const src = read(join(REPO_ROOT, '../ordpool-sdk/src/agent-mode/agent-policy.types.ts'));
     expect(src).toMatch(/'cat21_mint'/);
     expect(src).toMatch(/'cat21_transfer'/);
     expect(src).toMatch(/'cat21_create_offer'/);
@@ -491,14 +447,11 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
 });
 
 describe('HARD RULE #2 — cat-bearing UTXOs are never picked by BTC coin selection', () => {
-
   it('utxos.service folds the protected bucket into unspendable downstream', () => {
     // The protected bucket exists in UtxoTotals and gets populated when
     // cat-bearing UTXOs are detected. Downstream balance code adds it
     // to `unspendable` so coin selection never sees those UTXOs.
-    const utxosService = read(
-      join(REPO_ROOT, 'packages/services/src/utxos/utxos.service.ts')
-    );
+    const utxosService = read(join(REPO_ROOT, 'packages/services/src/utxos/utxos.service.ts'));
     expect(utxosService).toMatch(/protected/);
     expect(utxosService).toMatch(/fetchCatBearingUtxoIds/);
 
@@ -512,7 +465,6 @@ describe('HARD RULE #2 — cat-bearing UTXOs are never picked by BTC coin select
 });
 
 describe('HARD RULE #5 — comments in upstream files stay; HACK markers carve out our edits', () => {
-
   it('every modification to upstream files is annotated with a HACK -- Cat21 marker', () => {
     // Sample of files we touched: the comment marker must appear.
     const touchedFiles = [
@@ -533,7 +485,6 @@ describe('HARD RULE #5 — comments in upstream files stay; HACK markers carve o
 });
 
 describe('CLAUDE.md still pins the rules these specs encode', () => {
-
   it('lists every HARD RULE referenced by these specs', () => {
     const claude = read(join(REPO_ROOT, 'CLAUDE.md'));
     for (let i = 1; i <= 10; i++) {

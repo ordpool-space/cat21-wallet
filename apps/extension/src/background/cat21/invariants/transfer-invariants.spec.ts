@@ -21,7 +21,6 @@ function makeIntent(over: Partial<Cat21TransferIntent> = {}): Cat21TransferInten
 }
 
 describe('enforceTransferInvariants', () => {
-
   it('returns a Validated<Cat21TransferIntent> for a well-formed mainnet transfer', () => {
     const result = enforceTransferInvariants(makeIntent(), 'mainnet');
     expect(result.catId).toBe(VALID_CAT_ID);
@@ -29,10 +28,7 @@ describe('enforceTransferInvariants', () => {
   });
 
   it('returns a Validated<Cat21TransferIntent> for a well-formed testnet transfer', () => {
-    const result = enforceTransferInvariants(
-      makeIntent({ recipient: TESTNET_P2WPKH }),
-      'testnet'
-    );
+    const result = enforceTransferInvariants(makeIntent({ recipient: TESTNET_P2WPKH }), 'testnet');
     expect(result.recipient).toBe(TESTNET_P2WPKH);
   });
 
@@ -48,10 +44,7 @@ describe('enforceTransferInvariants', () => {
 
   it('throws cat-id-malformed on non-string catId', () => {
     try {
-      enforceTransferInvariants(
-        makeIntent({ catId: 42 as unknown as string }),
-        'mainnet'
-      );
+      enforceTransferInvariants(makeIntent({ catId: 42 as unknown as string }), 'mainnet');
       throw new Error('did not throw');
     } catch (err) {
       expect((err as TransferInvariantError).reason).toBe('cat-id-malformed');
@@ -81,10 +74,7 @@ describe('enforceTransferInvariants', () => {
 
   it('throws recipient-wrong-network when address is for the other network', () => {
     try {
-      enforceTransferInvariants(
-        makeIntent({ recipient: TESTNET_P2WPKH }),
-        'mainnet'
-      );
+      enforceTransferInvariants(makeIntent({ recipient: TESTNET_P2WPKH }), 'mainnet');
       throw new Error('did not throw');
     } catch (err) {
       expect((err as TransferInvariantError).reason).toBe('recipient-wrong-network');

@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Cat21AcceptOfferIntent, Validated } from '../types';
-import {
-  Cat21OfferValidation,
-  validateAcceptOffer,
-} from './accept-offer-validator';
+import { Cat21OfferValidation, validateAcceptOffer } from './accept-offer-validator';
 
 interface SdkArgs {
   psbt: Uint8Array;
@@ -31,11 +28,12 @@ function brandIntent(
 }
 
 describe('validateAcceptOffer', () => {
-
   it('delegates to the SDK callback with the correct ValidateCat21BuyOfferArgs shape', () => {
-    const delegate = vi.fn<SdkDelegate>(
-      () => ({ ok: true, pricePaidSats: 100_000, postageSats: 546 })
-    );
+    const delegate = vi.fn<SdkDelegate>(() => ({
+      ok: true,
+      pricePaidSats: 100_000,
+      postageSats: 546,
+    }));
     const psbt = new Uint8Array([0x70, 0x73, 0x62, 0x74, 0xff]);
     validateAcceptOffer(
       {
@@ -56,9 +54,11 @@ describe('validateAcceptOffer', () => {
   });
 
   it('passes intent.expectedPriceSats as floorPriceSats (intent pins floor)', () => {
-    const delegate = vi.fn<SdkDelegate>(
-      () => ({ ok: true, pricePaidSats: 75_000, postageSats: 546 })
-    );
+    const delegate = vi.fn<SdkDelegate>(() => ({
+      ok: true,
+      pricePaidSats: 75_000,
+      postageSats: 546,
+    }));
     validateAcceptOffer(
       {
         intent: brandIntent({ expectedPriceSats: 75_000 }),
@@ -154,9 +154,11 @@ describe('validateAcceptOffer', () => {
   });
 
   it('passes expectedSellerPaymentAddress + network through to the SDK', () => {
-    const delegate = vi.fn<SdkDelegate>(
-      () => ({ ok: true, pricePaidSats: 100_000, postageSats: 546 })
-    );
+    const delegate = vi.fn<SdkDelegate>(() => ({
+      ok: true,
+      pricePaidSats: 100_000,
+      postageSats: 546,
+    }));
     validateAcceptOffer(
       {
         intent: brandIntent(),

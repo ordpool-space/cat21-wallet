@@ -92,9 +92,7 @@ export class Cat21OrdApiClient {
       return ordCat21Schema.parse(res.data);
     };
 
-    return skipCache
-      ? fetchFn()
-      : this.cache.fetchWithCache(['cat21-ord-cat21', id], fetchFn);
+    return skipCache ? fetchFn() : this.cache.fetchWithCache(['cat21-ord-cat21', id], fetchFn);
   }
 
   /**

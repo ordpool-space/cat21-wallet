@@ -20,9 +20,7 @@ function policyDeny(reason = 'spend-above-action-cap', detail?: string) {
 }
 
 describe('resolveSigningMode', () => {
-
   describe('returns "manual" when caller did not request autonomous', () => {
-
     it('declared=undefined → manual', () => {
       const mode = resolveSigningMode({
         intent: mintIntent(),
@@ -71,7 +69,6 @@ describe('resolveSigningMode', () => {
   });
 
   describe('returns "autonomous" only when all three guards pass', () => {
-
     it('declared="autonomous" + transport="mcp-nmh" + agentMode.enabled=true + policy.allowed=true → autonomous', () => {
       const mode = resolveSigningMode({
         intent: mintIntent({ mode: 'autonomous' }),
@@ -84,7 +81,6 @@ describe('resolveSigningMode', () => {
   });
 
   describe('throws ModeResolverError when caller requested autonomous but a guard failed', () => {
-
     it('declared="autonomous" + transport="popup" → throws ModeResolverError("transport-not-trusted-for-autonomous")', () => {
       try {
         resolveSigningMode({
@@ -160,7 +156,6 @@ describe('resolveSigningMode', () => {
   });
 
   describe('safety properties', () => {
-
     it('never returns "autonomous" when caller did not explicitly declare it', () => {
       const cases: Cat21MintIntent[] = [
         mintIntent(),
