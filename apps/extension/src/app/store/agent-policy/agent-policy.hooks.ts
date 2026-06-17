@@ -13,13 +13,14 @@ import {
 import { clearPolicyForAccount, setPolicyForAccount } from './agent-policy.slice';
 
 /**
- * React hook layer over the agent-policy slice. The wizard UI (iter 10c)
- * and settings page consume these; they stay file-internal here until
- * those consumers land.
+ * React hook layer over the agent-policy slice. Consumers:
+ *   - apps/extension/src/app/pages/cat21-agent-policy-wizard/
+ *     cat21-agent-policy-wizard.tsx (iter 10c — first-run wizard form)
+ *   - (future) the settings page entry for editing an existing policy
  *
- * @knipignore -- HACK Cat21: consumers (wizard route + settings page)
- *   land in iter 10c. The exports are pre-wired so the wizard's commit
- *   is mechanical (`export` keywords come back, no fresh API design).
+ * Wallet boundary: each hook resolves the current account from the
+ * active slice and stringifies it through `accountIdToSliceKey`, so
+ * UI callers never thread accountIds through props.
  */
 
 /**
@@ -32,11 +33,11 @@ import { clearPolicyForAccount, setPolicyForAccount } from './agent-policy.slice
  * a stable hex string; the index is a small integer. Joining with `:`
  * is unambiguous (fingerprint has no `:` characters).
  *
- * Stays exported — the spec at `agent-policy.hooks.spec.ts` pins the
- * format so a future change to the keying contract is visible. None
- * of the React hooks below are spec-tested at this level (they need
- * react-testing-library mount); their internals call this helper, so
- * the format guarantees flow through.
+ * Spec at `agent-policy.hooks.spec.ts` pins the format so a future
+ * change to the keying contract is visible. None of the React hooks
+ * below are spec-tested at this level (they need react-testing-library
+ * mount); their internals call this helper, so the format guarantees
+ * flow through.
  */
 export function accountIdToSliceKey(accountId: {
   fingerprint: string;
@@ -51,10 +52,7 @@ export function accountIdToSliceKey(accountId: {
  * signal). Re-renders when the active account changes OR when the
  * stored policy for the active account changes.
  */
-// HACK -- Cat21: removed `export` (consumers land in iter 10c wizard). HARD RULE #5 — restore on wire-up.
-// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
-function useAgentPolicyForCurrentAccount(): AgentPolicy | undefined {
+export function useAgentPolicyForCurrentAccount(): AgentPolicy | undefined {
   const currentAccount = useCurrentAccountId();
   const key = accountIdToSliceKey(currentAccount);
   return useSelector((state: RootState) => selectAgentPolicyForAccount(state, key));
@@ -64,7 +62,7 @@ function useAgentPolicyForCurrentAccount(): AgentPolicy | undefined {
  * Returns `true` iff the current account has a stored policy with
  * `enabled: true`. Convenient for UI toggles (`Agent mode is ON`).
  */
-// HACK -- Cat21: removed `export` (consumers land in iter 10c wizard). HARD RULE #5 — restore on wire-up.
+// HACK -- Cat21: removed `export` (settings-page consumer lands later; wizard uses `useAgentPolicyForCurrentAccount` to detect existing). HARD RULE #5 — restore on wire-up.
 // @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
 function useIsAgentModeEnabledForCurrentAccount(): boolean {
@@ -78,15 +76,8 @@ function useIsAgentModeEnabledForCurrentAccount(): boolean {
  * setter wraps the slice's `setPolicyForAccount` and resolves the
  * accountId from the active slice on each call, so a UI form's
  * submit handler doesn't need to thread accountId through props.
- *
- * Usage:
- *   const setPolicy = useSetAgentPolicyForCurrentAccount();
- *   setPolicy({ enabled: true, maxSpendPerActionSats: 10_000, ... });
  */
-// HACK -- Cat21: removed `export` (consumers land in iter 10c wizard). HARD RULE #5 — restore on wire-up.
-// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
-function useSetAgentPolicyForCurrentAccount(): (policy: AgentPolicy) => void {
+export function useSetAgentPolicyForCurrentAccount(): (policy: AgentPolicy) => void {
   const dispatch = useDispatch();
   const currentAccount = useCurrentAccountId();
   return useCallback(
@@ -103,7 +94,7 @@ function useSetAgentPolicyForCurrentAccount(): (policy: AgentPolicy) => void {
  * (and its rolling spentToday total). Used by the "Turn off agent mode
  * for this account" affordance in the settings page.
  */
-// HACK -- Cat21: removed `export` (consumers land in iter 10c wizard). HARD RULE #5 — restore on wire-up.
+// HACK -- Cat21: removed `export` (settings-page "Turn off" consumer lands later). HARD RULE #5 — restore on wire-up.
 // @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
 function useClearAgentPolicyForCurrentAccount(): () => void {

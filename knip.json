@@ -144,7 +144,8 @@
         "src/app/pages/swap-legacy/**",
         "src/background/messaging/rpc-request-utils.ts",
         "src/app/store/agent-policy/agent-policy.selectors.ts",
-        "src/app/store/agent-policy/agent-policy.hooks.ts"
+        "src/app/store/agent-policy/agent-policy.hooks.ts",
+        "src/app/pages/cat21-agent-policy-wizard/**"
       ]
     },
     "apps/mobile": {
