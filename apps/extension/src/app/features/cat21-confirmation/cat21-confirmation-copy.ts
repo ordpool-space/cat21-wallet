@@ -59,10 +59,10 @@ interface Cat21ConfirmationCopy {
  *     PSBT bytes need to be reviewed; voice should make the user pause
  */
 export function makeCat21ConfirmationCopy(intent: Cat21Intent): Cat21ConfirmationCopy {
-  if ('priceSats' in intent) return createOfferCopy(intent as Cat21CreateOfferIntent);
-  if ('offerPsbt' in intent) return acceptOfferCopy(intent as Cat21AcceptOfferIntent);
-  if ('catId' in intent) return transferCopy(intent as Cat21TransferIntent);
-  return mintCopy(intent as Cat21MintIntent);
+  if ('priceSats' in intent) return createOfferCopy(intent);
+  if ('offerPsbt' in intent) return acceptOfferCopy(intent);
+  if ('catId' in intent) return transferCopy(intent);
+  return mintCopy(intent);
 }
 
 function mintCopy(intent: Cat21MintIntent): Cat21ConfirmationCopy {
