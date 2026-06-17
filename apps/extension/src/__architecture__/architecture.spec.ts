@@ -484,6 +484,78 @@ describe('HARD RULE #5 — comments in upstream files stay; HACK markers carve o
   });
 });
 
+describe('iter 10 — per-account agent-policy slice + dispatcher deps', () => {
+  it('the agent-policy slice wires four reducers and the expected state shape', () => {
+    // Pins the iter 10a contract: changing the slice shape — adding a
+    // policy field, dropping a reducer, renaming a key — must visibly
+    // touch this spec. The wizard / settings UI reads through the
+    // slice; the dispatcher reads through the slice; downstream
+    // refactors that desync the slice from its readers are caught
+    // here before they hit users.
+    const src = read(
+      join(REPO_ROOT, 'apps/extension/src/app/store/agent-policy/agent-policy.slice.ts')
+    );
+    // The two state buckets keyed by accountId.
+    expect(src).toMatch(/policies:\s*Record<string,\s*AgentPolicy>/);
+    expect(src).toMatch(
+      /spentToday:\s*Record<string,\s*\{\s*sats:\s*number;\s*dayKey:\s*string\s*\}>/
+    );
+    // The four reducers iter 10b + future settings UI rely on.
+    expect(src).toMatch(/setPolicyForAccount/);
+    expect(src).toMatch(/clearPolicyForAccount/);
+    expect(src).toMatch(/incrementSpentToday/);
+    expect(src).toMatch(/resetSpentTodayForAccount/);
+  });
+
+  it('the slice is registered in the root reducer under `agentPolicy`', () => {
+    // The wallet's `RootState` shape carries `agentPolicy`. Without
+    // this wire-up, `selectAgentPolicyForAccount` reads `undefined`
+    // and the dispatcher refuses every autonomous call as
+    // 'agent-disabled' — silent failure mode that this spec catches.
+    const src = read(join(REPO_ROOT, 'apps/extension/src/app/store/index.ts'));
+    expect(src).toMatch(/import\s+\{\s*agentPolicySlice\s*\}/);
+    expect(src).toMatch(/agentPolicy:\s*ReturnType<typeof agentPolicySlice\.reducer>/);
+    expect(src).toMatch(/agentPolicy:\s*agentPolicySlice\.reducer/);
+  });
+
+  it('the makeAgentPolicyDeps factory translates Cat21Intent → AgentActionContext', () => {
+    // The mode resolver passes `Cat21Intent` to `evaluateAgentPolicy`.
+    // The SDK's `evaluateAgentPolicy` consumes `AgentActionContext`.
+    // The wallet's agent-policy-deps factory owns that translation —
+    // any future change to either union shape must update the
+    // translation OR this spec catches the desync.
+    const src = read(join(REPO_ROOT, 'apps/extension/src/background/cat21/agent-policy-deps.ts'));
+    // The four intent-kind branches in the translator.
+    expect(src).toMatch(/case\s+'cat21_mint':/);
+    expect(src).toMatch(/case\s+'cat21_transfer':/);
+    expect(src).toMatch(/case\s+'cat21_create_offer':/);
+    expect(src).toMatch(/case\s+'cat21_accept_offer':/);
+    // The factory's three exposed deps (matches Cat21RpcDeps shape).
+    expect(src).toMatch(/agentMode:\s*\{/);
+    expect(src).toMatch(/evaluateAgentPolicy\(/);
+    expect(src).toMatch(/recordSpend\(/);
+  });
+
+  it('wireCat21Dispatcher composes the real agent-policy deps with wiring-pending sign/broadcast stubs', () => {
+    // The dispatcher entrypoint factory. Until iter 11+ lands real
+    // sign/broadcast, this is the structural pin: the agent-policy
+    // half is wired through `makeAgentPolicyDeps` and only the
+    // sign/broadcast deps fall through to `makeWiringPendingDeps`.
+    // The moment a real `signWithConfirmation` lands, the
+    // wiring-pending reference here disappears too — and we update
+    // this assertion in the same commit.
+    const src = read(
+      join(REPO_ROOT, 'apps/extension/src/background/cat21/wire-cat21-dispatcher.ts')
+    );
+    expect(src).toMatch(/makeAgentPolicyDeps\s*\(/);
+    expect(src).toMatch(/makeWiringPendingDeps\s*\(/);
+    // Real deps: the three agent-policy keys come from agentPolicyDeps.
+    expect(src).toMatch(/agentMode:\s*agentPolicyDeps\.agentMode/);
+    expect(src).toMatch(/evaluateAgentPolicy:\s*agentPolicyDeps\.evaluateAgentPolicy/);
+    expect(src).toMatch(/recordSpend:\s*agentPolicyDeps\.recordSpend/);
+  });
+});
+
 describe('CLAUDE.md still pins the rules these specs encode', () => {
   it('lists every HARD RULE referenced by these specs', () => {
     const claude = read(join(REPO_ROOT, 'CLAUDE.md'));
