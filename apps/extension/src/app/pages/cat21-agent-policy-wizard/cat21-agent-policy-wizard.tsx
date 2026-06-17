@@ -42,10 +42,7 @@ import {
  * `useAgentPolicyForCurrentAccount` and pre-fills the form with it.
  * New accounts get the default values.
  */
-// HACK -- Cat21: removed `export` (route entry under RouteUrls.Cat21AgentPolicy lands in a follow-up commit). HARD RULE #5 — restore on wire-up.
-// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
-function Cat21AgentPolicyWizard() {
+export function Cat21AgentPolicyWizard() {
   const navigate = useNavigate();
   const existingPolicy = useAgentPolicyForCurrentAccount();
   const setPolicy = useSetAgentPolicyForCurrentAccount();

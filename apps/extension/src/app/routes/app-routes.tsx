@@ -28,6 +28,7 @@ import { IncreaseBtcFeeSheet } from '@app/features/dialogs/transaction-action-di
 import { RouterErrorBoundary } from '@app/features/errors/app-error-boundary';
 import { useFlags } from '@app/features/feature-flags';
 import { TokenDetails } from '@app/features/token/token-details';
+import { Cat21AgentPolicyWizard } from '@app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard';
 import { FundPage } from '@app/pages/fund/fund';
 import { Home } from '@app/pages/home/home';
 import { LegacyAccountAuth } from '@app/pages/legacy-account-auth/legacy-account-auth';
@@ -250,6 +251,17 @@ function useAppRoutes() {
             element={
               <AccountGate>
                 <SettingsPage />
+              </AccountGate>
+            }
+          />
+
+          {/* Cat21 agent-policy wizard — iter 10c. AccountGated so the
+              hooks can resolve the current account. */}
+          <Route
+            path={RouteUrls.Cat21AgentPolicy}
+            element={
+              <AccountGate>
+                <Cat21AgentPolicyWizard />
               </AccountGate>
             }
           />

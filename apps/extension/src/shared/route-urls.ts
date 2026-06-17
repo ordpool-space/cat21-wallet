@@ -42,6 +42,9 @@ export enum RouteUrls {
   ViewSecretKey = '/view-secret-key',
   Settings = '/settings',
 
+  // Cat21 agent-policy wizard — iter 10c.
+  Cat21AgentPolicy = '/cat21-agent-policy',
+
   // nested routes must have relative paths
   Activity = '/activity',
   Collectibles = '/collectibles',
