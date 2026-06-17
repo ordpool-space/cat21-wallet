@@ -30,15 +30,15 @@ import type { Cat21RpcDeps } from './cat21-rpc.service';
 
 // HACK -- Cat21: removed `export` (consumed by background entrypoint in a later slice). HARD RULE #5 — restore on wire-up.
 interface WireCat21DispatcherArgs {
-  getState: () => RootState;
-  dispatch: (action: ReturnType<typeof incrementSpentToday>) => void;
+  getState(): RootState;
+  dispatch(action: ReturnType<typeof incrementSpentToday>): void;
   accountId: string;
   /**
    * Returns the day-key (`YYYY-MM-DD`) the running spentToday total is
    * attributed to. The default `() => new Date().toISOString().slice(0, 10)`
    * (UTC) is fine; callers wanting a local-tz semantic can override.
    */
-  dayKeyFn?: () => string;
+  dayKeyFn?(): string;
 }
 
 export function wireCat21Dispatcher(args: WireCat21DispatcherArgs): Cat21Dispatcher {

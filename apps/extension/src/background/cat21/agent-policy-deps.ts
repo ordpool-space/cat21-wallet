@@ -50,16 +50,16 @@ interface AgentPolicyDepsArgs {
    * React tree, so it can't `useSelector`. Instead it takes a function
    * that returns the current store state — typically `() => store.getState()`.
    */
-  getState: () => RootState;
+  getState(): RootState;
   /** `() => store.dispatch(action)` so we don't import the store directly. */
-  dispatch: (action: ReturnType<typeof incrementSpentToday>) => void;
+  dispatch(action: ReturnType<typeof incrementSpentToday>): void;
   /** The accountId the dispatcher is acting on behalf of. */
   accountId: string;
   /**
    * Returns the day-key the running total is attributed to. Production
    * uses local-tz date; tests inject a fixed string.
    */
-  dayKeyFn: () => string;
+  dayKeyFn(): string;
 }
 
 /**
@@ -73,10 +73,10 @@ interface AgentPolicyDepsArgs {
 // HACK -- Cat21: removed `export` (consumed by the next dispatcher-wiring slice). HARD RULE #5 — restore on wire-up.
 interface AgentPolicyDeps {
   agentMode: { enabled: boolean };
-  evaluateAgentPolicy: (
+  evaluateAgentPolicy(
     intent: Cat21Intent
-  ) => { allowed: true } | { allowed: false; reason: string; detail?: string };
-  recordSpend: (sats: number) => void;
+  ): { allowed: true } | { allowed: false; reason: string; detail?: string };
+  recordSpend(sats: number): void;
 }
 
 /**
