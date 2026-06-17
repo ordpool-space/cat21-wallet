@@ -396,6 +396,48 @@ That's the rule the wallet's architecture spec is encoding for you.
 
 ---
 
+## HARD RULE #11: Default branch is `main`; commit often, no PR ceremony
+
+Wallet's default branch is **`main`** (renamed from Leather's `dev`
+convention on 2026-06-17, to match every other ordpool-space repo —
+`ordpool`, `ordpool-sdk`, `cat21-ord`, `cat21-indexer` all default
+to `main`). Consistency across the org wins over Leather's local
+custom.
+
+**Commit pattern**: small commits land directly against `main`. No
+feature branches, no PR ceremony. Independent code review happens
+via the audit / review-agent mechanism in HARD RULE #8, not via
+GitHub PR threads. hans-crypto is sole admin; review-by-PR would
+just be self-talk.
+
+**Production branch comes later.** When the wallet has shipped to
+Chrome Web Store and we need a stable release line, a `production`
+branch will be cut from a tagged `main` revision — same pattern as
+ordpool (`main` ↔ `stage_prod`). Until then, `main` is both the
+development line AND the implicit release candidate.
+
+**Implications:**
+
+- CI workflows trigger on `main` (and on PRs to `main` if any are
+  ever opened). The `dev`-targeted CI logic was retired in the
+  rename commit; workflow files using `branches: ['**']` already
+  cover both cases.
+- The wallet's `link:` dep to `ordpool-sdk` doesn't care about
+  branch names; it resolves through `apps/extension/package.json`'s
+  `link:../../../ordpool-sdk` and follows whatever branch the SDK
+  checkout is on (the SDK is also `main`-default).
+- `RELEASE_BRANCH` env vars / publish-extension workflows that
+  hard-coded `dev` were updated in the rename commit.
+
+If you ever need a long-lived feature branch (multi-week refactor
+that's risky to land incrementally), create `feat/<topic>` from
+`main`, work there, merge back with `--no-ff` to preserve the
+exploration thread. Squashing into a single commit on merge is fine
+when the intermediate steps don't carry independent value; do not
+squash when each step was independently audited.
+
+---
+
 ## What this repo is — scope
 
 Bitcoin-L1-only browser-extension wallet that serves **three user
@@ -658,7 +700,7 @@ identifier is `@leather.io/*` so upstream sync keeps working.
 ```
 apps/
   extension/        # the Chrome extension (this is what ships)
-  mobile/           # NOT shipped by Cat21 Wallet
+  mobile/           # bonus shipping target — would be cool to land
   web/              # NOT shipped by Cat21 Wallet
 packages/
   bitcoin/          # PSBT builders incl. cat21-mint + buy-offer
@@ -775,11 +817,16 @@ Disabled (`on: workflow_dispatch` only, never auto-fires):
 - `extension:publish-extensions.yml` (Chrome Web Store push, dangerous)
 - `web:deploy.yml`, `packages:sanity-studio.yml`
 
-Fully HACK-disabled (mobile + web + release-please + claude-code-review):
+Fully HACK-disabled (web + release-please + claude-code-review):
 
-- all `mobile:*`, `web:check-security-headers`, `web:integration-tests`,
+- `web:check-security-headers`, `web:integration-tests`,
   `web:staging-build`, `packages:release-please`,
   `repo:claude-code-review`.
+
+Mobile workflows (`mobile:*`) are a bonus shipping target — keep
+them buildable when feasible. They are not gating CI today and may
+still be HACK-disabled in some files; that's a "fix when you have
+time" item, not a structural exclusion.
 
 If you add a workflow, add it under one of these three buckets and
 update this section.
