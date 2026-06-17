@@ -142,7 +142,8 @@
         "src/app/features/ledger/**",
         "src/app/query/stacks/**",
         "src/app/pages/swap-legacy/**",
-        "src/background/messaging/rpc-request-utils.ts"
+        "src/background/messaging/rpc-request-utils.ts",
+        "src/app/store/agent-policy/agent-policy.selectors.ts"
       ]
     },
     "apps/mobile": {
