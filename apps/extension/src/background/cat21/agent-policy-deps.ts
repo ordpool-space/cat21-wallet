@@ -165,6 +165,15 @@ function cat21IntentToAgentContext(
         counterpartyAddress: acceptIntent.expectedCatId ? undefined : undefined,
       };
     }
+    default: {
+      // `kind` is exhaustively typed `AgentActionKind`; this branch is
+      // unreachable. The eslint `default-case` rule requires it
+      // explicitly. `satisfies never` enforces the exhaustiveness — a
+      // future intent kind added to `AgentActionKind` lights this up
+      // at compile time.
+      const exhaustive: never = kind;
+      throw new Error(`cat21IntentToAgentContext: unknown kind ${String(exhaustive)}`);
+    }
   }
 }
 
