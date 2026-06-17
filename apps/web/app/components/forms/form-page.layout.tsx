@@ -4,7 +4,6 @@ import { Box, Flex, FlexProps } from 'leather-styles/jsx';
 
 type Slots = 'preview' | 'form';
 
-// eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- HACK: leather-styles codegen not produced for web in Cat21 wallet (apps/web is non-shipping).
 type FormLayoutProps = Record<Slots, ReactElement> & FlexProps;
 
 export function FormPageLayout(props: FormLayoutProps) {

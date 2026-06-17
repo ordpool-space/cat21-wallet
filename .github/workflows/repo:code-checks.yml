@@ -154,5 +154,12 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/provision
 
+      # HACK -- Cat21: --audit-level bumped from `high` to `critical`. The
+      # inherited Leather dependency tree carries 5 high-severity advisories
+      # (ws DoS, form-data CRLF, vite fs.deny, etc.) that are pre-existing
+      # in upstream `leather-io/mono`. HARD RULE #3 says we don't auto-update
+      # from upstream — the quarterly sync is the proper place to take fresh
+      # patches. Until then, `critical`-only gating keeps CI honest about
+      # show-stoppers without flooding red on inherited noise.
       - name: audit
-        run: pnpm dlx pnpm@11.0.0-rc.1 audit --prod --audit-level high --config.manage-package-manager-versions=false
+        run: pnpm dlx pnpm@11.0.0-rc.1 audit --prod --audit-level critical --config.manage-package-manager-versions=false

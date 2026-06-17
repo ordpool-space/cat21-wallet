@@ -59,7 +59,6 @@ async function requestStackingSignature(options: GenerateSignatureOptions) {
 type SignerKeyResult = Awaited<ReturnType<typeof requestStackingSignature>>;
 
 export function useSignerKeyAction() {
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents -- HACK: upstream Leather web (apps/web non-shipping in Cat21 wallet).
   const [result, setResult] = useState<SignerKeyResult | null>(null);
 
   async function requestSignerKey(options: GenerateSignatureOptions) {
