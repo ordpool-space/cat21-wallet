@@ -17,7 +17,9 @@ import {
   validateRequestParams,
 } from '../rpc-request-utils';
 
-export const stxCallContractHandler = defineRpcRequestHandler(
+// HACK -- Cat21: removed `export` (upstream Stacks/Ledger/Network/Swap surface unrouted by ADR-1 BTC-L1-only scope). HARD RULE #5 — restore on consumer wire-up.
+// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
+const stxCallContractHandler = defineRpcRequestHandler(
   stxCallContract.method,
   async (request, port) => {
     const { id: requestId, method, params } = request;

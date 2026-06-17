@@ -35,7 +35,8 @@ export interface AgentModeFlag {
  * Either way the caller learns about the rejection via a typed error
  * and decides for itself whether to retry with `mode: 'manual'`.
  */
-export type ModeResolverRejection =
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+type ModeResolverRejection =
   | 'transport-not-trusted-for-autonomous'
   | 'agent-disabled'
   | 'policy-denied';

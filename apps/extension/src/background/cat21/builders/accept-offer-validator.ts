@@ -7,7 +7,8 @@ import type { Cat21AcceptOfferIntent, Validated } from '../types';
  * the background bundle). The SDK is the source of truth for the actual
  * validation; this enum is wire-only.
  */
-export type Cat21OfferValidationReason =
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+type Cat21OfferValidationReason =
   | 'missing-seller-input'
   | 'wrong-postage'
   | 'wrong-price'
@@ -17,14 +18,16 @@ export type Cat21OfferValidationReason =
   | 'payment-output-wrong-address';
 
 /** Successful validation: caller proceeds to sign + broadcast. */
-export interface ValidationSuccess {
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+interface ValidationSuccess {
   ok: true;
   pricePaidSats: number;
   postageSats: number;
 }
 
 /** Validation failure: caller surfaces as `inbound-offer-mismatch` RPC denial. */
-export interface ValidationFailure {
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+interface ValidationFailure {
   ok: false;
   reason: Cat21OfferValidationReason;
   detail?: string;
@@ -37,7 +40,8 @@ export type Cat21OfferValidation = ValidationSuccess | ValidationFailure;
  * wires `Cat21RpcDeps.validateBuyOfferPsbt` to ordpool-sdk's
  * `validateCat21BuyOfferPsbt` at startup; tests stub the callback.
  */
-export interface ValidateAcceptOfferArgs {
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+interface ValidateAcceptOfferArgs {
   intent: Validated<Cat21AcceptOfferIntent>;
   /** Decoded PSBT bytes (the invariants gate decoded base64/hex once). */
   psbtBytes: Uint8Array;

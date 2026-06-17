@@ -15,7 +15,8 @@ export const MINT_FEE_RATE_SANITY_CEILING_SAT_PER_VBYTE = 1000;
  * Closed set of failure reasons the mint gate can raise. Each variant
  * maps 1:1 to one assertion in `mint-invariants.spec.ts`.
  */
-export type MintInvariantViolation =
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+type MintInvariantViolation =
   | 'recipient-not-a-bitcoin-address'
   | 'recipient-wrong-network'
   | 'fee-rate-not-positive'

@@ -39,7 +39,8 @@ import { enforceAcceptOfferInvariants, ValidatedAcceptOffer } from './invariants
  * to type-check without churn. New code should use the SDK type
  * directly.
  */
-export type TransferUtxo = Cat21TransferCatInput;
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+type TransferUtxo = Cat21TransferCatInput;
 
 /**
  * Funding UTXO shape accepted by every cat21 builder. The wallet's

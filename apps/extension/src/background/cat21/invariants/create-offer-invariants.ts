@@ -25,9 +25,11 @@ export const CREATE_OFFER_PRICE_MIN_SATS = 546;
  * the implementation commit can reuse it; the stubs commit needs the
  * symbol present so a future renaming pass updates both files at once.
  */
-export const CREATE_OFFER_CAT_ID_PATTERN = /^[0-9a-fA-F]{64}i\d+$/;
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+const CREATE_OFFER_CAT_ID_PATTERN = /^[0-9a-fA-F]{64}i\d+$/;
 
-export type CreateOfferInvariantViolation =
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+type CreateOfferInvariantViolation =
   | 'cat-id-malformed'
   | 'price-below-dust'
   | 'price-above-sanity-ceiling'

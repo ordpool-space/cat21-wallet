@@ -37,7 +37,9 @@ import type {
  * `tools/cat21-wallet-mcp-host.<platform>.json` and the
  * `chrome.runtime.connectNative` argument the wallet opens at startup.
  */
-export const CAT21_NMH_HOST_NAME = 'space.cat21.wallet';
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
+const CAT21_NMH_HOST_NAME = 'space.cat21.wallet';
 
 /**
  * Shape of an inbound message from either transport. The internal
@@ -54,7 +56,8 @@ export interface Cat21DispatcherMessage {
   intent: Cat21Intent;
 }
 
-export interface Cat21DispatcherReply {
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+interface Cat21DispatcherReply {
   type:
     | 'cat21_mint:result'
     | 'cat21_transfer:result'

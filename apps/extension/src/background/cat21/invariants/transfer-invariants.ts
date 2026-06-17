@@ -16,7 +16,8 @@ export const TRANSFER_FEE_RATE_SANITY_CEILING_SAT_PER_VBYTE = 1000;
  */
 const CAT_ID_PATTERN = /^[0-9a-fA-F]{64}i\d+$/;
 
-export type TransferInvariantViolation =
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+type TransferInvariantViolation =
   | 'cat-id-malformed'
   | 'recipient-not-a-bitcoin-address'
   | 'recipient-wrong-network'

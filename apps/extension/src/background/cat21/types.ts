@@ -79,9 +79,11 @@ export type Cat21Intent =
  * the agent can publish to a marketplace. Buyers later send back a
  * buy-offer PSBT, which the seller signs+broadcasts via cat21_accept_offer.
  */
-export type Cat21RpcSuccess = Cat21RpcBroadcastSuccess | Cat21RpcListingSuccess;
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+type Cat21RpcSuccess = Cat21RpcBroadcastSuccess | Cat21RpcListingSuccess;
 
-export interface Cat21RpcBroadcastSuccess {
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+interface Cat21RpcBroadcastSuccess {
   kind: 'broadcast';
   txid: string;
   channel: 'mempool' | 'slipstream';
@@ -123,7 +125,8 @@ export type Cat21RpcDenyReason =
   | 'inbound-offer-mismatch'
   | 'broadcast-failed';
 
-export interface Cat21RpcDenied {
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+interface Cat21RpcDenied {
   reason: Cat21RpcDenyReason;
   detail?: string;
 }

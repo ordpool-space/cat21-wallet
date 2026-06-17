@@ -5,7 +5,8 @@ import type { Cat21AcceptOfferIntent, Validated } from '../types';
 /**
  * Same catId pattern as the rest of the cat21 slice — `<txid>i<index>`.
  */
-export const ACCEPT_OFFER_CAT_ID_PATTERN = /^[0-9a-fA-F]{64}i\d+$/;
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+const ACCEPT_OFFER_CAT_ID_PATTERN = /^[0-9a-fA-F]{64}i\d+$/;
 
 /**
  * Lower bound on expectedPriceSats. Anything below relay dust is a
@@ -38,7 +39,8 @@ const TXID_PATTERN = /^[0-9a-fA-F]{64}$/;
  */
 const PSBT_MAGIC = new Uint8Array([0x70, 0x73, 0x62, 0x74, 0xff]);
 
-export type AcceptOfferInvariantViolation =
+// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
+type AcceptOfferInvariantViolation =
   | 'expected-cat-id-malformed'
   | 'expected-price-below-dust'
   | 'expected-price-above-sanity-ceiling'

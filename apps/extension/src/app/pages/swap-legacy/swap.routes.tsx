@@ -34,7 +34,9 @@ export const bitcoinSwapLegacyRoutes = generateSwapRoutes({
   container: <BitcoinSwapContainer />,
   review: <BitcoinSwapReview />,
 });
-export const stacksSwapLegacyRoutes = generateSwapRoutes({
+// HACK -- Cat21: removed `export` (upstream Stacks/Ledger/Network/Swap surface unrouted by ADR-1 BTC-L1-only scope). HARD RULE #5 — restore on consumer wire-up.
+// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
+const stacksSwapLegacyRoutes = generateSwapRoutes({
   chain: 'stacks',
   container: <StacksSwapContainer />,
   review: <StacksSwapReview />,

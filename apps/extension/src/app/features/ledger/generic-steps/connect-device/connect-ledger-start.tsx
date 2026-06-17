@@ -11,7 +11,9 @@ import { openIndexPageInNewTab } from '@app/common/utils/open-in-new-tab';
 import { immediatelyAttemptLedgerConnection } from '../../hooks/use-when-reattempt-ledger-connection';
 import { ConnectLedger } from './connect-ledger';
 
-export function ConnectLedgerStart() {
+// HACK -- Cat21: removed `export` (upstream Stacks/Ledger/Network/Swap surface unrouted by ADR-1 BTC-L1-only scope). HARD RULE #5 — restore on consumer wire-up.
+// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
+function ConnectLedgerStart() {
   const navigate = useNavigate();
 
   function pageModeRoutingAction(url: string) {
