@@ -536,6 +536,18 @@ describe('iter 10 — per-account agent-policy slice + dispatcher deps', () => {
     expect(src).toMatch(/recordSpend\(/);
   });
 
+  it('accountIdToSliceKey formats with `<fingerprint>:<accountIndex>` (slice key contract)', () => {
+    // The slice keys policies by string; the wallet's `useCurrentAccountId`
+    // returns `{ fingerprint, accountIndex }`. `accountIdToSliceKey` is
+    // the bridge — changing the format would silently invalidate every
+    // stored policy at runtime (rehydrated keys no longer match newly-
+    // computed ones). Pin the format here.
+    const src = read(
+      join(REPO_ROOT, 'apps/extension/src/app/store/agent-policy/agent-policy.hooks.ts')
+    );
+    expect(src).toMatch(/`\$\{accountId\.fingerprint\}:\$\{accountId\.accountIndex\}`/);
+  });
+
   it('wireCat21Dispatcher composes the real agent-policy deps with wiring-pending sign/broadcast stubs', () => {
     // The dispatcher entrypoint factory. Until iter 11+ lands real
     // sign/broadcast, this is the structural pin: the agent-policy
