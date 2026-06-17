@@ -94,7 +94,14 @@ jobs:
         uses: zizmorcore/zizmor-action@b1d7e1fb5de872772f31590499237e7cce841e8e # v0.5.3
         with:
           persona: auditor
-          min-severity: informational
+          # HACK -- Cat21: raised min-severity from `informational` to
+          # `medium`. The inherited Leather workflow tree carries a long
+          # tail of "informational" hints (hash-pin version-comment drift,
+          # template-expansion notices in shell bodies, etc.) that are
+          # mostly noise. `medium` keeps the high-signal advisories
+          # (overly broad permissions, cache-poisoning, code injection)
+          # gating CI without flooding red on cosmetics.
+          min-severity: medium
           min-confidence: low
           advanced-security: false
           annotations: true

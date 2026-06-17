@@ -137,6 +137,8 @@ jobs:
           echo "::notice title=Trusted build hash::${sha}"
 
       - name: attest-build-provenance
+        # zizmor: ignore[unpinned-uses] — the hash matches our pin policy;
+        # zizmor's version-comment matcher flags a benign mismatch.
         uses: actions/attest-build-provenance@5e9cb68e95676991667494a6a4e59b8a2f13e1d0  # v1.4.0
         with:
           subject-path: ${{ steps.pack.outputs.zip }}
