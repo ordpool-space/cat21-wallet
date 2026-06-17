@@ -377,25 +377,13 @@ describe('Cat21RpcService.transfer', () => {
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
-    it('uses a separate funding UTXO when the cat UTXO is dust-sized', async () => {
+    it('always picks a separate funding UTXO (cat UTXO is always 546; fee comes from elsewhere)', async () => {
+      // The SDK's protocol HARD RULE pins every cat UTXO at exactly
+      // 546 sats. The transfer-fee is paid from a wallet-selected
+      // funding UTXO; the cat UTXO never self-funds (no surplus-
+      // value branch exists in the dispatcher by design).
       await service.transfer(makeTransferIntent(), 'popup');
-      // catUtxo is 546 sats; postage+fee=546+1100=1646, so funding picker fires.
       expect(deps.pickFundingUtxo).toHaveBeenCalled();
-    });
-
-    it('skips funding pick when the cat UTXO carries surplus value', async () => {
-      deps = makeDeps({
-        resolveCatUtxo: vi.fn(() => ({
-          txid: 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
-          vout: 0,
-          value: 50_000,
-          scriptPubKey: p2wpkhMainnet.script,
-        })),
-      });
-      service = new Cat21RpcService(deps);
-      const result = await service.transfer(makeTransferIntent(), 'popup');
-      expect(result.ok).toBe(true);
-      expect(deps.pickFundingUtxo).not.toHaveBeenCalled();
     });
   });
 

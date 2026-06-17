@@ -310,12 +310,16 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
+    // SDK HARD RULE: every cat UTXO is exactly 546 sats (the protocol
+    // postage). The fee always has to come from a separate funding
+    // input — never the cat UTXO itself, because 546 < 546 + fee for
+    // any positive fee. So we always pick a funding UTXO; no
+    // surplus-self-fund branch exists by design.
     const estimatedFee = Math.ceil(validated.feeRate * 220);
-    const requiredSats = 546 + estimatedFee;
     const fundingInputs: Cat21TransferCatInput[] = [];
-    if (catUtxo.value < requiredSats) {
+    {
       try {
-        const fundingUtxo = this.deps.pickFundingUtxo(requiredSats - catUtxo.value);
+        const fundingUtxo = this.deps.pickFundingUtxo(estimatedFee);
         fundingInputs.push({
           txid: fundingUtxo.txid,
           vout: fundingUtxo.vout,
