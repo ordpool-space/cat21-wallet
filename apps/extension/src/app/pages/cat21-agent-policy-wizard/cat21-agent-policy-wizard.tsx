@@ -75,7 +75,7 @@ function Cat21AgentPolicyWizard() {
         setPolicy(result.policy);
         setGlobalError(null);
         setSubmitting(false);
-        navigate(-1);
+        void navigate(-1);
       }}
     >
       {({ handleChange, handleSubmit, values, isSubmitting }) => {
@@ -148,7 +148,7 @@ function Cat21AgentPolicyWizard() {
                   variant="outline"
                   fullWidth
                   onClick={() => {
-                    navigate(-1);
+                    void navigate(-1);
                   }}
                   type="button"
                 >
@@ -180,7 +180,7 @@ interface FormFieldProps {
   as?: 'textarea';
   value?: string;
   checked?: boolean;
-  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
+  onChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void;
   error?: string;
 }
 
