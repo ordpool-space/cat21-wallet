@@ -658,18 +658,44 @@ operator depend on a third party's goodwill?
 
 ```
 apps/extension/src/background/cat21/
-  invariants/
-    mint-invariants.ts            ← pure functions, 100% covered
+  invariants/                     ← pure functions, 100% covered
+    mint-invariants.ts
     transfer-invariants.ts
     create-offer-invariants.ts
     accept-offer-invariants.ts
-  builders/
-    mint-builder.ts               ← thin wrappers around ordpool-sdk
-    transfer-builder.ts
-    create-offer-builder.ts
-    accept-offer-validator.ts     ← wraps validateCat21BuyOfferPsbt
-  cat21-rpc.service.ts            ← orchestrates pipeline above
+  cat21-rpc.service.ts            ← orchestrates the pipeline; the
+                                    SDK does the PSBT bytes
   mode-resolver.ts                ← the security boundary
+  agent-policy-deps.ts            ← Redux slice → SDK policy gate
+  cat21-dispatcher.ts             ← Cat21RpcService → port-message
+                                    shape (iter-9 legacy; one of two
+                                    NMH-attach paths)
+  connect-native-host.ts          ← iter-9 attach: NMH → dispatcher.
+                                    Wired only when a sign-in-bg path
+                                    is acceptable. Not used today.
+
+  ── Path 3 (NMH-driven, popup-mediated) ──
+  popup-bridge.ts                 ← stash/fetch/clear intent in
+                                    chrome.storage.session;
+                                    routeForCat21IntentType
+  nmh-popup-relay.ts              ← relayNmhMessageThroughPopup:
+                                    stash → triggerPopupOpen →
+                                    waitForPopupResult → postBack →
+                                    clear (finally)
+  cat21-result-bus.ts             ← postCat21Result (popup) +
+                                    subscribeToCat21Result (bg)
+                                    over chrome.runtime.sendMessage
+                                    with `source: 'cat21-result-bus'`
+                                    tag
+  nmh-read-only-probes.ts         ← handleReadOnlyProbe for
+                                    list_cats / wallet_status /
+                                    cat21_ord_status (no popup,
+                                    no keychain, inline reply)
+  attach-native-host-to-popup-relay.ts
+                                  ← production NMH attach: routes
+                                    read-only probes inline, then
+                                    relays mutating cat21_* through
+                                    the popup-side Cat21RpcService
 
 apps/extension/src/background/messaging/rpc-methods/
   cat21-mint.ts                   ← thin: parse params → call rpc.service
@@ -677,13 +703,68 @@ apps/extension/src/background/messaging/rpc-methods/
   cat21-create-offer.ts
   cat21-accept-offer.ts
 
-apps/extension/src/app/pages/rpc-cat21-mint/        ← Path 2 confirmation UI
-apps/extension/src/app/pages/rpc-cat21-transfer/
-apps/extension/src/app/pages/rpc-cat21-create-offer/
-apps/extension/src/app/pages/rpc-cat21-accept-offer/
+apps/extension/src/app/pages/cat21-confirm/
+  cat21-confirm-route.tsx         ← container for all four
+                                    Cat21*Confirm routes; reads
+                                    intent from URL (Path 3) OR
+                                    location.state (Path 2);
+                                    auto-confirms when
+                                    transport === 'mcp-nmh'
+  use-cat21-rpc-deps.ts           ← wires ALL 11 Cat21RpcDeps to
+                                    real keychain + cat21-ord +
+                                    mempool layers; no wiringPending
+  use-cat21-request-from-url.ts   ← chrome.storage.session reader
+                                    for the URL-stashed intent
 
-apps/extension/src/app/store/agent-policy/          ← per-account policy slice + wizard UI
+apps/extension/src/app/store/agent-policy/
+                                  ← per-account policy slice +
+                                    first-run wizard
 ```
+
+### Path 3 round-trip in one diagram (post iter 12)
+
+```
+agent ──MCP──> tools/src/mcp-host/host.ts
+              │
+              │ NMH stdio
+              ▼
+background    ←──── chrome.runtime.connectNative ──── extension binary
+              │
+              │ Port.onMessage: { id, type: 'cat21_*', payload }
+              ▼
+   attachNativeHostToPopupRelay (background/cat21/)
+      │
+      ├── isReadOnlyProbeRequest?  → handleReadOnlyProbe(req, probes)
+      │     │                          ↓ no popup, no keychain
+      │     └── port.postMessage({ type: '<x>:result', id, payload })
+      │
+      └── isNmhMutatingRequest?    → relayNmhMessageThroughPopup
+            │
+            ├── stashCat21Request(intent) → chrome.storage.session
+            │   ↓ requestId
+            ├── triggerRequestPopupWindowOpen(route,
+            │     ?cat21RequestId=<id>)
+            │   ↓
+            │  ┌─ popup (popup.html) ───────────────────┐
+            │  │ Cat21ConfirmRoute                       │
+            │  │   useCat21RequestFromUrl reads stash   │
+            │  │   useCat21RpcDeps wires 11 deps        │
+            │  │   useEffect auto-confirm if mcp-nmh    │
+            │  │   service.<method>(intent, 'mcp-nmh')  │
+            │  │     ↓ keychain.sign + broadcast        │
+            │  │   postCat21Result via                  │
+            │  │     chrome.runtime.sendMessage         │
+            │  └─────────────────────────────────────────┘
+            │   ↓
+            ├── subscribeToCat21Result resolves
+            ├── port.postMessage({ type:'<x>:result', id, payload })
+            └── clearCat21Request (finally)
+```
+
+Why every step is dependency-injected: the production callbacks
+(`triggerRequestPopupWindowOpen`, `chrome.runtime.onMessage`,
+`chrome.storage.session`, the cat21-ord client) all need a
+Chrome-extension environment. Specs pass in-memory equivalents.
 
 Plan and ADRs for the broader ecosystem live at
 `/Users/johanneshoppe/Work/ordpool/CAT21-WALLET-FORK-PLAN.md` and
