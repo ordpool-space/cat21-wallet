@@ -16,15 +16,26 @@ function makeEnv() {
     disconnect(): void;
   }[] = [];
   let virtualNow = 0;
-  const timers: { id: number; fireAt: number; cb: () => void }[] = [];
+  interface VirtualTimer {
+    id: number;
+    fireAt: number;
+    cb(): void;
+  }
+  const timers: VirtualTimer[] = [];
   let timerSeq = 1;
 
-  const connectNative = vi.fn((_app: string) => {
+  const connectNative = vi.fn(() => {
     const dcListeners: (() => void)[] = [];
     const port = {
       onDisconnect: { addListener: (cb: () => void) => dcListeners.push(cb) },
-      onMessage: { addListener: () => {} },
-      postMessage: () => {},
+      onMessage: {
+        addListener: () => {
+          /* unused in these tests */
+        },
+      },
+      postMessage: () => {
+        /* unused in these tests */
+      },
       disconnect: () => {
         for (const cb of dcListeners) cb();
       },
