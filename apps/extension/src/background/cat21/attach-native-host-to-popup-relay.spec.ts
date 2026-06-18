@@ -51,6 +51,24 @@ function makeFakeStorage(): SessionStorageLike & { state: Record<string, unknown
   };
 }
 
+/**
+ * Read-only probe stand-ins for the mutating-flow specs that
+ * shouldn't touch the probe surface. Each method throws so a test
+ * that accidentally routes a mutating message through the probe
+ * handler fails loudly.
+ */
+function throwingProbes() {
+  return {
+    listCatsAtActiveAccount: () =>
+      Promise.reject(new Error('probe should not be called by mutating spec')),
+    readWalletStatus: () => {
+      throw new Error('probe should not be called by mutating spec');
+    },
+    readCat21OrdStatus: () =>
+      Promise.reject(new Error('probe should not be called by mutating spec')),
+  };
+}
+
 function makeFakeOnMessage() {
   const listeners = new Set<(msg: unknown) => void>();
   return {
@@ -85,6 +103,7 @@ describe('attachNativeHostToPopupRelay', () => {
       port,
       storage,
       onMessage: bus.onMessage,
+      readOnlyProbes: throwingProbes(),
       triggerPopupOpen(route, urlParams) {
         openedRoutes.push(route);
         const requestId = urlParams.get('cat21RequestId');
@@ -136,6 +155,7 @@ describe('attachNativeHostToPopupRelay', () => {
       port,
       storage,
       onMessage: bus.onMessage,
+      readOnlyProbes: throwingProbes(),
       triggerPopupOpen: () => Promise.reject(new Error('popup blocked by Chrome')),
     });
 
@@ -161,7 +181,7 @@ describe('attachNativeHostToPopupRelay', () => {
     expect(Object.keys(storage.state)).toEqual([]);
   });
 
-  it('silently ignores non-cat21 messages on the port (the MCP host answers them elsewhere)', () => {
+  it('silently ignores noise on the port that is neither a probe nor a mutating envelope', () => {
     const port = makeFakePort();
     const storage = makeFakeStorage();
     const bus = makeFakeOnMessage();
@@ -170,14 +190,120 @@ describe('attachNativeHostToPopupRelay', () => {
       port,
       storage,
       onMessage: bus.onMessage,
+      readOnlyProbes: throwingProbes(),
       triggerPopupOpen: () => Promise.resolve(),
     });
 
-    port.fire({ type: 'list_cats', id: '99' });
+    port.fire({ type: 'unknown_method', id: '99' });
     port.fire('plain-string-noise');
     port.fire(null);
 
     expect(port.postMessage).not.toHaveBeenCalled();
     expect(Object.keys(storage.state)).toEqual([]);
+  });
+
+  it('routes list_cats through the read-only probe handler without opening the popup', async () => {
+    const port = makeFakePort();
+    const storage = makeFakeStorage();
+    const bus = makeFakeOnMessage();
+    let popupOpened = false;
+
+    attachNativeHostToPopupRelay({
+      port,
+      storage,
+      onMessage: bus.onMessage,
+      triggerPopupOpen: () => {
+        popupOpened = true;
+        return Promise.resolve();
+      },
+      readOnlyProbes: {
+        listCatsAtActiveAccount: () => Promise.resolve(['cat-a', 'cat-b']),
+        readWalletStatus: () => {
+          throw new Error('not called');
+        },
+        readCat21OrdStatus: () => Promise.reject(new Error('not called')),
+      },
+    });
+
+    port.fire({ type: 'list_cats', id: 'probe-1' });
+
+    for (let i = 0; i < 50 && port.postMessage.mock.calls.length === 0; i++) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    expect(popupOpened).toBe(false);
+    expect(port.postMessage).toHaveBeenCalledTimes(1);
+    expect(port.postMessage).toHaveBeenCalledWith({
+      type: 'list_cats:result',
+      id: 'probe-1',
+      payload: ['cat-a', 'cat-b'],
+    });
+    expect(Object.keys(storage.state)).toEqual([]);
+  });
+
+  it('round-trips wallet_status synchronously over the port', async () => {
+    const port = makeFakePort();
+    const storage = makeFakeStorage();
+    const bus = makeFakeOnMessage();
+
+    attachNativeHostToPopupRelay({
+      port,
+      storage,
+      onMessage: bus.onMessage,
+      triggerPopupOpen: () => Promise.reject(new Error('not called')),
+      readOnlyProbes: {
+        listCatsAtActiveAccount: () => Promise.reject(new Error('not called')),
+        readWalletStatus: () => ({
+          network: 'testnet',
+          accountId: 'fp:7',
+          agentMode: { enabled: false },
+        }),
+        readCat21OrdStatus: () => Promise.reject(new Error('not called')),
+      },
+    });
+
+    port.fire({ type: 'wallet_status', id: 'probe-2' });
+
+    for (let i = 0; i < 50 && port.postMessage.mock.calls.length === 0; i++) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    expect(port.postMessage).toHaveBeenCalledWith({
+      type: 'wallet_status:result',
+      id: 'probe-2',
+      payload: { network: 'testnet', accountId: 'fp:7', agentMode: { enabled: false } },
+    });
+  });
+
+  it('cat21_ord_status reports reachable:false-with-error when the deps call rejects', async () => {
+    const port = makeFakePort();
+    const storage = makeFakeStorage();
+    const bus = makeFakeOnMessage();
+
+    attachNativeHostToPopupRelay({
+      port,
+      storage,
+      onMessage: bus.onMessage,
+      triggerPopupOpen: () => Promise.reject(new Error('not called')),
+      readOnlyProbes: {
+        listCatsAtActiveAccount: () => Promise.reject(new Error('not called')),
+        readWalletStatus: () => {
+          throw new Error('not called');
+        },
+        readCat21OrdStatus: () => Promise.reject(new Error('ECONNREFUSED')),
+      },
+    });
+
+    port.fire({ type: 'cat21_ord_status', id: 'probe-3' });
+
+    for (let i = 0; i < 50 && port.postMessage.mock.calls.length === 0; i++) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    expect(port.postMessage).toHaveBeenCalledWith({
+      type: 'cat21_ord_status:result',
+      id: 'probe-3',
+      payload: { reachable: false, error: 'ECONNREFUSED' },
+    });
   });
 });
