@@ -102,15 +102,14 @@ export const agentPolicySlice = createSlice({
   },
 });
 
-/** @knipignore -- HACK Cat21: `incrementSpentToday` is dispatched by the
- * dispatcher's `recordSpend` dep (post-broadcast), wired through
- * `makeAgentPolicyDeps` which knip can't trace into the background
- * entrypoint chain. `resetSpentTodayForAccount` is consumed by a
- * future settings affordance. Both stay exported.
- */
-export const {
-  setPolicyForAccount,
-  clearPolicyForAccount,
-  incrementSpentToday,
-  resetSpentTodayForAccount,
-} = agentPolicySlice.actions;
+// `setPolicyForAccount` + `clearPolicyForAccount` reach the wizard
+// hooks via the normal import graph — no @knipignore needed.
+export const { setPolicyForAccount, clearPolicyForAccount } = agentPolicySlice.actions;
+
+/** @knipignore -- HACK Cat21: dispatched by `recordSpend` (post-broadcast)
+ * which is wired through `makeAgentPolicyDeps`; knip can't trace that
+ * chain into the background entrypoint. */
+export const { incrementSpentToday } = agentPolicySlice.actions;
+
+/** @knipignore -- HACK Cat21: future settings-page "Reset today" affordance. */
+export const { resetSpentTodayForAccount } = agentPolicySlice.actions;

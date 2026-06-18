@@ -10,9 +10,9 @@ function makeFakeChrome(reply: unknown): {
   return {
     sent,
     api: {
-      sendMessage: vi.fn(async (msg: unknown) => {
+      sendMessage: vi.fn((msg: unknown) => {
         sent.push(msg);
-        return reply as Awaited<ReturnType<typeof Promise.resolve>>;
+        return Promise.resolve(reply);
       }),
     } as ChromeRuntimeLike,
   };

@@ -29,8 +29,7 @@
   ],
   "ignoreUnresolved": [
     "metro-minify-terser",
-    "/\\+types/",
-    "./locales/en/messages"
+    "/\\+types/"
   ],
   "ignore": [
     "*/**/*.spec.{ts,tsx}",

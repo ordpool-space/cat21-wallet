@@ -38,6 +38,7 @@ interface DispatchCat21IntentResult {
   errorMessage: string | null;
 }
 
+/** @knipignore -- HACK Cat21: consumed by dispatch-cat21-intent.spec.ts which knip treats as a non-consumer. */
 export interface ChromeRuntimeLike {
   sendMessage<TReply>(message: unknown): Promise<TReply>;
 }
