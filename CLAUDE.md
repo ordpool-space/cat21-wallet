@@ -63,14 +63,31 @@ mint, not the original cat.
 
 ### How to verify when touching cat-flow builder code
 
-1. Add or modify a builder under `apps/extension/src/background/cat21/builders/`.
-2. Re-run `pnpm --filter @leather.io/extension test:unit -- src/background/cat21`.
-3. The architecture spec at `apps/extension/src/__architecture__/architecture.spec.ts`
-   pins the positive invariants per builder (mint, transfer). If you
-   change a builder without changing the spec to match, the spec goes red.
-4. Any new cat-flow builder gets the same shape: `lockTime: CAT21_LOCK_TIME`
-   in the constructor, `sequence: CAT21_WALLET_MINT_INPUT_SEQUENCE` on
-   every input, post-build asserts on lockTime + sequence + SIGHASH_ALL.
+Builder code lives in **`ordpool-sdk/src/cat21-*`** (the SDK owns PSBT
+construction; see HARD RULE #10). The wallet only orchestrates via
+`Cat21RpcService.{mint,transfer,createOffer,acceptOffer}`. The
+historic `apps/extension/src/background/cat21/builders/` directory
+was deleted in iter 4–5; the architecture spec
+`HARD RULE — mint logic lives in the SDK, not inline in the wallet`
+positively asserts that file is gone.
+
+1. Modify the builder in the SDK (`ordpool-sdk/src/cat21-*-helper.ts`).
+2. Rebuild the SDK from the wallet: `pnpm sdk:build` (the staleness
+   guard at `apps/extension/scripts/check-sdk-fresh.cjs` fires
+   otherwise).
+3. Run the wallet's cat21 suite:
+   `pnpm --filter @leather.io/extension test:unit -- src/background/cat21`.
+4. `apps/extension/src/__architecture__/architecture.spec.ts` pins
+   the structural invariants — that the rpc-service calls the SDK
+   helper, passes `walletType=cat21wallet`, and signs the correct
+   input indexes per method (`'all'` for mint+transfer,
+   `[0]` for acceptOffer). Change the rpc-service shape → spec
+   goes red.
+5. Cat-flow builders in the SDK share one shape:
+   `lockTime: CAT21_LOCK_TIME = 21` on the Transaction constructor,
+   `sequence: CAT21_WALLET_MINT_INPUT_SEQUENCE = 0xfffffffd` on
+   cat21wallet inputs (other wallets: `0xfffffffe`), post-build
+   asserts on lockTime + sequence + SIGHASH_ALL.
 
 ---
 
