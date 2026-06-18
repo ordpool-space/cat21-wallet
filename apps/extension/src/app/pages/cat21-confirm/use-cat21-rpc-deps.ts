@@ -7,6 +7,7 @@ import {
   CAT21_POSTAGE_SATS,
   Network,
   broadcastCat21,
+  pickLargestFundingUtxoThatCovers,
   validateCat21BuyOfferPsbt,
 } from 'ordpool-sdk/core';
 
@@ -159,15 +160,23 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         );
         return { txid: result.txid, channel: result.channel };
       },
-      // First UTXO in the available bucket with sufficient value, plus
-      // the scriptPubKey decoded from the UTXO's address (native segwit
-      // P2WPKH for the current account). The keychain payer-based
-      // derivation lives behind `useNativeSegwitPayer`; until that's
-      // wired here, the address → script path is enough for the SDK
-      // mint builder to construct a valid witness UTXO.
+      // SDK-canonical coin selection. `pickLargestFundingUtxoThatCovers`
+      // is the SDK's default strategy (see its JSDoc): highest mint-
+      // success probability at high fee rates, defragments the wallet
+      // over time, avoids sub-dust change absorption. First-fit (which
+      // this used to do) hits exactly those failure modes.
+      //
+      // scriptPubKey is decoded from the picked UTXO's address (native
+      // segwit P2WPKH for the current account). The keychain payer-
+      // based derivation lives behind `useNativeSegwitPayer`; the
+      // address → script path is enough for the SDK mint builder to
+      // construct a valid witness UTXO.
       pickFundingUtxo: requiredSats => {
         const available = utxoQuery.isLoading ? [] : utxoQuery.utxos.available;
-        const picked = available.find(u => u.value >= requiredSats);
+        const picked = pickLargestFundingUtxoThatCovers({
+          utxos: available,
+          targetSpendSats: requiredSats,
+        });
         if (!picked) {
           throw new Error(
             `no available UTXO of >= ${requiredSats} sats (have ${available.length})`
