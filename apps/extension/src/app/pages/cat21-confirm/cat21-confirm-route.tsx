@@ -9,15 +9,9 @@ import type { Cat21Transport } from '@background/cat21/mode-resolver';
 import { clearCat21Request } from '@background/cat21/popup-bridge';
 import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 
+import { extractCatIdHint } from './extract-cat-id-hint';
 import { useCat21RequestFromUrl } from './use-cat21-request-from-url';
 import { useCat21RpcDeps } from './use-cat21-rpc-deps';
-
-function extractCatIdHint(intent: Cat21Intent | undefined): string | undefined {
-  if (!intent) return undefined;
-  if ('catId' in intent) return intent.catId;
-  if ('expectedCatId' in intent) return intent.expectedCatId;
-  return undefined;
-}
 
 /**
  * Generic container for the four Cat21 confirmation popups
