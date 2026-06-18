@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import { useStore } from 'react-redux';
 
+import * as btc from '@scure/btc-signer';
 import { Network, broadcastCat21, validateCat21BuyOfferPsbt } from 'ordpool-sdk/core';
 
 import { useBitcoinClient } from '@app/query/bitcoin/clients/bitcoin-client';
+import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { type RootState, useAppDispatch } from '@app/store';
 import { useCurrentAccountId } from '@app/store/accounts/account';
 import { useNativeSegwitAccountIndexAddressIndexZero } from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
@@ -34,9 +36,12 @@ import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
  *   - `broadcast(signedTx)` — SDK's `broadcastCat21` decides
  *     mempool-vs-slipstream by weight; mempool path goes through
  *     Leather's existing `transactionsApi.broadcastTransaction`
+ *   - `pickFundingUtxo(requiredSats)` — first available native-segwit
+ *     UTXO with value ≥ requiredSats, scriptPubKey decoded from the
+ *     UTXO's address via @scure/btc-signer
  *
  * Wiring-pending (returns the iter-9 stub for each):
- *   - pickFundingUtxo / resolveCatUtxo — UTXO query layer
+ *   - resolveCatUtxo — cat21-ord query for the wallet's cat-bearing UTXO
  *   - confirmListingPublication — offer-creation UI flow
  *   - signWithConfirmation / signSilently — keychain signers
  *
@@ -56,6 +61,7 @@ export function useCat21RpcDeps(): Cat21RpcDeps {
     network.chain.bitcoin.mode === 'mainnet' ? 'mainnet' : 'testnet';
   const accountKey = accountIdToSliceKey(currentAccount);
   const bitcoinClient = useBitcoinClient();
+  const utxoQuery = useCurrentNativeSegwitUtxos();
 
   return useMemo<Cat21RpcDeps>(() => {
     const wiringPending = makeWiringPendingDeps();
@@ -117,12 +123,34 @@ export function useCat21RpcDeps(): Cat21RpcDeps {
         );
         return { txid: result.txid, channel: result.channel };
       },
+      // First UTXO in the available bucket with sufficient value, plus
+      // the scriptPubKey decoded from the UTXO's address (native segwit
+      // P2WPKH for the current account). The keychain payer-based
+      // derivation lives behind `useNativeSegwitPayer`; until that's
+      // wired here, the address → script path is enough for the SDK
+      // mint builder to construct a valid witness UTXO.
+      pickFundingUtxo: requiredSats => {
+        const available = utxoQuery.isLoading ? [] : utxoQuery.utxos.available;
+        const picked = available.find(u => u.value >= requiredSats);
+        if (!picked) {
+          throw new Error(
+            `no available UTXO of >= ${requiredSats} sats (have ${available.length})`
+          );
+        }
+        const scureNetwork = networkLabel === 'mainnet' ? btc.NETWORK : btc.TEST_NETWORK;
+        const scriptPubKey = btc.OutScript.encode(btc.Address(scureNetwork).decode(picked.address));
+        return {
+          txid: picked.txid,
+          vout: picked.vout,
+          value: picked.value,
+          scriptPubKey,
+        };
+      },
       // ---- Still wiring-pending (one slice each lands later) ----
-      pickFundingUtxo: wiringPending.pickFundingUtxo,
       resolveCatUtxo: wiringPending.resolveCatUtxo,
       confirmListingPublication: wiringPending.confirmListingPublication,
       signWithConfirmation: wiringPending.signWithConfirmation,
       signSilently: wiringPending.signSilently,
     };
-  }, [store, dispatch, paymentAddress, networkLabel, accountKey, bitcoinClient]);
+  }, [store, dispatch, paymentAddress, networkLabel, accountKey, bitcoinClient, utxoQuery]);
 }
