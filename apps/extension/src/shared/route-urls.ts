@@ -45,6 +45,13 @@ export enum RouteUrls {
   // Cat21 agent-policy wizard — iter 10c.
   Cat21AgentPolicy = '/cat21-agent-policy',
 
+  // Cat21 manual-flow confirmation popups — iter 11c.
+  // The container reads the intent from location.state.
+  Cat21MintConfirm = '/cat21-mint-confirm',
+  Cat21TransferConfirm = '/cat21-transfer-confirm',
+  Cat21CreateOfferConfirm = '/cat21-create-offer-confirm',
+  Cat21AcceptOfferConfirm = '/cat21-accept-offer-confirm',
+
   // nested routes must have relative paths
   Activity = '/activity',
   Collectibles = '/collectibles',

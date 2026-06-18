@@ -29,6 +29,7 @@ import { RouterErrorBoundary } from '@app/features/errors/app-error-boundary';
 import { useFlags } from '@app/features/feature-flags';
 import { TokenDetails } from '@app/features/token/token-details';
 import { Cat21AgentPolicyWizard } from '@app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard';
+import { Cat21ConfirmRoute } from '@app/pages/cat21-confirm/cat21-confirm-route';
 import { FundPage } from '@app/pages/fund/fund';
 import { Home } from '@app/pages/home/home';
 import { LegacyAccountAuth } from '@app/pages/legacy-account-auth/legacy-account-auth';
@@ -262,6 +263,42 @@ function useAppRoutes() {
             element={
               <AccountGate>
                 <Cat21AgentPolicyWizard />
+              </AccountGate>
+            }
+          />
+
+          {/* Cat21 manual-flow confirmation popups — iter 11c. All four
+              point at the same Cat21ConfirmRoute container; the
+              intent kind is detected from location.state.intent. */}
+          <Route
+            path={RouteUrls.Cat21MintConfirm}
+            element={
+              <AccountGate>
+                <Cat21ConfirmRoute />
+              </AccountGate>
+            }
+          />
+          <Route
+            path={RouteUrls.Cat21TransferConfirm}
+            element={
+              <AccountGate>
+                <Cat21ConfirmRoute />
+              </AccountGate>
+            }
+          />
+          <Route
+            path={RouteUrls.Cat21CreateOfferConfirm}
+            element={
+              <AccountGate>
+                <Cat21ConfirmRoute />
+              </AccountGate>
+            }
+          />
+          <Route
+            path={RouteUrls.Cat21AcceptOfferConfirm}
+            element={
+              <AccountGate>
+                <Cat21ConfirmRoute />
               </AccountGate>
             }
           />

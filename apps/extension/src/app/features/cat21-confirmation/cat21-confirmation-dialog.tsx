@@ -2,6 +2,7 @@ import { Flex, styled } from 'leather-styles/jsx';
 
 import { Button } from '@leather.io/ui';
 
+import { ErrorLabel } from '@app/components/error-label';
 import { Content } from '@app/components/layout';
 
 import type { Cat21ConfirmationCopy } from './cat21-confirmation-copy';
@@ -15,6 +16,13 @@ interface Cat21ConfirmationDialogProps {
   onReject(): void;
   /** Disables both buttons while a sign/broadcast roundtrip is in flight. */
   isSubmitting?: boolean;
+  /**
+   * Error message to surface above the buttons. Set this from the
+   * container when the dispatcher rejects (typed denial, broadcast
+   * failure, etc.). The dialog stays open so the user can cancel or
+   * retry by clicking approve again.
+   */
+  submitError?: string | null;
 }
 
 /**
@@ -32,13 +40,8 @@ interface Cat21ConfirmationDialogProps {
  *   - Dialog renders title, paragraphs, definition-list rows, action
  *     buttons. That's it.
  */
-// HACK -- Cat21: removed `export` (route consumers under
-//   RouteUrls.Cat21MintConfirm / Cat21TransferConfirm / etc. land in
-//   iter 11c). HARD RULE #5 — restore on wire-up.
-// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
-function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
-  const { copy, onApprove, onReject, isSubmitting } = props;
+export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
+  const { copy, onApprove, onReject, isSubmitting, submitError } = props;
   return (
     <Content>
       <Flex direction="column" gap="space.05" px="space.05">
@@ -76,6 +79,9 @@ function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
             </Flex>
           ))}
         </Flex>
+        {submitError ? (
+          <ErrorLabel data-testid="cat21-confirmation-error">{submitError}</ErrorLabel>
+        ) : null}
         <Flex gap="space.03" pt="space.05">
           <Button
             variant="outline"
