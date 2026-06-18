@@ -52,11 +52,11 @@ import type { Cat21RpcResult } from './types';
  * `Cat21DispatcherMessage['type']` from `cat21-dispatcher.ts`.
  */
 // HACK -- Cat21: removed `export` (used as the parameter shape; consumers read fields via inference). HARD RULE #5 — restore on broader use.
-type RelayableNmhRequest = {
+interface RelayableNmhRequest {
   id: string;
   type: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer';
   payload: import('./types').Cat21Intent;
-};
+}
 
 /**
  * The minimal NMH port surface this module touches — only
