@@ -5,6 +5,8 @@ import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat2
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
 import type { Cat21Intent } from '@background/cat21/types';
 
+import { dispatchCat21Intent } from './dispatch-cat21-intent';
+
 /**
  * Generic container for the four Cat21 manual-flow confirmation
  * popups (mint / transfer / create-offer / accept-offer). The four
@@ -58,14 +60,31 @@ export function Cat21ConfirmRoute() {
       copy={copy}
       isSubmitting={isSubmitting}
       onApprove={() => {
-        // Iter 11d will dispatch via chrome.runtime.sendMessage to the
-        // background-side Cat21Dispatcher and await the reply before
-        // navigating back. Until then, set the submitting state so the
-        // user sees something happen + surface a placeholder error so
-        // the popup stays open and the user can cancel.
         setIsSubmitting(true);
-        setError('Manual cat-flow signing not yet wired (iter 11d).');
-        setIsSubmitting(false);
+        setError(null);
+        void (async () => {
+          const requestId = `cat21-popup-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+          // chrome.runtime.sendMessage as a promise-returning call.
+          // The wallet uses webextension-polyfill which gives that
+          // shape for free in MV3; this thin wrap keeps the helper
+          // contract platform-agnostic and unit-testable.
+          const result = await dispatchCat21Intent({
+            chromeApi: {
+              sendMessage: async msg => {
+                const reply: unknown = await chrome.runtime.sendMessage(msg);
+                return reply as never;
+              },
+            },
+            intent: stateIntent,
+            requestId,
+          });
+          setIsSubmitting(false);
+          if (result.ok) {
+            void navigate(-1);
+            return;
+          }
+          setError(result.errorMessage);
+        })();
       }}
       onReject={() => {
         void navigate(-1);
