@@ -52,9 +52,13 @@ import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
  *     the `catIdHint` argument. Returns a 546-sat `Cat21TransferCatInput`
  *     with `txid`/`vout` parsed out of `satpoint` and `scriptPubKey`
  *     decoded from the cat's current `address`.
+ *   - `confirmListingPublication()` — resolves immediately. The popup
+ *     IS the user's listing-publish consent: the dialog they clicked
+ *     to land here already named the cat, the price, and the seller
+ *     payment address. A second prompt would be pure ceremony in
+ *     Path 2; in Path 3 the service skips this callback entirely.
  *
  * Wiring-pending (returns the iter-9 stub for each):
- *   - confirmListingPublication — offer-creation UI flow
  *   - signWithConfirmation / signSilently — keychain signers
  *
  * Hooks are read at render time; the returned deps object is memoised
@@ -217,8 +221,13 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
           scriptPubKey,
         };
       },
+      // The popup dialog the user clicked Confirm on already states
+      // the cat, price, and payment address — it IS the consent. No
+      // second prompt; resolve immediately so the service moves on
+      // to building the listing. Autonomous mode skips the callback
+      // upstream in cat21-rpc.service.ts.
+      confirmListingPublication: () => Promise.resolve(),
       // ---- Still wiring-pending (one slice each lands later) ----
-      confirmListingPublication: wiringPending.confirmListingPublication,
       signWithConfirmation: wiringPending.signWithConfirmation,
       signSilently: wiringPending.signSilently,
     };
