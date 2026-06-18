@@ -17,8 +17,9 @@ function makeFakePort() {
       },
     },
     onDisconnect: {
-      addListener(_l: () => void) {
-        // unused in these tests
+      addListener() {
+        // not exercised in these tests; the disconnect-listener
+        // wiring is the production-only path and lives in iter 12g
       },
     },
     /** Fire a message synchronously to all attached listeners. */
