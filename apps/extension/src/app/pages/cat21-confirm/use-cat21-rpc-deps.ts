@@ -16,21 +16,21 @@ import { useBitcoinClient } from '@app/query/bitcoin/clients/bitcoin-client';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { type RootState, useAppDispatch } from '@app/store';
 import { useCurrentAccountId } from '@app/store/accounts/account';
+import { useSignBitcoinTx } from '@app/store/accounts/blockchain/bitcoin/bitcoin.hooks';
 import { useNativeSegwitAccountIndexAddressIndexZero } from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
 import { accountIdToSliceKey } from '@app/store/agent-policy/agent-policy.hooks';
 import { incrementSpentToday } from '@app/store/agent-policy/agent-policy.slice';
 import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 import { makeAgentPolicyDeps } from '@background/cat21/agent-policy-deps';
-import { makeWiringPendingDeps } from '@background/cat21/cat21-dispatcher';
 import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
 
 /**
- * Build the popup-side `Cat21RpcDeps` for `Cat21RpcService`. Slices that
- * have a real wiring chain are wired here; everything else falls through
- * to `makeWiringPendingDeps()` so the corresponding service method
- * surfaces a typed `wiring-pending` denial.
+ * Build the popup-side `Cat21RpcDeps` for `Cat21RpcService`. Every
+ * dep on the interface now has a real wiring chain — the popup runs
+ * the full mint / transfer / create-offer / accept-offer pipelines
+ * against Leather's keychain + electrs + mempool layers.
  *
- * Currently wired:
+ * Wired deps:
  *   - `getAccountContext()` — current account's native-segwit address
  *     (index 0) and the active network's mainnet/testnet flag
  *   - `agentMode.enabled` — reads the per-account policy from the store
@@ -57,9 +57,11 @@ import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
  *     to land here already named the cat, the price, and the seller
  *     payment address. A second prompt would be pure ceremony in
  *     Path 2; in Path 3 the service skips this callback entirely.
- *
- * Wiring-pending (returns the iter-9 stub for each):
- *   - signWithConfirmation / signSilently — keychain signers
+ *   - `signWithConfirmation` / `signSilently` — both route to Leather's
+ *     `useSignBitcoinTx()` for software wallets, `ledgerNavigate` for
+ *     Ledger. `'all' | number[]` input-indexes map to its
+ *     `undefined | number[]` convention. Signed tx is finalised then
+ *     handed back as `{ hex, weight }`.
  *
  * Hooks are read at render time; the returned deps object is memoised
  * so `service.mint()` etc. see a stable reference. `getState` reads
@@ -89,6 +91,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   // stubs are sync); we close over the React-Query cache so the closure
   // can answer without awaiting. `enabled: !!catIdHint` keeps mint
   // popups from issuing the query at all.
+  const signBitcoinTx = useSignBitcoinTx();
   const cat21OrdClient = getCat21OrdApiClient();
   const catQuery = useQuery({
     queryKey: ['cat21-ord-cat', catIdHint],
@@ -98,7 +101,6 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   });
 
   return useMemo<Cat21RpcDeps>(() => {
-    const wiringPending = makeWiringPendingDeps();
     const agentPolicy = makeAgentPolicyDeps({
       getState: () => store.getState(),
       dispatch: action => {
@@ -227,9 +229,37 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
       // to building the listing. Autonomous mode skips the callback
       // upstream in cat21-rpc.service.ts.
       confirmListingPublication: () => Promise.resolve(),
-      // ---- Still wiring-pending (one slice each lands later) ----
-      signWithConfirmation: wiringPending.signWithConfirmation,
-      signSilently: wiringPending.signSilently,
+      // Signer wiring: both `signWithConfirmation` and `signSilently`
+      // route to Leather's existing `useSignBitcoinTx()` here, which
+      // dispatches to the keychain (software wallet) or the
+      // multi-step Ledger flow per `whenWallet({ software, ledger })`.
+      //
+      // In popup context, the user already approved at the parent
+      // dialog level, so the two paths converge — `signWithConfirmation`
+      // doesn't show an extra prompt and `signSilently` doesn't need
+      // to skip one. The mode-resolver still gates which one the
+      // service picks: the popup transport forces `'manual'`, so
+      // `signSilently` is effectively unreachable from Path 2 today.
+      // Path 3 (NMH-driven autonomous) is the genuine `signSilently`
+      // caller and lands later via the background NMH listener.
+      //
+      // `inputIndexes === 'all'` is signalled to `useSignBitcoinTx` as
+      // `undefined` (its convention for "sign every input"); a numeric
+      // array passes through verbatim. After signing, `finalize()`
+      // assembles witness data into the tx; `hex` + `weight` go to
+      // the service for broadcast-channel decision and submission.
+      signWithConfirmation: async (psbt, _intent, inputIndexes) => {
+        const inputsToSign = inputIndexes === 'all' ? undefined : inputIndexes;
+        const signedTx = await signBitcoinTx(psbt, inputsToSign);
+        signedTx.finalize();
+        return { hex: signedTx.hex, weight: signedTx.weight };
+      },
+      signSilently: async (psbt, inputIndexes) => {
+        const inputsToSign = inputIndexes === 'all' ? undefined : inputIndexes;
+        const signedTx = await signBitcoinTx(psbt, inputsToSign);
+        signedTx.finalize();
+        return { hex: signedTx.hex, weight: signedTx.weight };
+      },
     };
   }, [
     store,
