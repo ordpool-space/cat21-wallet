@@ -768,6 +768,85 @@ describe('iter 14 — NMH read-only probes route inline (no popup for orientatio
   });
 });
 
+describe('iter 14e — NMH connection lifecycle (idempotent connect, backoff reconnect, install detection)', () => {
+  // The connection harness is the foundation of Path 3 boot-time
+  // wiring. Three structural pins prevent regressions:
+  //
+  //   - install-detection heuristic must STAY (without it, a
+  //     missing host binary causes a tight-loop reconnect on
+  //     every wallet boot)
+  //   - successful-reconnect-resets-backoff must STAY (without it,
+  //     a long-lived port that briefly disconnects punishes the
+  //     user with growing reconnect delays for the rest of the
+  //     wallet session)
+  //   - the disconnect listener fires the FSM transition (the
+  //     port's onDisconnect is what schedules reconnect, not a
+  //     polling loop)
+
+  const LIFECYCLE = 'apps/extension/src/background/cat21/nmh-connection-lifecycle.ts';
+
+  it('install-detection heuristic gives up when port closes within installDetectionMs', () => {
+    const src = read(join(REPO_ROOT, LIFECYCLE));
+    expect(src).toMatch(/elapsed\s*<\s*installWindow/);
+    expect(src).toMatch(/fsm\s*=\s*'gave-up'/);
+    expect(src).toMatch(/onHostNotInstalled\?\.\(\)/);
+  });
+
+  it('successful connect resets backoffMs to initial (long-lived port heals the budget)', () => {
+    const src = read(join(REPO_ROOT, LIFECYCLE));
+    // After fsm flips to 'connected' the next line resets backoff.
+    expect(src).toMatch(/fsm\s*=\s*'connected'[\s\S]{0,200}backoffMs\s*=\s*initial/);
+  });
+
+  it('reconnect scheduling uses setTimeoutFn (injectable) not setTimeout directly', () => {
+    const src = read(join(REPO_ROOT, LIFECYCLE));
+    // Pin the injectable test seam: the reconnect schedule reads
+    // setTimeoutFn, not the global setTimeout — without this, specs
+    // can't drive virtual time.
+    expect(src).toMatch(/pendingReconnect\s*=\s*setTimeoutFn\(/);
+  });
+});
+
+describe('iter 12g-prep — background-side wiring glue + state cache', () => {
+  // Three modules round out everything iter 12g needs from
+  // /background/cat21/. The pins below prevent silent drift:
+  //
+  //   - install-cat21-nmh-agent.ts must continue to call BOTH
+  //     createNmhLifecycle AND attachNativeHostToPopupRelay (it's
+  //     the glue that joins them; deleting either reference would
+  //     mean a different glue function is being used somewhere)
+  //   - background-probe-state.ts must filter chrome.storage
+  //     events to areaName === 'local' (defence against
+  //     accidentally consuming session-storage writes the popup
+  //     does for cat21-request stashing)
+  //   - the cache's DEFAULT_STATE must keep activeAccountAddress
+  //     as undefined (boot-race contract with the probes)
+
+  const INSTALL_AGENT = 'apps/extension/src/background/cat21/install-cat21-nmh-agent.ts';
+  const PROBE_STATE = 'apps/extension/src/background/cat21/background-probe-state.ts';
+
+  it('installCat21NmhAgent wires createNmhLifecycle + attachNativeHostToPopupRelay (joins iter 14e + iter 12c)', () => {
+    const src = read(join(REPO_ROOT, INSTALL_AGENT));
+    expect(src).toMatch(/createNmhLifecycle\s*\(/);
+    expect(src).toMatch(/attachNativeHostToPopupRelay\s*\(/);
+  });
+
+  it('installCat21NmhAgent uses the pinned application name `space.cat21.wallet` (matches the NMH manifest)', () => {
+    const src = read(join(REPO_ROOT, INSTALL_AGENT));
+    expect(src).toMatch(/'space\.cat21\.wallet'/);
+  });
+
+  it('background-probe-state.ts filters chrome.storage events to local area (ignores session/sync)', () => {
+    const src = read(join(REPO_ROOT, PROBE_STATE));
+    expect(src).toMatch(/areaName\s*!==\s*'local'/);
+  });
+
+  it("DEFAULT_STATE keeps activeAccountAddress: undefined (boot-race contract with list_cats' empty fallback)", () => {
+    const src = read(join(REPO_ROOT, PROBE_STATE));
+    expect(src).toMatch(/DEFAULT_STATE[\s\S]{0,300}activeAccountAddress:\s*undefined/);
+  });
+});
+
 describe('CLAUDE.md still pins the rules these specs encode', () => {
   it('lists every HARD RULE referenced by these specs', () => {
     const claude = read(join(REPO_ROOT, 'CLAUDE.md'));
