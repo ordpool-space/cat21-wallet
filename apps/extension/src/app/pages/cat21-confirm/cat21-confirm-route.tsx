@@ -6,6 +6,7 @@ import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
 import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 
+import { useCat21RequestFromUrl } from './use-cat21-request-from-url';
 import { useCat21RpcDeps } from './use-cat21-rpc-deps';
 
 function extractCatIdHint(intent: Cat21Intent | undefined): string | undefined {
@@ -50,14 +51,43 @@ export function Cat21ConfirmRoute() {
   const [error, setError] = useState<string | null>(null);
 
   const stateIntent = (location.state as { intent?: Cat21Intent } | null)?.intent;
+  const urlRequest = useCat21RequestFromUrl();
+
+  // The popup may be reached two ways: Path 2 (intent on react-router
+  // `location.state`) or Path 3 (the background's NMH listener stashed
+  // it under `?cat21RequestId=<id>` via popup-bridge). URL wins when
+  // present so a stray location.state from a previous navigation
+  // can't override a fresh agent-driven request.
+  const intent: Cat21Intent | undefined =
+    urlRequest.status === 'ready' ? urlRequest.intent : stateIntent;
 
   // catId for the deps' cat21-ord pre-fetch (used by `resolveCatUtxo`).
   // Transfer/createOffer carry it as `catId`; acceptOffer as `expectedCatId`;
   // mint has none. The hook treats `undefined` as "no cat to look up".
-  const catIdHint = extractCatIdHint(stateIntent);
+  const catIdHint = extractCatIdHint(intent);
   const deps = useCat21RpcDeps(catIdHint);
 
-  if (!stateIntent) {
+  if (urlRequest.status === 'loading') {
+    return <div data-testid="cat21-confirm-loading">Loading request…</div>;
+  }
+
+  if (urlRequest.status === 'expired') {
+    return (
+      <div data-testid="cat21-confirm-expired">
+        Request expired. Re-issue from the agent or open from the wallet UI.
+      </div>
+    );
+  }
+
+  if (urlRequest.status === 'error') {
+    return (
+      <div data-testid="cat21-confirm-storage-error">
+        Could not read request from storage: {urlRequest.message}
+      </div>
+    );
+  }
+
+  if (!intent) {
     return (
       <div data-testid="cat21-confirm-missing-intent">
         Missing intent. Re-open from the wallet UI.
@@ -65,7 +95,7 @@ export function Cat21ConfirmRoute() {
     );
   }
 
-  const copy = makeCat21ConfirmationCopy(stateIntent);
+  const copy = makeCat21ConfirmationCopy(intent);
 
   async function callService(intent: Cat21Intent): Promise<Cat21RpcResult> {
     // `useCat21RpcDeps` wires the cheap slices (account context, agent
@@ -88,7 +118,7 @@ export function Cat21ConfirmRoute() {
         setIsSubmitting(true);
         setError(null);
         void (async () => {
-          const result = await callService(stateIntent);
+          const result = await callService(intent);
           setIsSubmitting(false);
           if (result.ok) {
             void navigate(-1);

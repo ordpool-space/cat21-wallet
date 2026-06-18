@@ -105,9 +105,9 @@ interface StashCat21RequestArgs {
   transport: Cat21Transport;
   storage: SessionStorageLike;
   /** Optional injected id (specs); production calls `crypto.randomUUID`. */
-  generateId?: () => string;
+  generateId?(): string;
   /** Optional injected clock (specs); defaults to `Date.now`. */
-  now?: () => number;
+  now?(): number;
 }
 
 // HACK -- Cat21: removed `export` (return type of stashCat21Request; consumers read fields via inference). HARD RULE #5 — restore on consumer wire-up.

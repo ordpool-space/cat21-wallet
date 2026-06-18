@@ -18,18 +18,20 @@ function makeFakeStorage(): SessionStorageLike & { state: Record<string, unknown
   const state: Record<string, unknown> = {};
   return {
     state,
-    async set(items) {
+    set(items) {
       for (const [k, v] of Object.entries(items)) state[k] = v;
+      return Promise.resolve();
     },
-    async get(keys) {
+    get(keys) {
       const want = Array.isArray(keys) ? keys : [keys];
       const out: Record<string, unknown> = {};
       for (const k of want) if (k in state) out[k] = state[k];
-      return out;
+      return Promise.resolve(out);
     },
-    async remove(keys) {
+    remove(keys) {
       const want = Array.isArray(keys) ? keys : [keys];
       for (const k of want) delete state[k];
+      return Promise.resolve();
     },
   };
 }
