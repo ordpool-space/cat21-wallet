@@ -410,7 +410,7 @@ export class Cat21RpcService {
    * `cat21_create_offer` — publishes a structured listing for an owned
    * cat. Does NOT broadcast a Bitcoin transaction. Pipeline:
    *
-   *   1. enforceCreateOfferInvariants(intent, network)
+   *   1. validateCat21Operation({ kind: 'create_offer', intent })
    *   2. resolveSigningMode(...)
    *   3. resolveCatUtxo(catId) — proves wallet owns the cat
    *   4. confirmListingPublication(intent) — manual mode only

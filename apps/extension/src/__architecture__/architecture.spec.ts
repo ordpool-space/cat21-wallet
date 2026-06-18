@@ -856,6 +856,69 @@ describe('iter 12g-prep — background-side wiring glue + state cache', () => {
   });
 });
 
+describe('iter 16 — SDK validateCat21Operation is the single gate (no consumer-side invariants)', () => {
+  // The wallet used to have an `invariants/` folder with four
+  // per-flow gates and a `Validated<I>` brand. Both were deleted
+  // when validateCat21Operation landed in ordpool-sdk. These pins
+  // prevent a future commit from quietly bringing them back.
+
+  it('the wallet has NO invariants/ folder (deleted; SDK gate is authority)', () => {
+    expect(() =>
+      read(join(EXTENSION_ROOT, 'src/background/cat21/invariants/mint-invariants.ts'))
+    ).toThrow();
+    expect(() =>
+      read(join(EXTENSION_ROOT, 'src/background/cat21/invariants/transfer-invariants.ts'))
+    ).toThrow();
+    expect(() =>
+      read(join(EXTENSION_ROOT, 'src/background/cat21/invariants/create-offer-invariants.ts'))
+    ).toThrow();
+    expect(() =>
+      read(join(EXTENSION_ROOT, 'src/background/cat21/invariants/accept-offer-invariants.ts'))
+    ).toThrow();
+  });
+
+  it('the wallet does not export a Validated<I> brand from types.ts', () => {
+    // The phantom Validated<I> brand is gone; the discriminated-union
+    // return type from validateCat21Operation IS the runtime witness
+    // that the gate ran. A regression that re-adds the brand also
+    // re-introduces the layer the gate replaced.
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/types.ts'));
+    expect(src).not.toMatch(/export type Validated/);
+    expect(src).not.toMatch(/ValidatedBrand/);
+  });
+
+  it('cat21-rpc.service.ts imports validateCat21Operation from ordpool-sdk/core', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
+    expect(src).toMatch(/validateCat21Operation[\s\S]{0,400}from\s+['"]ordpool-sdk\/core['"]/);
+  });
+
+  it('all four Cat21RpcService methods invoke runGate before any other work', () => {
+    // The contract pin: the gate runs FIRST in every rpc method
+    // body. If a future refactor inlines validation or skips it,
+    // this spec catches it.
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
+    for (const kind of ['mint', 'transfer', 'create_offer', 'accept_offer']) {
+      expect(src).toMatch(new RegExp(`runGate\\(\\s*\\{\\s*kind:\\s*'${kind}'`));
+    }
+  });
+
+  it('cat21-rpc.service.ts has no `enforce*Invariants` references (no fallback path)', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
+    expect(src).not.toMatch(/enforce[A-Z]\w+Invariants/);
+  });
+
+  it('gateConfig wires ownPaymentAddress + cap defaults (no self-send + fee/price ceilings)', () => {
+    // Pin the three pieces of wallet policy the gate config encodes.
+    // Without these, an agent could silently mint to the wallet's own
+    // change address, run the fee rate above congestion peaks, or
+    // create an offer with a fat-finger 21000000000 sats price.
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
+    expect(src).toMatch(/ownPaymentAddress:\s*accountCtx\.paymentAddress/);
+    expect(src).toMatch(/maxFeeRatePerVbyte:\s*1000/);
+    expect(src).toMatch(/maxPriceSats:\s*21_000_000_000/);
+  });
+});
+
 describe('iter 12g-prep3 — decodeWalletProbeState fail-closed contract', () => {
   // The decoder's whole purpose is to fail closed at every step:
   // missing slice, malformed JSON, wrong shape → return DEFAULT_STATE.
