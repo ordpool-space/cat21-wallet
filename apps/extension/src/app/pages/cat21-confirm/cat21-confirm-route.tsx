@@ -5,14 +5,7 @@ import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat2
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
 import { makeWiringPendingDeps } from '@background/cat21/cat21-dispatcher';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
-import type {
-  Cat21AcceptOfferIntent,
-  Cat21CreateOfferIntent,
-  Cat21Intent,
-  Cat21MintIntent,
-  Cat21RpcResult,
-  Cat21TransferIntent,
-} from '@background/cat21/types';
+import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 
 /**
  * Generic container for the four Cat21 manual-flow confirmation popups
@@ -66,16 +59,10 @@ export function Cat21ConfirmRoute() {
     // keychain (sign*), redux-persist (active account + agent
     // policy), or wallet API client (pickFundingUtxo, broadcast).
     const service = new Cat21RpcService(makeWiringPendingDeps());
-    if ('priceSats' in intent) {
-      return service.createOffer(intent as Cat21CreateOfferIntent, 'popup');
-    }
-    if ('offerPsbt' in intent) {
-      return service.acceptOffer(intent as Cat21AcceptOfferIntent, 'popup');
-    }
-    if ('catId' in intent) {
-      return service.transfer(intent as Cat21TransferIntent, 'popup');
-    }
-    return service.mint(intent as Cat21MintIntent, 'popup');
+    if ('priceSats' in intent) return service.createOffer(intent, 'popup');
+    if ('offerPsbt' in intent) return service.acceptOffer(intent, 'popup');
+    if ('catId' in intent) return service.transfer(intent, 'popup');
+    return service.mint(intent, 'popup');
   }
 
   return (
