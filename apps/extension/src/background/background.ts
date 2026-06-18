@@ -9,7 +9,6 @@ import { CONTENT_SCRIPT_PORT, type LegacyMessageFromContentScript } from '@share
 import { warnUsersAboutDevToolsDangers } from '@shared/utils/dev-tools-warning-log';
 
 import { queueAnalyticsRequest } from './background-analytics';
-import { installCat21Listeners } from './cat21/install-cat21-listeners';
 import { initContextMenuActions } from './init-context-menus';
 import { internalBackgroundMessageHandler } from './messaging/internal-methods/message-handler';
 import {
@@ -22,12 +21,14 @@ import { initAddressMonitor } from './monitors/address-monitor';
 initContextMenuActions();
 warnUsersAboutDevToolsDangers();
 
-// Cat21 transports — Path 2 (popup ↔ background) listener + Path 3
-// (MCP host ↔ background) native-host bridge. Both share one
-// wiring-pending dispatcher today; a future iteration swaps in the
-// real `wireCat21Dispatcher({...})` once the cross-context Redux state
-// wire is in place.
-installCat21Listeners();
+// Cat21 — the dispatcher runs IN THE POPUP, not here. Path 2 (manual
+// cat-flow) navigates from a wallet UI button directly to
+// `RouteUrls.Cat21*Confirm`; the route's container instantiates
+// `Cat21RpcService` with popup-side deps and calls the signing path
+// inline. Path 3 (MCP host autonomous) will reach the same routes by
+// calling `triggerRequestPopupWindowOpen(...)` from a future NMH
+// handler; until that handler lands, the MCP host receives
+// "extension not connected" denials as designed.
 
 chrome.runtime.onInstalled.addListener(async details => {
   if (details.reason === 'install' && process.env.WALLET_ENVIRONMENT !== 'testing') {

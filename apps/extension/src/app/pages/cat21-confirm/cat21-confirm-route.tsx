@@ -3,38 +3,45 @@ import { useLocation, useNavigate } from 'react-router';
 
 import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat21-confirmation-copy';
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
-import type { Cat21Intent } from '@background/cat21/types';
-
-import { dispatchCat21Intent } from './dispatch-cat21-intent';
+import { makeWiringPendingDeps } from '@background/cat21/cat21-dispatcher';
+import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
+import type {
+  Cat21AcceptOfferIntent,
+  Cat21CreateOfferIntent,
+  Cat21Intent,
+  Cat21MintIntent,
+  Cat21RpcResult,
+  Cat21TransferIntent,
+} from '@background/cat21/types';
 
 /**
- * Generic container for the four Cat21 manual-flow confirmation
- * popups (mint / transfer / create-offer / accept-offer). The four
- * routes registered in `app-routes.tsx` all point at this single
- * component — the intent kind is detected from `location.state.intent`
- * the same way the dialog's copy helper detects it. One shell, no
- * per-flow duplication.
+ * Generic container for the four Cat21 manual-flow confirmation popups
+ * (mint / transfer / create-offer / accept-offer). The four routes
+ * registered in `app-routes.tsx` all point at this single component —
+ * the intent kind is detected from `location.state.intent` the same
+ * way the dialog's copy helper detects it.
  *
- * Contract with the caller (the wallet UI button that opens this
- * popup):
+ * Architecture (this follows Leather's signPsbt pattern):
  *
- *   navigate(RouteUrls.Cat21MintConfirm, {
- *     state: { intent: { recipient, feeRate, mode: 'manual' } }
- *   });
+ *   - The dispatcher runs IN THE POPUP, not the background. This gives
+ *     it full access to the React/Redux tree and (transitively) the
+ *     keychain that signing requires.
+ *   - The container constructs a `Cat21RpcService` with popup-side deps
+ *     and calls `service.mint(intent, 'popup')` etc. directly. No
+ *     chrome.runtime round-trip for Path 2 (manual cat-flow).
+ *   - Path 3 (MCP host autonomous) reaches the same route via the
+ *     background's NMH listener calling `triggerRequestPopupWindowOpen`
+ *     with the intent encoded in URL params, and the popup runs the
+ *     same service through the same dialog.
  *
- * `intent.mode` must be `'manual'`. Approve / reject behaviour:
- *
- *   - approve: navigates back (caller's `onBack` handler dispatches
- *     the actual Cat21Dispatcher call via chrome.runtime.sendMessage
- *     in iter 11d). Until 11d lands, approve sets a placeholder
- *     "pending" state — the popup stays open so the user can cancel.
- *   - reject:  navigates back immediately, no side effects.
- *
- * If `location.state.intent` is missing or malformed, the popup
- * renders a typed "missing intent" error rather than crashing.
- * That's the failure mode for a developer mis-wiring the navigate
- * call; it's noisy but recoverable.
+ * Real deps wiring (pickFundingUtxo, signWithConfirmation, broadcast)
+ * lands one slice at a time as we hook up each cat-flow operation to
+ * the wallet's existing keychain / electrs / mempool layers. Today's
+ * `makeWiringPendingDeps()` gives every method a typed `wiring-pending`
+ * denial so the message-passing layer is exercised end-to-end and the
+ * popup surfaces a clean "not yet wired" error.
  */
+
 export function Cat21ConfirmRoute() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -44,8 +51,6 @@ export function Cat21ConfirmRoute() {
   const stateIntent = (location.state as { intent?: Cat21Intent } | null)?.intent;
 
   if (!stateIntent) {
-    // Defensive: the caller forgot to pass `state.intent`. Surface a
-    // typed error rather than crashing on the makeCopy call.
     return (
       <div data-testid="cat21-confirm-missing-intent">
         Missing intent. Re-open from the wallet UI.
@@ -55,44 +60,46 @@ export function Cat21ConfirmRoute() {
 
   const copy = makeCat21ConfirmationCopy(stateIntent);
 
+  async function callService(intent: Cat21Intent): Promise<Cat21RpcResult> {
+    // Wiring-pending deps for every slice today. Future iterations
+    // replace each dep with a popup-side hook chain that touches the
+    // keychain (sign*), redux-persist (active account + agent
+    // policy), or wallet API client (pickFundingUtxo, broadcast).
+    const service = new Cat21RpcService(makeWiringPendingDeps());
+    if ('priceSats' in intent) {
+      return service.createOffer(intent as Cat21CreateOfferIntent, 'popup');
+    }
+    if ('offerPsbt' in intent) {
+      return service.acceptOffer(intent as Cat21AcceptOfferIntent, 'popup');
+    }
+    if ('catId' in intent) {
+      return service.transfer(intent as Cat21TransferIntent, 'popup');
+    }
+    return service.mint(intent as Cat21MintIntent, 'popup');
+  }
+
   return (
     <Cat21ConfirmationDialog
       copy={copy}
       isSubmitting={isSubmitting}
+      submitError={error}
       onApprove={() => {
         setIsSubmitting(true);
         setError(null);
         void (async () => {
-          const requestId = `cat21-popup-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-          // chrome.runtime.sendMessage as a promise-returning call.
-          // The wallet uses webextension-polyfill which gives that
-          // shape for free in MV3; this thin wrap keeps the helper
-          // contract platform-agnostic and unit-testable.
-          const result = await dispatchCat21Intent({
-            chromeApi: {
-              sendMessage: async msg => {
-                const reply: unknown = await chrome.runtime.sendMessage(msg);
-                return reply as never;
-              },
-            },
-            intent: stateIntent,
-            requestId,
-          });
+          const result = await callService(stateIntent);
           setIsSubmitting(false);
           if (result.ok) {
             void navigate(-1);
             return;
           }
-          setError(result.errorMessage);
+          const { reason, detail } = result.value;
+          setError(detail ? `${reason}: ${detail}` : reason);
         })();
       }}
       onReject={() => {
         void navigate(-1);
       }}
-      // Pass through the iter-11d error so the dialog can surface it
-      // once a real dispatcher call exists; for now `error` is only set
-      // by the placeholder branch above.
-      submitError={error}
     />
   );
 }
