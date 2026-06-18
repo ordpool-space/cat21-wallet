@@ -28,11 +28,16 @@ import { connectToNativeHost } from './connect-native-host';
  * Still — call exactly once at background-script startup.
  */
 export function installCat21Listeners(): void {
-  // One dispatcher, two transports. The getter is a thunk so a future
-  // dispatcher swap (when the real deps are wired) takes effect on
-  // the next inbound message without re-installing.
-  let dispatcher = createCat21Dispatcher(makeWiringPendingDeps());
-  const getDispatcher = () => dispatcher;
+  // One dispatcher, two transports. The getter is a function (not an
+  // arrow) so a future state-backed swap reads from a module-level
+  // mutable reference without changing call sites — the getter is
+  // called fresh per inbound message, so account switches or
+  // store-rehydration events that rebuild the dispatcher take effect
+  // immediately.
+  const dispatcher = createCat21Dispatcher(makeWiringPendingDeps());
+  function getDispatcher() {
+    return dispatcher;
+  }
 
   installCat21DispatchListener({
     chromeApi: chrome.runtime,
@@ -55,9 +60,4 @@ export function installCat21Listeners(): void {
     // eslint-disable-next-line no-console
     console.warn('Cat21 native-host bridge unavailable:', err);
   }
-
-  // `dispatcher` is referenced by the closure above; the let is here
-  // for the future swap-in of a state-backed dispatcher (uncomment +
-  // dispatch from somewhere that knows when the store is ready).
-  void dispatcher;
 }
