@@ -68,18 +68,55 @@ that the wallet handles (see `packages/services/src/index.ts` and
 Stacks RPCs are NOT registered. Calls to `stx_*` methods get a typed
 `METHOD_NOT_FOUND` response, not a hang.
 
-## MCP host tools (read-only, ships today)
+## MCP host tools
 
-The Cat21 Wallet's MCP host surface at `tools/src/mcp-host/` exposes
-exactly three tools to local MCP clients (Claude Desktop, Cursor):
+The Cat21 Wallet's MCP host at `tools/src/mcp-host/` exposes seven
+tools to local MCP clients (Claude Desktop, Cursor): three read-only
+probes plus the four cat-flow mutating actions.
 
-- `list_cats` → returns the cats held by the active account
-- `cat21_ord_status` → forwards cat21-ord's `/status` response
-- `wallet_status` → reachability probe
+**Read-only probes** — answered inline by the wallet's background,
+no popup involvement, no keychain access:
 
-All three are read-only. Mutating actions reach the wallet through the
-standard `signPsbt` RPC on `window.Cat21Provider` — the MCP host does
-NOT expose mint, buy, or sell tools, and will not in v1.
+- `list_cats` → cat ids the active account holds
+- `wallet_status` → `{ network, accountId, agentMode.enabled }`
+- `cat21_ord_status` → cat21-ord's `/status` snapshot
+
+**Mutating actions** — route through the popup-side
+`Cat21RpcService` via the iter-12 NMH⇄popup bridge
+(`apps/extension/src/background/cat21/attach-native-host-to-popup-relay.ts`).
+The agent never reaches the keychain directly; the popup is the
+trusted boundary that signs.
+
+- `cat21_mint(recipient, feeRate, tip?, mode?)`
+- `cat21_transfer(catId, recipient, feeRate, mode?)`
+- `cat21_create_offer(catId, priceSats, paymentAddress, mode?)`
+- `cat21_accept_offer(offerPsbt, expectedCatId, expectedPriceSats,
+  expectedSellerUtxo, mode?)`
+
+Each mutating call returns one of:
+
+- `{ ok: true, value: { kind: 'broadcast', txid, channel } }`
+  (`channel: 'mempool' | 'slipstream'`)
+- `{ ok: true, value: { kind: 'listing', listing: { ... } } }` —
+  `cat21_create_offer` only, no broadcast
+- `{ ok: false, value: { reason, detail? } }` where `reason` is
+  one of: `intent-shape-invalid`, `intent-invariant-violated`,
+  `agent-disabled`, `policy-denied`,
+  `transport-not-trusted-for-autonomous`, `inbound-offer-mismatch`,
+  `broadcast-failed`
+
+`mode: 'autonomous'` is honored only when (a) the call arrived
+over NMH, (b) the user has agent-mode enabled for the active
+account, and (c) the agent-policy gate accepts the intent. Any
+guard miss surfaces as a typed denial — never a silent downgrade
+to manual.
+
+Mutating actions can ALSO reach the wallet through the standard
+`signPsbt` RPC on `window.Cat21Provider` — that's Path 1 (third-
+party-wallet users go through `cat21.space`, which builds the PSBT
+via ordpool-sdk and asks the wallet to sign it). The wallet itself
+does not infer cat-shape from a generic signPsbt payload (HARD
+RULE #6); cat21.space owns Path 1's UX.
 
 ## SDK-side surface that consumers build with
 
