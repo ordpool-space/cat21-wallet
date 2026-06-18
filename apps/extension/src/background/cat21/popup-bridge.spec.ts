@@ -1,10 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { RouteUrls } from '@shared/route-urls';
+
 import {
   type SessionStorageLike,
   cat21RequestStorageKey,
   clearCat21Request,
   fetchCat21Request,
+  routeForCat21IntentType,
   stashCat21Request,
 } from './popup-bridge';
 import type { Cat21MintIntent } from './types';
@@ -110,6 +113,17 @@ describe('fetchCat21Request', () => {
     const storage = makeFakeStorage();
     const fetched = await fetchCat21Request(storage, 'never-existed');
     expect(fetched).toBeNull();
+  });
+});
+
+describe('routeForCat21IntentType', () => {
+  it.each([
+    ['cat21_mint', RouteUrls.Cat21MintConfirm],
+    ['cat21_transfer', RouteUrls.Cat21TransferConfirm],
+    ['cat21_create_offer', RouteUrls.Cat21CreateOfferConfirm],
+    ['cat21_accept_offer', RouteUrls.Cat21AcceptOfferConfirm],
+  ] as const)('routes %s → %s', (type, route) => {
+    expect(routeForCat21IntentType(type)).toBe(route);
   });
 });
 

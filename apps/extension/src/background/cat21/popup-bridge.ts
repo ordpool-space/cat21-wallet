@@ -48,6 +48,8 @@
  * Testability: every external API (`chrome.storage.session`,
  * `crypto.randomUUID`) is read via a thin shim so specs can stub.
  */
+import { RouteUrls } from '@shared/route-urls';
+
 import type { Cat21Transport } from './mode-resolver';
 import type { Cat21Intent } from './types';
 
@@ -158,4 +160,35 @@ export async function clearCat21Request(
   requestId: string
 ): Promise<void> {
   await storage.remove(cat21RequestStorageKey(requestId));
+}
+
+/**
+ * Maps the inbound NMH method name to the corresponding Cat21 popup
+ * confirmation route. Each one points at the same `Cat21ConfirmRoute`
+ * container (registered four times in `app-routes.tsx`); the distinct
+ * URLs exist only so an open popup can be visually identified by its
+ * URL bar during dev.
+ *
+ * Throws on an unknown method — the NMH dispatcher checks the type
+ * union upstream, but this is the second-line defence: a future MCP
+ * tool the host adds (`cat21_burn`?) without updating this map would
+ * crash here rather than silently navigating to the wrong popup.
+ */
+export function routeForCat21IntentType(
+  intentType: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer'
+): RouteUrls {
+  switch (intentType) {
+    case 'cat21_mint':
+      return RouteUrls.Cat21MintConfirm;
+    case 'cat21_transfer':
+      return RouteUrls.Cat21TransferConfirm;
+    case 'cat21_create_offer':
+      return RouteUrls.Cat21CreateOfferConfirm;
+    case 'cat21_accept_offer':
+      return RouteUrls.Cat21AcceptOfferConfirm;
+    default: {
+      const exhaustive: never = intentType;
+      throw new Error(`routeForCat21IntentType: unknown type ${String(exhaustive)}`);
+    }
+  }
 }
