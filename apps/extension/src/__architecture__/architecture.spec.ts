@@ -648,6 +648,126 @@ describe('iter 11 — popup-side deps wire all 11 Cat21RpcDeps', () => {
   });
 });
 
+describe('iter 12 — Path 3 NMH bridge plumbing (popup-mediated MCP autonomous)', () => {
+  // The architectural pivot iter 11 made was: the dispatcher runs IN
+  // THE POPUP, not the background. Path 3 (NMH-driven) reaches the
+  // popup via `triggerRequestPopupWindowOpen` with the intent stashed
+  // in chrome.storage.session. These specs pin the structural pieces
+  // so a future refactor can't accidentally route Path 3 back through
+  // a background-resident keychain (which doesn't exist).
+
+  const POPUP_BRIDGE = 'apps/extension/src/background/cat21/popup-bridge.ts';
+  const NMH_RELAY = 'apps/extension/src/background/cat21/nmh-popup-relay.ts';
+  const RESULT_BUS = 'apps/extension/src/background/cat21/cat21-result-bus.ts';
+  const RELAY_ATTACH = 'apps/extension/src/background/cat21/attach-native-host-to-popup-relay.ts';
+
+  it('popup-bridge uses chrome.storage.session (NOT chrome.storage.local) — PSBT bytes never persist to disk', () => {
+    // The bridge stashes intents that can carry unsigned PSBT bytes.
+    // Persisting those to disk via chrome.storage.local would leak
+    // them across sessions; session storage is cleared at session
+    // end. The pin: the module must only mention .session in its
+    // JSDoc and the helper's body must take a `SessionStorageLike`
+    // (the field-name carries the constraint).
+    const src = read(join(REPO_ROOT, POPUP_BRIDGE));
+    expect(src).toMatch(/SessionStorageLike/);
+    expect(src).toMatch(/chrome\.storage\.session/);
+    expect(src).not.toMatch(/chrome\.storage\.local/);
+  });
+
+  it('cat21RequestStorageKey is namespaced (`cat21-request-<id>`) — collision-safe with other wallet keys', () => {
+    const src = read(join(REPO_ROOT, POPUP_BRIDGE));
+    expect(src).toMatch(/`cat21-request-\$\{requestId\}`/);
+  });
+
+  it('relayNmhMessageThroughPopup clears storage in a finally — popup crash cannot leak intents', () => {
+    const src = read(join(REPO_ROOT, NMH_RELAY));
+    // Match `} finally {` (formatter-stable) followed by clear.
+    expect(src).toMatch(/\}\s*finally\s*\{[\s\S]*?clearCat21Request/);
+  });
+
+  it('cat21-result-bus envelopes carry a `source: cat21-result-bus` tag', () => {
+    // Without the source tag, any other chrome.runtime.sendMessage
+    // traffic (Leather's finalize-psbt, etc.) with a matching
+    // requestId could resolve the wrong promise. Pin the tag.
+    const src = read(join(REPO_ROOT, RESULT_BUS));
+    expect(src).toMatch(/CAT21_RESULT_BUS_SOURCE\s*=\s*'cat21-result-bus'/);
+  });
+
+  it('subscribeToCat21Result removes its listener after the matching envelope (no leak)', () => {
+    const src = read(join(REPO_ROOT, RESULT_BUS));
+    expect(src).toMatch(/onMessage\.removeListener\(listener\)/);
+  });
+
+  it('attachNativeHostToPopupRelay translates relay errors into typed broadcast-failed denials', () => {
+    // The pin: the attach catches any throw and posts a denial with
+    // `reason: 'broadcast-failed'` + `detail: 'relay-error: ...'`.
+    // Without this the agent would hang on a popup-open failure
+    // instead of learning the call failed.
+    const src = read(join(REPO_ROOT, RELAY_ATTACH));
+    expect(src).toMatch(/reason:\s*'broadcast-failed'/);
+    expect(src).toMatch(/relay-error/);
+  });
+
+  it('Cat21ConfirmRoute reads the intent from URL (Path 3) AND location.state (Path 2)', () => {
+    // Both reads exist; URL wins when present. This is the protocol
+    // contract: Path 3's stash-and-open dance only works if the URL
+    // path is honored over a stale location.state.
+    const src = read(
+      join(REPO_ROOT, 'apps/extension/src/app/pages/cat21-confirm/cat21-confirm-route.tsx')
+    );
+    expect(src).toMatch(/useCat21RequestFromUrl/);
+    expect(src).toMatch(/location\.state/);
+    // URL-wins comment OR direct ternary that picks the URL branch.
+    expect(src).toMatch(/urlRequest\.status === 'ready'/);
+  });
+
+  it('Cat21ConfirmRoute posts result back via postCat21Result for Path 3 (no result-leak)', () => {
+    const src = read(
+      join(REPO_ROOT, 'apps/extension/src/app/pages/cat21-confirm/cat21-confirm-route.tsx')
+    );
+    expect(src).toMatch(/postCat21Result/);
+  });
+});
+
+describe('iter 14 — NMH read-only probes route inline (no popup for orientation queries)', () => {
+  // The three read-only probes (list_cats, wallet_status,
+  // cat21_ord_status) carry no secret and change no chain state. They
+  // must be answered inline by the background so an agent can orient
+  // itself without bothering the user. The pin: the attach handler
+  // checks `isReadOnlyProbeRequest` BEFORE `isNmhMutatingRequest`, so
+  // a probe never lands in the popup-relay path.
+
+  const RELAY_ATTACH = 'apps/extension/src/background/cat21/attach-native-host-to-popup-relay.ts';
+  const PROBE_HANDLER = 'apps/extension/src/background/cat21/nmh-read-only-probes.ts';
+
+  it('the attach routes read-only probes BEFORE the mutating predicate (probes never reach popup)', () => {
+    const src = read(join(REPO_ROOT, RELAY_ATTACH));
+    const roIdx = src.indexOf('isReadOnlyProbeRequest');
+    const mutIdx = src.indexOf('isNmhMutatingRequest');
+    expect(roIdx).toBeGreaterThan(0);
+    expect(mutIdx).toBeGreaterThan(roIdx);
+  });
+
+  it('handleReadOnlyProbe has exhaustive switch (a new probe type without an arm trips TS, not runtime)', () => {
+    const src = read(join(REPO_ROOT, PROBE_HANDLER));
+    expect(src).toMatch(/const\s+exhaustive:\s*never\s*=\s*req\.type/);
+  });
+
+  it('the three probe branches each catch and encode errors inline on the payload', () => {
+    // Pinned because "silent empty array" is a confusing failure
+    // signal for an agent — an empty cats array could mean "no cats"
+    // OR "cat21-ord offline". Encoding the error inline removes the
+    // ambiguity.
+    const src = read(join(REPO_ROOT, PROBE_HANDLER));
+    // Three try/catch blocks (one per branch), each encoding `error`
+    // on the payload.
+    const tryCount = (src.match(/try\s*\{/g) ?? []).length;
+    expect(tryCount).toBe(3);
+    expect(src).toMatch(/payload:\s*\{\s*error:\s*errorMessage\(err\)\s*\}/);
+    expect(src).toMatch(/reachable:\s*false,\s*error:\s*errorMessage\(err\)/);
+  });
+});
+
 describe('CLAUDE.md still pins the rules these specs encode', () => {
   it('lists every HARD RULE referenced by these specs', () => {
     const claude = read(join(REPO_ROOT, 'CLAUDE.md'));
