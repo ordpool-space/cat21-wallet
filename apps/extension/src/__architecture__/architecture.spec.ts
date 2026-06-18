@@ -568,6 +568,86 @@ describe('iter 10 — per-account agent-policy slice + dispatcher deps', () => {
   });
 });
 
+describe('iter 11 — popup-side deps wire all 11 Cat21RpcDeps', () => {
+  // The popup-side `useCat21RpcDeps` hook is the load-bearing wiring
+  // for Path 2 (manual cat-flow in the wallet popup). Every dep on
+  // the `Cat21RpcDeps` interface MUST be wired here to a real
+  // hook / SDK call / Leather signer — never a `wiringPending` stub.
+  //
+  // The background-side `wireCat21Dispatcher` (Path 3 / NMH) still
+  // has stubs for the keychain-dependent deps because the MV3
+  // service worker can't reach the unlocked keychain directly;
+  // Path 3's real wiring goes via `triggerRequestPopupWindowOpen`
+  // which lands the autonomous call back in the popup — and the
+  // popup runs THIS hook. So the structural pin is "the hook wires
+  // everything," not "every entrypoint wires everything."
+
+  const HOOK_PATH = 'apps/extension/src/app/pages/cat21-confirm/use-cat21-rpc-deps.ts';
+
+  it('the hook does not import makeWiringPendingDeps', () => {
+    const src = read(join(REPO_ROOT, HOOK_PATH));
+    expect(src).not.toMatch(/makeWiringPendingDeps/);
+  });
+
+  it('every Cat21RpcDeps field has a wired implementation in the hook', () => {
+    const src = read(join(REPO_ROOT, HOOK_PATH));
+    const fields = [
+      'getAccountContext',
+      'agentMode',
+      'evaluateAgentPolicy',
+      'recordSpend',
+      'validateBuyOfferPsbt',
+      'broadcast',
+      'pickFundingUtxo',
+      'resolveCatUtxo',
+      'confirmListingPublication',
+      'signWithConfirmation',
+      'signSilently',
+    ];
+    for (const f of fields) {
+      // Each dep name appears as an object-literal key in the hook's
+      // returned deps object. Pattern accepts `<f>:` (object key with
+      // colon) and `<f>(` (method shorthand) — both forms are valid TS
+      // for the deps interface.
+      expect(src).toMatch(new RegExp(`(^|\\s)${f}\\s*[(:]`, 'm'));
+    }
+  });
+
+  it('the hook routes signers through Leather`s useSignBitcoinTx', () => {
+    // The keychain integration: both signWithConfirmation and
+    // signSilently MUST go through Leather's existing
+    // `useSignBitcoinTx()` (which dispatches Ledger vs software).
+    // Bypassing this — for example by stuffing a raw private key in
+    // — would break HARD RULE #10 (SDK does heavy lifting) AND
+    // introduce a parallel signing path the extension team would
+    // have to maintain forever.
+    const src = read(join(REPO_ROOT, HOOK_PATH));
+    expect(src).toMatch(/import\s+\{\s*useSignBitcoinTx\s*\}/);
+    expect(src).toMatch(/const\s+signBitcoinTx\s*=\s*useSignBitcoinTx\(\)/);
+  });
+
+  it('the hook resolves cat UTXOs through cat21-ord (HARD RULE: cat21-ord is the sole authority)', () => {
+    const src = read(join(REPO_ROOT, HOOK_PATH));
+    expect(src).toMatch(/getCat21OrdApiClient/);
+    expect(src).toMatch(/fetchCat21\(/);
+    expect(src).toMatch(/CAT21_POSTAGE_SATS/);
+  });
+
+  it('the popup route only constructs Cat21RpcService — not Cat21Dispatcher (no double-dispatch)', () => {
+    // Path 2's pipeline is `popup → useCat21RpcDeps → new
+    // Cat21RpcService(deps).method(intent, 'popup')`. Re-introducing
+    // `Cat21Dispatcher` here would route the message through the
+    // background's NMH-shaped channel for no benefit and a worse
+    // failure mode (round-trip latency, MV3 eviction, lost
+    // chrome.runtime port).
+    const src = read(
+      join(REPO_ROOT, 'apps/extension/src/app/pages/cat21-confirm/cat21-confirm-route.tsx')
+    );
+    expect(src).toMatch(/new\s+Cat21RpcService\(/);
+    expect(src).not.toMatch(/Cat21Dispatcher/);
+  });
+});
+
 describe('CLAUDE.md still pins the rules these specs encode', () => {
   it('lists every HARD RULE referenced by these specs', () => {
     const claude = read(join(REPO_ROOT, 'CLAUDE.md'));

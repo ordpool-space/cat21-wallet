@@ -269,6 +269,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     accountKey,
     bitcoinClient,
     utxoQuery,
+    signBitcoinTx,
     catIdHint,
     catQuery.data,
     catQuery.error,
