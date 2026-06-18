@@ -3,9 +3,10 @@ import { useLocation, useNavigate } from 'react-router';
 
 import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat21-confirmation-copy';
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
-import { makeWiringPendingDeps } from '@background/cat21/cat21-dispatcher';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
 import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
+
+import { useCat21RpcDeps } from './use-cat21-rpc-deps';
 
 /**
  * Generic container for the four Cat21 manual-flow confirmation popups
@@ -38,6 +39,7 @@ import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 export function Cat21ConfirmRoute() {
   const location = useLocation();
   const navigate = useNavigate();
+  const deps = useCat21RpcDeps();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,11 +56,11 @@ export function Cat21ConfirmRoute() {
   const copy = makeCat21ConfirmationCopy(stateIntent);
 
   async function callService(intent: Cat21Intent): Promise<Cat21RpcResult> {
-    // Wiring-pending deps for every slice today. Future iterations
-    // replace each dep with a popup-side hook chain that touches the
-    // keychain (sign*), redux-persist (active account + agent
-    // policy), or wallet API client (pickFundingUtxo, broadcast).
-    const service = new Cat21RpcService(makeWiringPendingDeps());
+    // `useCat21RpcDeps` wires the cheap slices (account context, agent
+    // policy, recordSpend) and falls through to `makeWiringPendingDeps`
+    // for the rest. Future iterations replace each pending dep with a
+    // popup-side hook chain.
+    const service = new Cat21RpcService(deps);
     if ('priceSats' in intent) return service.createOffer(intent, 'popup');
     if ('offerPsbt' in intent) return service.acceptOffer(intent, 'popup');
     if ('catId' in intent) return service.transfer(intent, 'popup');
