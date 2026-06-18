@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { useStore } from 'react-redux';
 
+import { Network, validateCat21BuyOfferPsbt } from 'ordpool-sdk/core';
+
 import { type RootState, useAppDispatch } from '@app/store';
 import { useCurrentAccountId } from '@app/store/accounts/account';
 import { useNativeSegwitAccountIndexAddressIndexZero } from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
@@ -25,11 +27,13 @@ import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
  *     iter 10
  *   - `recordSpend(sats)` — dispatches `incrementSpentToday` so the
  *     daily cap survives across messages
+ *   - `validateBuyOfferPsbt(args)` — pure SDK call; the deps arg shape
+ *     mirrors the SDK input one-to-one, only the network string ↔ enum
+ *     translation is local
  *
  * Wiring-pending (returns the iter-9 stub for each):
  *   - pickFundingUtxo / resolveCatUtxo — UTXO query layer
  *   - confirmListingPublication — offer-creation UI flow
- *   - validateBuyOfferPsbt — SDK call (cheap to wire next)
  *   - signWithConfirmation / signSilently — keychain signers
  *   - broadcast — mempool/electrs POST
  *
@@ -79,11 +83,21 @@ export function useCat21RpcDeps(): Cat21RpcDeps {
           })
         );
       },
+      // Pure SDK call. The deps interface mirrors the SDK arg shape
+      // exactly; we just translate the wallet's 'mainnet'|'testnet'
+      // string into the SDK's Network enum.
+      validateBuyOfferPsbt: args =>
+        validateCat21BuyOfferPsbt({
+          psbt: args.psbt,
+          expectedSellerUtxo: args.expectedSellerUtxo,
+          floorPriceSats: args.floorPriceSats,
+          expectedSellerPaymentAddress: args.expectedSellerPaymentAddress,
+          network: args.network === 'mainnet' ? Network.Mainnet : Network.Testnet3,
+        }),
       // ---- Still wiring-pending (one slice each lands later) ----
       pickFundingUtxo: wiringPending.pickFundingUtxo,
       resolveCatUtxo: wiringPending.resolveCatUtxo,
       confirmListingPublication: wiringPending.confirmListingPublication,
-      validateBuyOfferPsbt: wiringPending.validateBuyOfferPsbt,
       signWithConfirmation: wiringPending.signWithConfirmation,
       signSilently: wiringPending.signSilently,
       broadcast: wiringPending.broadcast,
