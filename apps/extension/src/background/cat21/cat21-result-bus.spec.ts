@@ -58,7 +58,6 @@ describe('cat21-result-bus round-trip', () => {
   it('subscribe ignores envelopes from unrelated sources (any other chrome.runtime traffic)', async () => {
     const bus = makeRuntimeFake();
     const waiter = subscribeToCat21Result(bus.onMessage, 'req-1');
-    bus.onMessage.addListener(() => {});
     await bus.sendMessage({
       source: 'leather-finalize-psbt',
       requestId: 'req-1',

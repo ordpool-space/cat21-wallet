@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
 import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat21-confirmation-copy';
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
+import { postCat21Result } from '@background/cat21/cat21-result-bus';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
+import type { Cat21Transport } from '@background/cat21/mode-resolver';
+import { clearCat21Request } from '@background/cat21/popup-bridge';
 import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 
 import { useCat21RequestFromUrl } from './use-cat21-request-from-url';
@@ -17,31 +20,35 @@ function extractCatIdHint(intent: Cat21Intent | undefined): string | undefined {
 }
 
 /**
- * Generic container for the four Cat21 manual-flow confirmation popups
+ * Generic container for the four Cat21 confirmation popups
  * (mint / transfer / create-offer / accept-offer). The four routes
  * registered in `app-routes.tsx` all point at this single component —
- * the intent kind is detected from `location.state.intent` the same
- * way the dialog's copy helper detects it.
+ * the intent kind is detected by structural narrowing on the intent's
+ * fields (`priceSats` → createOffer, `offerPsbt` → acceptOffer,
+ * `catId` → transfer, else mint).
  *
- * Architecture (this follows Leather's signPsbt pattern):
+ * Two paths reach this route, distinguished by where the intent lives:
  *
- *   - The dispatcher runs IN THE POPUP, not the background. This gives
- *     it full access to the React/Redux tree and (transitively) the
- *     keychain that signing requires.
- *   - The container constructs a `Cat21RpcService` with popup-side deps
- *     and calls `service.mint(intent, 'popup')` etc. directly. No
- *     chrome.runtime round-trip for Path 2 (manual cat-flow).
- *   - Path 3 (MCP host autonomous) reaches the same route via the
- *     background's NMH listener calling `triggerRequestPopupWindowOpen`
- *     with the intent encoded in URL params, and the popup runs the
- *     same service through the same dialog.
+ *   Path 2 (manual cat-flow)
+ *     Intent rides on react-router's `location.state.intent`. The
+ *     popup loads, the user sees the dialog, clicks Confirm, the
+ *     service runs against the keychain and broadcasts. No
+ *     chrome.runtime round-trip back to the background.
  *
- * Real deps wiring (pickFundingUtxo, signWithConfirmation, broadcast)
- * lands one slice at a time as we hook up each cat-flow operation to
- * the wallet's existing keychain / electrs / mempool layers. Today's
- * `makeWiringPendingDeps()` gives every method a typed `wiring-pending`
- * denial so the message-passing layer is exercised end-to-end and the
- * popup surfaces a clean "not yet wired" error.
+ *   Path 3 (autonomous, NMH-driven)
+ *     The background's NMH listener stashed the intent in
+ *     chrome.storage.session and opened this popup with
+ *     `?cat21RequestId=<id>`. `useCat21RequestFromUrl` reads the
+ *     stash; if `transport === 'mcp-nmh'` we auto-confirm without a
+ *     user click and post the result back to the background via
+ *     `postCat21Result` so the NMH listener can write it over the
+ *     port to the MCP agent. Storage is cleared on completion.
+ *
+ *     The popup may briefly flash visible for the user; that's by
+ *     design — Chrome lets the user see (and intercept) any
+ *     keychain-touching operation an agent triggers. The keychain
+ *     itself requires the wallet to be unlocked, so a sleeping
+ *     wallet rejects autonomous calls before any signature happens.
  */
 
 export function Cat21ConfirmRoute() {
@@ -49,6 +56,11 @@ export function Cat21ConfirmRoute() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Guard against `useEffect` firing the auto-confirm twice in
+  // React strict mode (dev) and against re-mounts during the async
+  // service call. A ref is stable across renders and survives the
+  // strict-mode double-invoke.
+  const autoConfirmedRef = useRef(false);
 
   const stateIntent = (location.state as { intent?: Cat21Intent } | null)?.intent;
   const urlRequest = useCat21RequestFromUrl();
@@ -60,12 +72,89 @@ export function Cat21ConfirmRoute() {
   // can't override a fresh agent-driven request.
   const intent: Cat21Intent | undefined =
     urlRequest.status === 'ready' ? urlRequest.intent : stateIntent;
+  const transport: Cat21Transport = urlRequest.status === 'ready' ? urlRequest.transport : 'popup';
 
   // catId for the deps' cat21-ord pre-fetch (used by `resolveCatUtxo`).
   // Transfer/createOffer carry it as `catId`; acceptOffer as `expectedCatId`;
   // mint has none. The hook treats `undefined` as "no cat to look up".
   const catIdHint = extractCatIdHint(intent);
   const deps = useCat21RpcDeps(catIdHint);
+
+  async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
+    const service = new Cat21RpcService(deps);
+    if ('priceSats' in actionIntent) return service.createOffer(actionIntent, transport);
+    if ('offerPsbt' in actionIntent) return service.acceptOffer(actionIntent, transport);
+    if ('catId' in actionIntent) return service.transfer(actionIntent, transport);
+    return service.mint(actionIntent, transport);
+  }
+
+  // Path 3 finalisation: post the rpc result onto the result bus so
+  // the NMH listener's `subscribeToCat21Result` resolves; then clear
+  // the storage entry (defence in depth — the relay's `finally` also
+  // clears, but if the popup was killed mid-flight we still clean up).
+  async function finalisePath3(requestId: string, result: Cat21RpcResult): Promise<void> {
+    await postCat21Result(msg => chrome.runtime.sendMessage(msg), requestId, result);
+    await clearCat21Request(
+      {
+        set(items) {
+          return chrome.storage.session.set(items);
+        },
+        get(keys) {
+          return chrome.storage.session.get(keys);
+        },
+        remove(keys) {
+          return chrome.storage.session.remove(keys);
+        },
+      },
+      requestId
+    );
+  }
+
+  // Confirm shared between user-click and Path-3-auto. Idempotent
+  // via the `isSubmitting` setter: a second click while submitting
+  // is a noop. For Path 3 the `useEffect` below calls this exactly
+  // once via `autoConfirmedRef`.
+  function confirm(actionIntent: Cat21Intent) {
+    setIsSubmitting(true);
+    setError(null);
+    void (async () => {
+      const result = await runService(actionIntent);
+      setIsSubmitting(false);
+      if (urlRequest.status === 'ready') {
+        await finalisePath3(urlRequest.requestId, result);
+      }
+      if (result.ok) {
+        void navigate(-1);
+        return;
+      }
+      const { reason, detail } = result.value;
+      setError(detail ? `${reason}: ${detail}` : reason);
+    })();
+  }
+
+  // Path 3 autoconfirm: when an NMH-driven request lands `ready`
+  // and policy/transport allow autonomous, fire `confirm` without
+  // waiting for a click. The mode-resolver then either signs
+  // silently (autonomous granted) or surfaces a typed denial
+  // (policy refused / agent-mode off), and either outcome is what
+  // gets posted back to the agent.
+  //
+  // The dep array reads `urlRequest.status` only — the `transport`
+  // field exists only on the `'ready'` variant of the union, so we
+  // narrow inside the body and use `transport` (already narrowed
+  // above) which TypeScript can index safely.
+  useEffect(() => {
+    if (urlRequest.status !== 'ready') return;
+    if (urlRequest.transport !== 'mcp-nmh') return;
+    if (autoConfirmedRef.current) return;
+    autoConfirmedRef.current = true;
+    confirm(urlRequest.intent);
+    // `deps` and `confirm` close over many things that re-render-thrash
+    // (the React-Query cache snapshot, the redux store reference,
+    // etc.). The `autoConfirmedRef` guard keeps this at-most-once;
+    // intentionally not listing the rest.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlRequest.status]);
 
   if (urlRequest.status === 'loading') {
     return <div data-testid="cat21-confirm-loading">Loading request…</div>;
@@ -97,38 +186,19 @@ export function Cat21ConfirmRoute() {
 
   const copy = makeCat21ConfirmationCopy(intent);
 
-  async function callService(intent: Cat21Intent): Promise<Cat21RpcResult> {
-    // `useCat21RpcDeps` wires the cheap slices (account context, agent
-    // policy, recordSpend) and falls through to `makeWiringPendingDeps`
-    // for the rest. Future iterations replace each pending dep with a
-    // popup-side hook chain.
-    const service = new Cat21RpcService(deps);
-    if ('priceSats' in intent) return service.createOffer(intent, 'popup');
-    if ('offerPsbt' in intent) return service.acceptOffer(intent, 'popup');
-    if ('catId' in intent) return service.transfer(intent, 'popup');
-    return service.mint(intent, 'popup');
-  }
-
   return (
     <Cat21ConfirmationDialog
       copy={copy}
       isSubmitting={isSubmitting}
       submitError={error}
-      onApprove={() => {
-        setIsSubmitting(true);
-        setError(null);
-        void (async () => {
-          const result = await callService(intent);
-          setIsSubmitting(false);
-          if (result.ok) {
-            void navigate(-1);
-            return;
-          }
-          const { reason, detail } = result.value;
-          setError(detail ? `${reason}: ${detail}` : reason);
-        })();
-      }}
+      onApprove={() => confirm(intent)}
       onReject={() => {
+        if (urlRequest.status === 'ready') {
+          void finalisePath3(urlRequest.requestId, {
+            ok: false,
+            value: { reason: 'transport-not-trusted-for-autonomous', detail: 'user-rejected' },
+          });
+        }
         void navigate(-1);
       }}
     />
