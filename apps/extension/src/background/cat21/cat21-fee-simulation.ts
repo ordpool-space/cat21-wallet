@@ -28,6 +28,7 @@ import {
   type Cat21TransferCatInput,
   type Cat21TransferDestinations,
   type Cat21TransferFundingInput,
+  KnownOrdinalWalletType,
   type Network,
   buildCat21MintPsbt,
   buildCat21TransferPsbt,
@@ -35,7 +36,6 @@ import {
   toScureNetwork,
   twoPassFeeSimulation,
 } from 'ordpool-sdk/core';
-import { KnownOrdinalWalletType } from 'ordpool-sdk/core';
 
 const ALLOWED_DUMMY_SIGHASHES = [btc.SigHash.DEFAULT, btc.SigHash.ALL];
 
