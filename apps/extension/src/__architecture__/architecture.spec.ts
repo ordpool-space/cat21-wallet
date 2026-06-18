@@ -836,6 +836,15 @@ describe('iter 12g-prep — background-side wiring glue + state cache', () => {
     expect(src).toMatch(/'space\.cat21\.wallet'/);
   });
 
+  it('installCat21NmhAgent calls lifecycle.ensureConnected() at boot (not a passive factory)', () => {
+    // Without the boot-time ensureConnected, the entrypoint could
+    // call installCat21NmhAgent and silently have NO connectNative
+    // port open — the agent surface would be live in source but
+    // dead at runtime. Pin the boot call here.
+    const src = read(join(REPO_ROOT, INSTALL_AGENT));
+    expect(src).toMatch(/lifecycle\.ensureConnected\(\)/);
+  });
+
   it('background-probe-state.ts filters chrome.storage events to local area (ignores session/sync)', () => {
     const src = read(join(REPO_ROOT, PROBE_STATE));
     expect(src).toMatch(/areaName\s*!==\s*'local'/);
