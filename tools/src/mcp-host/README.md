@@ -48,15 +48,63 @@ MCP_STDIN_DIRECT=1 node dist/mcp-host/host.js
 Only `wallet_status` will report sensibly (says `extensionConnected: false`).
 The cat-data tools degrade gracefully.
 
-## Tool surface (v1)
+## Tool surface
 
-Read-only:
+**Read-only probes** — answered inline by the extension background, no
+popup involvement, no keychain access:
 
 - `list_cats` — cats held by the active Cat21 Wallet account.
-- `wallet_status` — extension reachability.
+- `wallet_status` — `{ network, accountId, agentMode.enabled }`.
 - `cat21_ord_status` — forwarded `GET /status` from cat21-ord.
 
-Mutating tools (mint / buy / sell-accept) wait until the agent-mode policy
-gate (already in `@leather.io/services`) has a user-visible confirmation
-path inside the extension. The transport here is ready for them; the UX
-plumbing is not.
+**Mutating actions** — route through the popup-side `Cat21RpcService`
+via the iter-12 NMH ⇄ popup bridge in
+`apps/extension/src/background/cat21/attach-native-host-to-popup-relay.ts`.
+The agent never touches the keychain directly; the popup is the
+trusted boundary that signs.
+
+- `cat21_mint(recipient, feeRate, tip?, mode?)`
+- `cat21_transfer(catId, recipient, feeRate, mode?)`
+- `cat21_create_offer(catId, priceSats, paymentAddress, mode?)`
+- `cat21_accept_offer(offerPsbt, expectedCatId, expectedPriceSats, expectedSellerUtxo, mode?)`
+
+Each mutating call returns one of:
+
+- `{ ok: true, value: { kind: 'broadcast', txid, channel } }`
+  (`channel: 'mempool' | 'slipstream'`)
+- `{ ok: true, value: { kind: 'listing', listing: { … } } }` — only
+  for `cat21_create_offer`; no Bitcoin tx is broadcast, the listing is
+  data the agent forwards to a marketplace.
+- `{ ok: false, value: { reason, detail? } }` where `reason` is one of:
+  `intent-shape-invalid`, `intent-invariant-violated`, `agent-disabled`,
+  `policy-denied`, `transport-not-trusted-for-autonomous`,
+  `inbound-offer-mismatch`, `broadcast-failed`.
+
+`mode: 'autonomous'` is honored only when ALL three guards pass: (a)
+the call arrived over NMH, (b) the active account has agent-mode
+enabled, and (c) the SDK's agent-policy gate accepts the intent.
+Any guard miss surfaces as a typed denial — never a silent downgrade
+to manual.
+
+## Per-call timeout
+
+Mutating calls have a per-call ceiling of 60 s (manual mode may show
+a confirmation dialog the user has to click). Override with
+`CAT21_MCP_TIMEOUT_MS` if you're driving the wallet from automation
+that needs a longer window.
+
+## Connection lifecycle
+
+The wallet-side NMH connection is managed by
+`createNmhLifecycle` in
+`apps/extension/src/background/cat21/nmh-connection-lifecycle.ts`:
+
+- idempotent connect (re-installing the agent surface is a no-op
+  when a port is alive)
+- exponential backoff reconnect on disconnect (1 s, 2 s, 4 s, ...
+  capped at 60 s); successful reconnect resets the budget
+- install-detection heuristic: if the port disconnects within 250 ms
+  of the connect call, the harness assumes the host binary isn't
+  installed and stops reconnecting (the wallet's Settings UI offers
+  a manual install walkthrough; explicit user re-triggers restart
+  the lifecycle).
