@@ -39,11 +39,21 @@ import { useCat21RpcDeps } from './use-cat21-rpc-deps';
 export function Cat21ConfirmRoute() {
   const location = useLocation();
   const navigate = useNavigate();
-  const deps = useCat21RpcDeps();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const stateIntent = (location.state as { intent?: Cat21Intent } | null)?.intent;
+
+  // catId for the deps' cat21-ord pre-fetch (used by `resolveCatUtxo`).
+  // Transfer/createOffer carry it as `catId`; acceptOffer as `expectedCatId`;
+  // mint has none. The hook treats `undefined` as "no cat to look up".
+  const catIdHint =
+    stateIntent && 'catId' in stateIntent
+      ? stateIntent.catId
+      : stateIntent && 'expectedCatId' in stateIntent
+        ? stateIntent.expectedCatId
+        : undefined;
+  const deps = useCat21RpcDeps(catIdHint);
 
   if (!stateIntent) {
     return (

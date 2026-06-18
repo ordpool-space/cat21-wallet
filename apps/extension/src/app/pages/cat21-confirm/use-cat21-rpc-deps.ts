@@ -2,7 +2,15 @@ import { useMemo } from 'react';
 import { useStore } from 'react-redux';
 
 import * as btc from '@scure/btc-signer';
-import { Network, broadcastCat21, validateCat21BuyOfferPsbt } from 'ordpool-sdk/core';
+import { useQuery } from '@tanstack/react-query';
+import {
+  CAT21_POSTAGE_SATS,
+  Network,
+  broadcastCat21,
+  validateCat21BuyOfferPsbt,
+} from 'ordpool-sdk/core';
+
+import { getCat21OrdApiClient } from '@leather.io/services';
 
 import { useBitcoinClient } from '@app/query/bitcoin/clients/bitcoin-client';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
@@ -39,9 +47,13 @@ import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
  *   - `pickFundingUtxo(requiredSats)` — first available native-segwit
  *     UTXO with value ≥ requiredSats, scriptPubKey decoded from the
  *     UTXO's address via @scure/btc-signer
+ *   - `resolveCatUtxo(catId)` — synchronous lookup against a React-
+ *     Query-cached `/cat/<id>` response that the popup pre-fetches via
+ *     the `catIdHint` argument. Returns a 546-sat `Cat21TransferCatInput`
+ *     with `txid`/`vout` parsed out of `satpoint` and `scriptPubKey`
+ *     decoded from the cat's current `address`.
  *
  * Wiring-pending (returns the iter-9 stub for each):
- *   - resolveCatUtxo — cat21-ord query for the wallet's cat-bearing UTXO
  *   - confirmListingPublication — offer-creation UI flow
  *   - signWithConfirmation / signSilently — keychain signers
  *
@@ -50,8 +62,13 @@ import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
  * the latest store snapshot on every dep call (not via React subscription)
  * so an account switch / policy edit that happens *during* a long
  * sign-then-broadcast roundtrip is reflected by the next dep invocation.
+ *
+ * `catIdHint` is the cat id the popup is about to act on, taken from
+ * the intent (`catId` for transfer / createOffer, `expectedCatId` for
+ * acceptOffer). When set, the hook pre-fetches the cat from cat21-ord
+ * so `resolveCatUtxo` can answer synchronously. Mint flows omit it.
  */
-export function useCat21RpcDeps(): Cat21RpcDeps {
+export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   const store = useStore<RootState>();
   const dispatch = useAppDispatch();
   const currentAccount = useCurrentAccountId();
@@ -62,6 +79,19 @@ export function useCat21RpcDeps(): Cat21RpcDeps {
   const accountKey = accountIdToSliceKey(currentAccount);
   const bitcoinClient = useBitcoinClient();
   const utxoQuery = useCurrentNativeSegwitUtxos();
+
+  // Pre-fetch the cat the popup is about to act on. The service-side
+  // `resolveCatUtxo` is synchronous by contract (the rpc-service spec
+  // stubs are sync); we close over the React-Query cache so the closure
+  // can answer without awaiting. `enabled: !!catIdHint` keeps mint
+  // popups from issuing the query at all.
+  const cat21OrdClient = getCat21OrdApiClient();
+  const catQuery = useQuery({
+    queryKey: ['cat21-ord-cat', catIdHint],
+    queryFn: () => cat21OrdClient.fetchCat21(catIdHint as string),
+    enabled: catIdHint != null,
+    staleTime: 30_000,
+  });
 
   return useMemo<Cat21RpcDeps>(() => {
     const wiringPending = makeWiringPendingDeps();
@@ -146,11 +176,62 @@ export function useCat21RpcDeps(): Cat21RpcDeps {
           scriptPubKey,
         };
       },
+      // Synchronous answer from the React-Query cache populated by the
+      // hook above. Throws (caught one frame up as
+      // `intent-invariant-violated: cat-utxo-resolve-failed: …`) if:
+      //   - the popup wasn't constructed with this catId in its hint
+      //     (defensive: caller-asserted catId mismatch),
+      //   - the query hasn't resolved yet (popup opened, user clicked
+      //     before the cat fetch returned),
+      //   - the query errored,
+      //   - cat21-ord returned a cat without an address (unconfirmed
+      //     or already-spent UTXO),
+      //   - the satpoint failed to parse into txid:vout.
+      // CAT21_POSTAGE_SATS is the protocol-pinned 546; ord doesn't
+      // emit the UTXO value on `/cat/<id>` and a cat-bearing UTXO is
+      // always exactly 546 sats by HARD RULE — no need to round-trip
+      // through `/output/<outpoint>` for the value.
+      resolveCatUtxo: catId => {
+        if (catIdHint == null || catId !== catIdHint) {
+          throw new Error(
+            `catId mismatch: hook hint ${catIdHint ?? '<none>'}, service asked for ${catId}`
+          );
+        }
+        if (catQuery.error) throw catQuery.error;
+        if (!catQuery.data) throw new Error('cat-data-not-loaded');
+        const cat = catQuery.data;
+        if (!cat.address) {
+          throw new Error('cat21-ord returned cat without address');
+        }
+        const [txid, voutStr] = cat.satpoint.split(':');
+        const vout = Number(voutStr);
+        if (!txid || Number.isNaN(vout)) {
+          throw new Error(`malformed satpoint: ${cat.satpoint}`);
+        }
+        const scureNetwork = networkLabel === 'mainnet' ? btc.NETWORK : btc.TEST_NETWORK;
+        const scriptPubKey = btc.OutScript.encode(btc.Address(scureNetwork).decode(cat.address));
+        return {
+          txid,
+          vout,
+          value: CAT21_POSTAGE_SATS,
+          scriptPubKey,
+        };
+      },
       // ---- Still wiring-pending (one slice each lands later) ----
-      resolveCatUtxo: wiringPending.resolveCatUtxo,
       confirmListingPublication: wiringPending.confirmListingPublication,
       signWithConfirmation: wiringPending.signWithConfirmation,
       signSilently: wiringPending.signSilently,
     };
-  }, [store, dispatch, paymentAddress, networkLabel, accountKey, bitcoinClient, utxoQuery]);
+  }, [
+    store,
+    dispatch,
+    paymentAddress,
+    networkLabel,
+    accountKey,
+    bitcoinClient,
+    utxoQuery,
+    catIdHint,
+    catQuery.data,
+    catQuery.error,
+  ]);
 }
