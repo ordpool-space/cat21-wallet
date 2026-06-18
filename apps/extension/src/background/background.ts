@@ -9,6 +9,7 @@ import { CONTENT_SCRIPT_PORT, type LegacyMessageFromContentScript } from '@share
 import { warnUsersAboutDevToolsDangers } from '@shared/utils/dev-tools-warning-log';
 
 import { queueAnalyticsRequest } from './background-analytics';
+import { installCat21Listeners } from './cat21/install-cat21-listeners';
 import { initContextMenuActions } from './init-context-menus';
 import { internalBackgroundMessageHandler } from './messaging/internal-methods/message-handler';
 import {
@@ -20,6 +21,13 @@ import { initAddressMonitor } from './monitors/address-monitor';
 
 initContextMenuActions();
 warnUsersAboutDevToolsDangers();
+
+// Cat21 transports — Path 2 (popup ↔ background) listener + Path 3
+// (MCP host ↔ background) native-host bridge. Both share one
+// wiring-pending dispatcher today; a future iteration swaps in the
+// real `wireCat21Dispatcher({...})` once the cross-context Redux state
+// wire is in place.
+installCat21Listeners();
 
 chrome.runtime.onInstalled.addListener(async details => {
   if (details.reason === 'install' && process.env.WALLET_ENVIRONMENT !== 'testing') {
