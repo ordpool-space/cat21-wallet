@@ -1,5 +1,6 @@
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
+import { getDummyKeypair } from 'ordpool-sdk/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Cat21OfferValidation } from './builders/accept-offer-validator';
@@ -19,8 +20,13 @@ import type {
   Cat21TransferIntent,
 } from './types';
 
-const publicKey = hex.decode('030000000000000000000000000000000000000000000000000000000000000001');
-const p2wpkhMainnet = btc.p2wpkh(publicKey, btc.NETWORK);
+// Use the SDK's well-known dummy keypair so the fee-simulation path's
+// `signIdx(dummyPrivateKey, …) + finalize` can produce a valid
+// finalized tx for vsize measurement. Production uses a real
+// keychain key; the simulation in cat21-fee-simulation.ts always
+// dummy-signs with this exact key.
+const { dummyPublicKey } = getDummyKeypair(btc.NETWORK);
+const p2wpkhMainnet = btc.p2wpkh(dummyPublicKey, btc.NETWORK);
 
 function defaultAccountCtx(): Cat21AccountContext {
   return {
@@ -133,8 +139,10 @@ describe('Cat21RpcService.mint', () => {
 
     it('records the spend (postage + tip + fee) on success', async () => {
       await service.mint(makeIntent({ feeRate: 5 }), 'popup');
-      // 546 postage + 0 tip + (5 × 150) fee = 1296
-      expect(deps.recordSpend).toHaveBeenCalledWith(1296);
+      // 546 postage + 0 tip + 705 fee (2-pass simulation: feeRate=5 ×
+      // vsize=141 for 1-input + 1-cat-output + 1-change-output P2WPKH).
+      // The static-estimate predecessor expected 1296 (vsize=150).
+      expect(deps.recordSpend).toHaveBeenCalledWith(1251);
     });
   });
 

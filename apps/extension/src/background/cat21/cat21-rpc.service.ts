@@ -9,6 +9,7 @@ import {
 
 import { validateAcceptOffer } from './builders/accept-offer-validator';
 import { buildListing } from './builders/listing-builder';
+import { simulateMintFee, simulateTransferFee } from './cat21-fee-simulation';
 import {
   ValidatedAcceptOffer,
   enforceAcceptOfferInvariants,
@@ -216,40 +217,62 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', errorDetail(err));
     }
 
-    // Estimate the required funding so the UTXO picker can find a sufficient
-    // input. Builder will throw `Funding UTXO insufficient` otherwise.
     const tipValue = validated.tip && validated.tip.value > 0 ? validated.tip.value : 0;
-    const estimatedVsize = 150 + (tipValue > 0 ? 31 : 0);
-    const estimatedFee = Math.ceil(validated.feeRate * estimatedVsize);
-    const requiredSats = 546 + tipValue + estimatedFee;
+    const sdkNetwork = walletNetworkToSdkNetwork(accountCtx.network);
+    const destinations = {
+      recipientAddress: validated.recipient,
+      senderChangeAddress: accountCtx.paymentAddress,
+      tip:
+        validated.tip && validated.tip.value > 0
+          ? { address: validated.tip.address, valueSats: validated.tip.value }
+          : undefined,
+    };
 
+    // Pick a funding UTXO that covers postage + tip + a placeholder fee.
+    // `pickLargestFundingUtxoThatCovers` (the wallet's deps default)
+    // almost always gives a UTXO that still covers the final fee
+    // after simulation; we re-assert below before re-building.
+    const placeholderFee = 1_000;
     let fundingUtxo: Cat21FundingUtxo;
     try {
-      fundingUtxo = this.deps.pickFundingUtxo(requiredSats);
+      fundingUtxo = this.deps.pickFundingUtxo(546 + tipValue + placeholderFee);
     } catch (err) {
       return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+    }
+
+    // Two-pass fee simulation via the SDK. Replaces the historic
+    // static `Math.ceil(feeRate * vsizeGuess)` — at high fee rates
+    // the static guess either over- or under-pays.
+    let estimatedFee: number;
+    try {
+      ({ finalFeeSats: estimatedFee } = simulateMintFee({
+        network: sdkNetwork,
+        fundingInput: { ...fundingUtxo },
+        destinations,
+        feeRatePerVbyte: validated.feeRate,
+      }));
+    } catch (err) {
+      return denied('intent-invariant-violated', `fee-simulation-failed: ${errorDetail(err)}`);
+    }
+
+    // If the simulated final fee out-grew the placeholder by enough to
+    // exceed the picked UTXO, re-pick. Largest-first picker makes this
+    // path rare in practice.
+    if (fundingUtxo.value < 546 + tipValue + estimatedFee) {
+      try {
+        fundingUtxo = this.deps.pickFundingUtxo(546 + tipValue + estimatedFee);
+      } catch (err) {
+        return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+      }
     }
 
     let built;
     try {
       built = buildCat21MintPsbt({
         walletType: KnownOrdinalWalletType.cat21wallet,
-        network: walletNetworkToSdkNetwork(accountCtx.network),
-        fundingInput: {
-          txid: fundingUtxo.txid,
-          vout: fundingUtxo.vout,
-          value: fundingUtxo.value,
-          scriptPubKey: fundingUtxo.scriptPubKey,
-          tapInternalKey: fundingUtxo.tapInternalKey,
-        },
-        destinations: {
-          recipientAddress: validated.recipient,
-          senderChangeAddress: accountCtx.paymentAddress,
-          tip:
-            validated.tip && validated.tip.value > 0
-              ? { address: validated.tip.address, valueSats: validated.tip.value }
-              : undefined,
-        },
+        network: sdkNetwork,
+        fundingInput: { ...fundingUtxo },
+        destinations,
         feeSats: estimatedFee,
       });
     } catch (err) {
@@ -314,18 +337,46 @@ export class Cat21RpcService {
     // input — never the cat UTXO itself, because 546 < 546 + fee for
     // any positive fee. So we always pick a funding UTXO; no
     // surplus-self-fund branch exists by design.
-    const estimatedFee = Math.ceil(validated.feeRate * 220);
+    const sdkNetwork = walletNetworkToSdkNetwork(accountCtx.network);
+    const transferDestinations = {
+      recipientAddress: validated.recipient,
+      senderChangeAddress: accountCtx.paymentAddress,
+    };
+    const placeholderFee = 1_000;
     const fundingInputs: Cat21TransferCatInput[] = [];
-    {
+    let pickedFundingUtxo: Cat21FundingUtxo;
+    try {
+      pickedFundingUtxo = this.deps.pickFundingUtxo(placeholderFee);
+      fundingInputs.push({ ...pickedFundingUtxo });
+    } catch (err) {
+      return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+    }
+
+    // Two-pass fee simulation via the SDK. Replaces the historic
+    // static `Math.ceil(feeRate * 220)` — at high fee rates and for
+    // larger transfer shapes (multiple inputs) the static guess
+    // diverges from the real vsize by a lot.
+    let estimatedFee: number;
+    try {
+      ({ finalFeeSats: estimatedFee } = simulateTransferFee({
+        network: sdkNetwork,
+        catUtxo,
+        fundingInputs,
+        destinations: transferDestinations,
+        feeRatePerVbyte: validated.feeRate,
+      }));
+    } catch (err) {
+      return denied('intent-invariant-violated', `fee-simulation-failed: ${errorDetail(err)}`);
+    }
+
+    if (pickedFundingUtxo.value < estimatedFee) {
+      // Re-pick if the simulated final fee outgrew the placeholder
+      // by enough to exceed the picked UTXO. Largest-first picker
+      // makes this path rare.
       try {
-        const fundingUtxo = this.deps.pickFundingUtxo(estimatedFee);
-        fundingInputs.push({
-          txid: fundingUtxo.txid,
-          vout: fundingUtxo.vout,
-          value: fundingUtxo.value,
-          scriptPubKey: fundingUtxo.scriptPubKey,
-          tapInternalKey: fundingUtxo.tapInternalKey,
-        });
+        pickedFundingUtxo = this.deps.pickFundingUtxo(estimatedFee);
+        fundingInputs.length = 0;
+        fundingInputs.push({ ...pickedFundingUtxo });
       } catch (err) {
         return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
       }
@@ -335,13 +386,10 @@ export class Cat21RpcService {
     try {
       built = buildCat21TransferPsbt({
         walletType: KnownOrdinalWalletType.cat21wallet,
-        network: walletNetworkToSdkNetwork(accountCtx.network),
+        network: sdkNetwork,
         catUtxo,
         fundingInputs,
-        destinations: {
-          recipientAddress: validated.recipient,
-          senderChangeAddress: accountCtx.paymentAddress,
-        },
+        destinations: transferDestinations,
         feeSats: estimatedFee,
       });
     } catch (err) {
