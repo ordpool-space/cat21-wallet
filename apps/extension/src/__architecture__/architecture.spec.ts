@@ -847,6 +847,49 @@ describe('iter 12g-prep — background-side wiring glue + state cache', () => {
   });
 });
 
+describe('iter 12g-prep3 — decodeWalletProbeState fail-closed contract', () => {
+  // The decoder's whole purpose is to fail closed at every step:
+  // missing slice, malformed JSON, wrong shape → return DEFAULT_STATE.
+  // A future "make it strict" refactor would silently break the
+  // agent's graceful-degradation contract. These specs pin the
+  // structural shape that keeps the decoder defensive.
+
+  const DECODER = 'apps/extension/src/background/cat21/decode-wallet-probe-state.ts';
+
+  it('isRecord guard rejects arrays and null before dereferencing slice fields', () => {
+    // Without `!Array.isArray(value)` the decoder would happily treat
+    // a top-level array as an object; without `value !== null` it
+    // would crash on `outer.networks` for a JSON `null` envelope.
+    const src = read(join(REPO_ROOT, DECODER));
+    expect(src).toMatch(/value\s*!==\s*null/);
+    expect(src).toMatch(/!Array\.isArray\(value\)/);
+  });
+
+  it('parseInnerJson catches throws so a malformed slice cannot crash the whole decode', () => {
+    // The slice payloads are JSON-in-JSON. Without the catch, one
+    // bad slice (e.g. networks: 'malformed{') would propagate and
+    // the agent would see "could not read request from storage"
+    // instead of DEFAULT_STATE.
+    const src = read(join(REPO_ROOT, DECODER));
+    expect(src).toMatch(
+      /function\s+parseInnerJson\([\s\S]{0,300}try\s*\{[\s\S]{0,200}\}\s*catch\s*\{/
+    );
+  });
+
+  it('activeAccountAddress is unconditionally returned as undefined (popup-tied derivation)', () => {
+    // Pinning this prevents a well-meaning future commit from
+    // accidentally returning '' or a default address — the probe
+    // contract relies on undefined to skip the cat21-ord query.
+    const src = read(join(REPO_ROOT, DECODER));
+    expect(src).toMatch(/activeAccountAddress:\s*undefined/);
+  });
+
+  it('network normalisation is binary mainnet-vs-everything-else (regtest, signet, etc. fold to testnet)', () => {
+    const src = read(join(REPO_ROOT, DECODER));
+    expect(src).toMatch(/id\s*===\s*'mainnet'\s*\?\s*'mainnet'\s*:\s*'testnet'/);
+  });
+});
+
 describe('CLAUDE.md still pins the rules these specs encode', () => {
   it('lists every HARD RULE referenced by these specs', () => {
     const claude = read(join(REPO_ROOT, 'CLAUDE.md'));
