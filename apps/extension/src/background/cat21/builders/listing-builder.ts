@@ -1,4 +1,4 @@
-import type { Cat21CreateOfferIntent, Cat21RpcListingSuccess, Validated } from '../types';
+import type { Cat21CreateOfferIntent, Cat21RpcListingSuccess } from '../types';
 
 /**
  * Inputs the listing builder needs to assemble a `Cat21RpcListingSuccess`.
@@ -16,7 +16,7 @@ import type { Cat21CreateOfferIntent, Cat21RpcListingSuccess, Validated } from '
  * the seller's signature reviewing the buyer's bytes.
  */
 export interface BuildListingArgs {
-  intent: Validated<Cat21CreateOfferIntent>;
+  intent: Cat21CreateOfferIntent;
   sellerUtxo: { txid: string; vout: number };
 }
 

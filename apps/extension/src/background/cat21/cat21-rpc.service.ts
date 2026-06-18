@@ -1,22 +1,18 @@
 import {
   Cat21OfferValidation,
+  Cat21OperationGateConfig,
+  Cat21OperationGateResult,
   Cat21TransferCatInput,
   KnownOrdinalWalletType,
   Network,
   buildCat21MintPsbt,
   buildCat21TransferPsbt,
+  validateCat21Operation,
 } from 'ordpool-sdk/core';
 
 import { validateAcceptOffer } from './builders/accept-offer-validator';
 import { buildListing } from './builders/listing-builder';
 import { simulateMintFee, simulateTransferFee } from './cat21-fee-simulation';
-import {
-  ValidatedAcceptOffer,
-  enforceAcceptOfferInvariants,
-} from './invariants/accept-offer-invariants';
-import { enforceCreateOfferInvariants } from './invariants/create-offer-invariants';
-import { MintInvariantError, enforceMintInvariants } from './invariants/mint-invariants';
-import { enforceTransferInvariants } from './invariants/transfer-invariants';
 import {
   AgentModeFlag,
   Cat21Transport,
@@ -31,7 +27,6 @@ import type {
   Cat21RpcDenyReason,
   Cat21RpcResult,
   Cat21TransferIntent,
-  Validated,
 } from './types';
 
 /**
@@ -195,12 +190,9 @@ export class Cat21RpcService {
   async mint(intent: Cat21MintIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
     const accountCtx = this.deps.getAccountContext();
 
-    let validated: Validated<Cat21MintIntent>;
-    try {
-      validated = enforceMintInvariants(intent, accountCtx.network);
-    } catch (err) {
-      return denied('intent-invariant-violated', errorDetail(err));
-    }
+    const gateResult = runGate({ kind: 'mint', intent }, gateConfig(accountCtx));
+    if ('result' in gateResult) return gateResult.result;
+    const validated = intent;
 
     let mode: 'autonomous' | 'manual';
     try {
@@ -303,12 +295,9 @@ export class Cat21RpcService {
   async transfer(intent: Cat21TransferIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
     const accountCtx = this.deps.getAccountContext();
 
-    let validated: Validated<Cat21TransferIntent>;
-    try {
-      validated = enforceTransferInvariants(intent, accountCtx.network);
-    } catch (err) {
-      return denied('intent-invariant-violated', errorDetail(err));
-    }
+    const gateResult = runGate({ kind: 'transfer', intent }, gateConfig(accountCtx));
+    if ('result' in gateResult) return gateResult.result;
+    const validated = intent;
 
     let mode: 'autonomous' | 'manual';
     try {
@@ -438,12 +427,9 @@ export class Cat21RpcService {
   ): Promise<Cat21RpcResult> {
     const accountCtx = this.deps.getAccountContext();
 
-    let validated: Validated<Cat21CreateOfferIntent>;
-    try {
-      validated = enforceCreateOfferInvariants(intent, accountCtx.network);
-    } catch (err) {
-      return denied('intent-invariant-violated', errorDetail(err));
-    }
+    const gateResult = runGate({ kind: 'create_offer', intent }, gateConfig(accountCtx));
+    if ('result' in gateResult) return gateResult.result;
+    const validated = intent;
 
     let mode: 'autonomous' | 'manual';
     try {
@@ -495,12 +481,10 @@ export class Cat21RpcService {
   ): Promise<Cat21RpcResult> {
     const accountCtx = this.deps.getAccountContext();
 
-    let validated: ValidatedAcceptOffer;
-    try {
-      validated = enforceAcceptOfferInvariants(intent, accountCtx.network);
-    } catch (err) {
-      return denied('intent-invariant-violated', errorDetail(err));
-    }
+    const gateResult = runGate({ kind: 'accept_offer', intent }, gateConfig(accountCtx));
+    if ('result' in gateResult) return gateResult.result;
+    const psbtBytes = (gateResult.gate.resources as { offerPsbtBytes: Uint8Array }).offerPsbtBytes;
+    const validated = { ...intent, psbtBytes };
 
     let mode: 'autonomous' | 'manual';
     try {
@@ -602,7 +586,47 @@ function modeResolverReasonToRpcReason(
 }
 
 function errorDetail(err: unknown): string {
-  if (err instanceof MintInvariantError) return `${err.reason}: ${err.message}`;
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+/**
+ * SDK gate runner. Returns a typed denied result on rejection so each
+ * rpc method can early-return one line. The SDK reason string is
+ * surfaced verbatim as the denial's `detail` so consumers can dispatch
+ * on it; the wallet's wider `Cat21RpcDenyReason` stays at
+ * `intent-invariant-violated` for any gate rejection.
+ */
+function runGate(
+  operation: Parameters<typeof validateCat21Operation>[0]['operation'],
+  config: Cat21OperationGateConfig
+):
+  | { ok: true; gate: Extract<Cat21OperationGateResult, { ok: true }> }
+  | { result: Cat21RpcResult } {
+  const gate = validateCat21Operation({ config, operation });
+  if (!gate.ok) {
+    const detail = gate.detail ? `${gate.reason}: ${gate.detail}` : gate.reason;
+    return { result: denied('intent-invariant-violated', detail) };
+  }
+  return { ok: true, gate };
+}
+
+/**
+ * Wallet-policy caps + own-address for the SDK gate. Builds the
+ * config from the active account context. Centralising it here keeps
+ * the four rpc methods one line of gate-config each.
+ */
+const WALLET_GATE_CAPS = {
+  /** Real congestion has peaked ~700 sat/vB. 1000 is "you typed it wrong". */
+  maxFeeRatePerVbyte: 1000,
+  /** 21 BTC × 10 — fat-finger backstop. */
+  maxPriceSats: 21_000_000_000,
+} as const;
+
+function gateConfig(accountCtx: Cat21AccountContext): Cat21OperationGateConfig {
+  return {
+    network: walletNetworkToSdkNetwork(accountCtx.network),
+    ownPaymentAddress: accountCtx.paymentAddress,
+    ...WALLET_GATE_CAPS,
+  };
 }

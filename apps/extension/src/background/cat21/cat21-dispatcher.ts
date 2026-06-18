@@ -138,7 +138,10 @@ export function makeWiringPendingDeps(): Cat21RpcDeps {
       // bubbled up as a typed denial rather than an unhandled throw at
       // method entry.
       return {
-        paymentAddress: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+        // BIP350 reference-vector mainnet P2TR. A placeholder distinct
+        // from the canonical test recipient so the SDK gate's
+        // self-send check doesn't trip on the wiring-pending stub.
+        paymentAddress: 'bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0',
         network: 'mainnet' as const,
       };
     },

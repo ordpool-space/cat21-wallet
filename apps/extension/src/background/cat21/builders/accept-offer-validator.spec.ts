@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Cat21AcceptOfferIntent, Validated } from '../types';
+import type { Cat21AcceptOfferIntent } from '../types';
 import { Cat21OfferValidation, validateAcceptOffer } from './accept-offer-validator';
 
 interface SdkArgs {
@@ -15,16 +15,14 @@ type SdkDelegate = (sdkArgs: SdkArgs) => Cat21OfferValidation;
 const VALID_TXID = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
 const VALID_CAT_ID = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefi0';
 
-function brandIntent(
-  overrides: Partial<Cat21AcceptOfferIntent> = {}
-): Validated<Cat21AcceptOfferIntent> {
+function brandIntent(overrides: Partial<Cat21AcceptOfferIntent> = {}): Cat21AcceptOfferIntent {
   return {
     offerPsbt: 'dummy-not-decoded-here',
     expectedCatId: VALID_CAT_ID,
     expectedPriceSats: 100_000,
     expectedSellerUtxo: { txid: VALID_TXID, vout: 0 },
     ...overrides,
-  } as Validated<Cat21AcceptOfferIntent>;
+  };
 }
 
 describe('validateAcceptOffer', () => {

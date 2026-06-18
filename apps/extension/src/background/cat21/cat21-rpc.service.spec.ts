@@ -28,9 +28,17 @@ import type {
 const { dummyPublicKey } = getDummyKeypair(btc.NETWORK);
 const p2wpkhMainnet = btc.p2wpkh(dummyPublicKey, btc.NETWORK);
 
+// A different valid mainnet P2WPKH for the account context, so the
+// SDK gate's self-send check (recipient !== ownPaymentAddress) doesn't
+// trip on the test fixture. Derived from a different fixed key so the
+// address is distinct from the dummy-keypair recipient.
+const accountKey = hex.decode('030000000000000000000000000000000000000000000000000000000000000003');
+const p2wpkhAccount = btc.p2wpkh(accountKey, btc.NETWORK);
+const ACCOUNT_PAYMENT_ADDR = p2wpkhAccount.address!;
+
 function defaultAccountCtx(): Cat21AccountContext {
   return {
-    paymentAddress: p2wpkhMainnet.address!,
+    paymentAddress: ACCOUNT_PAYMENT_ADDR,
     network: 'mainnet',
   };
 }
@@ -635,7 +643,7 @@ describe('Cat21RpcService.createOffer', () => {
     it('returns "intent-invariant-violated" on price below dust', async () => {
       const result = await service.createOffer(makeCreateOfferIntent({ priceSats: 100 }), 'popup');
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.value.detail).toContain('price-below-dust');
+      if (!result.ok) expect(result.value.detail).toContain('price-below-postage-floor');
     });
 
     it('returns "intent-invariant-violated" when wallet does not own the cat', async () => {
@@ -848,7 +856,7 @@ describe('Cat21RpcService.acceptOffer', () => {
         'popup'
       );
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.value.detail).toContain('offer-psbt-not-parseable');
+      if (!result.ok) expect(result.value.detail).toContain('offer-psbt-missing-magic-bytes');
     });
 
     it('returns "intent-invariant-violated" when wallet cannot resolve the cat UTXO', async () => {

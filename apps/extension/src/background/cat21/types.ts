@@ -1,68 +1,44 @@
 /**
  * Shared types for the internal Cat21 RPC surface.
  *
- * `Validated<I>` is a branded type that can only be constructed by the
- * matching `enforce*Invariants(...)` function in `./invariants/`. Every
- * downstream consumer (builders, signer, broadcaster) takes
- * `Validated<I>` rather than the raw intent — so the type system
- * enforces "invariants ran before the bytes were built" with no
- * convention required at call sites.
+ * The four mutating cat21 operations have protocol-level intent
+ * shapes — `Cat21MintIntent`, `Cat21TransferIntent`,
+ * `Cat21CreateOfferIntent`, `Cat21AcceptOfferIntent` — defined in
+ * `ordpool-sdk/core`. The wallet imports them verbatim and adds an
+ * optional `mode` tag (manual vs autonomous) that's the wallet's
+ * transport-routing concern, not part of the protocol.
+ *
+ * Validation: `validateCat21Operation` from the SDK is the single
+ * bulletproof gate. Every rejection reason maps to a closed-set
+ * named variant; the downstream rpc-service maps SDK reasons onto
+ * its own `Cat21RpcDenyReason` union. The branded `Validated<I>`
+ * marker type is gone — the discriminated-union return type from
+ * the gate is the runtime witness that validation ran.
  *
  * Per CLAUDE.md HARD RULE #6, the typed `cat21_*` actions live on the
  * internal `Cat21RpcService` only, reachable from two transports:
  * the wallet popup UI (Path 2) and the MCP NMH bridge (Path 3). The
  * browser surface (`window.Cat21Provider`) never sees these types.
  */
-
-declare const ValidatedBrand: unique symbol;
-
-/**
- * Marker token: the value passed an `enforce*Invariants` gate.
- *
- * The brand is a `unique symbol`, unforgeable from outside the
- * invariants module — every cast lives in the gate function itself.
- * Builders and the signer accept `Validated<I>`; passing a raw intent
- * fails at compile time.
- */
-export type Validated<I> = I & { readonly [ValidatedBrand]: true };
+import type {
+  Cat21AcceptOfferIntent as SdkCat21AcceptOfferIntent,
+  Cat21CreateOfferIntent as SdkCat21CreateOfferIntent,
+  Cat21MintIntent as SdkCat21MintIntent,
+  Cat21TransferIntent as SdkCat21TransferIntent,
+} from 'ordpool-sdk/core';
 
 /* ------------------------------- Intents ------------------------------- */
 
-export interface Cat21MintIntent {
-  /** Bitcoin address where the cat lands. P2TR or P2WPKH; checked at gate. */
-  recipient: string;
-  /** sat/vB the user is willing to pay. */
-  feeRate: number;
-  /** Optional developer tip output. `value === 0` skips the output. */
-  tip?: { address: string; value: number };
+/** Optional transport-routing hint the wallet's mode-resolver reads. */
+interface WalletModeTag {
   /** Defaults to `'manual'` when omitted. */
   mode?: 'autonomous' | 'manual';
 }
 
-export interface Cat21TransferIntent {
-  /** Inscription id of the cat to transfer (`{txid}i{index}` shape). */
-  catId: string;
-  recipient: string;
-  feeRate: number;
-  mode?: 'autonomous' | 'manual';
-}
-
-export interface Cat21CreateOfferIntent {
-  catId: string;
-  priceSats: number;
-  /** Where the seller payment lands (the wallet's own address). */
-  paymentAddress: string;
-  mode?: 'autonomous' | 'manual';
-}
-
-export interface Cat21AcceptOfferIntent {
-  /** Inbound PSBT bytes (base64 or hex per caller convention). */
-  offerPsbt: string;
-  expectedCatId: string;
-  expectedPriceSats: number;
-  expectedSellerUtxo: { txid: string; vout: number };
-  mode?: 'autonomous' | 'manual';
-}
+export type Cat21MintIntent = SdkCat21MintIntent & WalletModeTag;
+export type Cat21TransferIntent = SdkCat21TransferIntent & WalletModeTag;
+export type Cat21CreateOfferIntent = SdkCat21CreateOfferIntent & WalletModeTag;
+export type Cat21AcceptOfferIntent = SdkCat21AcceptOfferIntent & WalletModeTag;
 
 export type Cat21Intent =
   | Cat21MintIntent

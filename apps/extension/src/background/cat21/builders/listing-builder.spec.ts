@@ -1,22 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { enforceCreateOfferInvariants } from '../invariants/create-offer-invariants';
-import type { Cat21CreateOfferIntent, Validated } from '../types';
+import type { Cat21CreateOfferIntent } from '../types';
 import { BuildListingArgs, buildListing } from './listing-builder';
 
 const VALID_CAT_ID = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefi0';
 const MAINNET_ADDR = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
 
-function validatedIntent(
-  overrides: Partial<Cat21CreateOfferIntent> = {}
-): Validated<Cat21CreateOfferIntent> {
-  const raw: Cat21CreateOfferIntent = {
+function validatedIntent(overrides: Partial<Cat21CreateOfferIntent> = {}): Cat21CreateOfferIntent {
+  return {
     catId: VALID_CAT_ID,
     priceSats: 100_000,
     paymentAddress: MAINNET_ADDR,
     ...overrides,
   };
-  return enforceCreateOfferInvariants(raw, 'mainnet');
 }
 
 function makeArgs(overrides: Partial<BuildListingArgs> = {}): BuildListingArgs {

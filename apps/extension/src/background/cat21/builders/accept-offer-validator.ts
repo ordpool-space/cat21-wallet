@@ -1,4 +1,4 @@
-import type { Cat21AcceptOfferIntent, Validated } from '../types';
+import type { Cat21AcceptOfferIntent } from '../types';
 
 /**
  * Mirror of the SDK's `Cat21OfferRejectionReason` union. We keep a local
@@ -42,7 +42,7 @@ export type Cat21OfferValidation = ValidationSuccess | ValidationFailure;
  */
 // HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
 interface ValidateAcceptOfferArgs {
-  intent: Validated<Cat21AcceptOfferIntent>;
+  intent: Cat21AcceptOfferIntent;
   /** Decoded PSBT bytes (the invariants gate decoded base64/hex once). */
   psbtBytes: Uint8Array;
   /** Wallet's own payment address — Output 1 of the PSBT MUST land here. */
