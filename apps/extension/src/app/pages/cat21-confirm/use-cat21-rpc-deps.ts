@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useStore } from 'react-redux';
 
-import { Network, validateCat21BuyOfferPsbt } from 'ordpool-sdk/core';
+import { Network, broadcastCat21, validateCat21BuyOfferPsbt } from 'ordpool-sdk/core';
 
+import { useBitcoinClient } from '@app/query/bitcoin/clients/bitcoin-client';
 import { type RootState, useAppDispatch } from '@app/store';
 import { useCurrentAccountId } from '@app/store/accounts/account';
 import { useNativeSegwitAccountIndexAddressIndexZero } from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
@@ -30,12 +31,14 @@ import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
  *   - `validateBuyOfferPsbt(args)` — pure SDK call; the deps arg shape
  *     mirrors the SDK input one-to-one, only the network string ↔ enum
  *     translation is local
+ *   - `broadcast(signedTx)` — SDK's `broadcastCat21` decides
+ *     mempool-vs-slipstream by weight; mempool path goes through
+ *     Leather's existing `transactionsApi.broadcastTransaction`
  *
  * Wiring-pending (returns the iter-9 stub for each):
  *   - pickFundingUtxo / resolveCatUtxo — UTXO query layer
  *   - confirmListingPublication — offer-creation UI flow
  *   - signWithConfirmation / signSilently — keychain signers
- *   - broadcast — mempool/electrs POST
  *
  * Hooks are read at render time; the returned deps object is memoised
  * so `service.mint()` etc. see a stable reference. `getState` reads
@@ -52,6 +55,7 @@ export function useCat21RpcDeps(): Cat21RpcDeps {
   const networkLabel: 'mainnet' | 'testnet' =
     network.chain.bitcoin.mode === 'mainnet' ? 'mainnet' : 'testnet';
   const accountKey = accountIdToSliceKey(currentAccount);
+  const bitcoinClient = useBitcoinClient();
 
   return useMemo<Cat21RpcDeps>(() => {
     const wiringPending = makeWiringPendingDeps();
@@ -94,13 +98,31 @@ export function useCat21RpcDeps(): Cat21RpcDeps {
           expectedSellerPaymentAddress: args.expectedSellerPaymentAddress,
           network: args.network === 'mainnet' ? Network.Mainnet : Network.Testnet3,
         }),
+      // Wallet-routed broadcast via Leather's existing
+      // `transactionsApi.broadcastTransaction` (which the wallet
+      // points at api.ordpool.space / mempool.space / blockstream.info
+      // per its current routing). Channel-decision delegated to the
+      // SDK's `broadcastCat21` so oversize CAT-21 txs route to
+      // Slipstream automatically.
+      broadcast: async signedTx => {
+        const result = await broadcastCat21(
+          { hex: signedTx.hex, weight: signedTx.weight },
+          async (hex: string) => {
+            const resp = await bitcoinClient.transactionsApi.broadcastTransaction(hex);
+            if (!resp.ok) {
+              throw new Error(`broadcast HTTP ${resp.status}: ${await resp.text()}`);
+            }
+            return await resp.text();
+          }
+        );
+        return { txid: result.txid, channel: result.channel };
+      },
       // ---- Still wiring-pending (one slice each lands later) ----
       pickFundingUtxo: wiringPending.pickFundingUtxo,
       resolveCatUtxo: wiringPending.resolveCatUtxo,
       confirmListingPublication: wiringPending.confirmListingPublication,
       signWithConfirmation: wiringPending.signWithConfirmation,
       signSilently: wiringPending.signSilently,
-      broadcast: wiringPending.broadcast,
     };
-  }, [store, dispatch, paymentAddress, networkLabel, accountKey]);
+  }, [store, dispatch, paymentAddress, networkLabel, accountKey, bitcoinClient]);
 }
