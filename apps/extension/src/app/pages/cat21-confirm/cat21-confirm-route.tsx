@@ -8,6 +8,13 @@ import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 
 import { useCat21RpcDeps } from './use-cat21-rpc-deps';
 
+function extractCatIdHint(intent: Cat21Intent | undefined): string | undefined {
+  if (!intent) return undefined;
+  if ('catId' in intent) return intent.catId;
+  if ('expectedCatId' in intent) return intent.expectedCatId;
+  return undefined;
+}
+
 /**
  * Generic container for the four Cat21 manual-flow confirmation popups
  * (mint / transfer / create-offer / accept-offer). The four routes
@@ -47,12 +54,7 @@ export function Cat21ConfirmRoute() {
   // catId for the deps' cat21-ord pre-fetch (used by `resolveCatUtxo`).
   // Transfer/createOffer carry it as `catId`; acceptOffer as `expectedCatId`;
   // mint has none. The hook treats `undefined` as "no cat to look up".
-  const catIdHint =
-    stateIntent && 'catId' in stateIntent
-      ? stateIntent.catId
-      : stateIntent && 'expectedCatId' in stateIntent
-        ? stateIntent.expectedCatId
-        : undefined;
+  const catIdHint = extractCatIdHint(stateIntent);
   const deps = useCat21RpcDeps(catIdHint);
 
   if (!stateIntent) {
