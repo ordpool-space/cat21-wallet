@@ -50,6 +50,16 @@ export enum RouteUrls {
   // location.state.
   Cat21Mint = '/cat21-mint',
 
+  // Cat21 manual-flow Transfer form — iter 13d. catId + recipient +
+  // fee-rate. Reachable from per-cat action buttons (iter 13f) with
+  // the catId pre-filled via location.state, OR by direct URL.
+  Cat21Transfer = '/cat21-transfer',
+
+  // Cat21 manual-flow Create-Offer form — iter 13e. catId + price +
+  // payment-address. Same per-cat-action / direct-URL access model
+  // as the Transfer form.
+  Cat21CreateOffer = '/cat21-create-offer',
+
   // Cat21 manual-flow confirmation popups — iter 11c.
   // The container reads the intent from location.state.
   Cat21MintConfirm = '/cat21-mint-confirm',

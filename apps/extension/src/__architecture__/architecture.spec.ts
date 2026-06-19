@@ -900,6 +900,51 @@ describe('iter 13c — Mint page + home action wire', () => {
   });
 });
 
+describe('iter 13de — Transfer + Create-Offer form pages', () => {
+  // Mirror of iter-13c's wiring pins for the other two manual flows.
+
+  it('RouteUrls registers Cat21Transfer and Cat21CreateOffer', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/shared/route-urls.ts'));
+    expect(src).toMatch(/Cat21Transfer\s*=\s*'\/cat21-transfer'/);
+    expect(src).toMatch(/Cat21CreateOffer\s*=\s*'\/cat21-create-offer'/);
+  });
+
+  it('app-routes.tsx mounts both pages under AccountGate', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/app/routes/app-routes.tsx'));
+    expect(src).toMatch(/path=\{RouteUrls\.Cat21Transfer\}[\s\S]{0,200}Cat21TransferPage/);
+    expect(src).toMatch(/path=\{RouteUrls\.Cat21CreateOffer\}[\s\S]{0,200}Cat21CreateOfferPage/);
+  });
+
+  it('Transfer page submit navigates to Cat21TransferConfirm with intent in location.state', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-transfer/cat21-transfer-page.tsx'),
+    );
+    expect(src).toMatch(
+      /navigate\(RouteUrls\.Cat21TransferConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/,
+    );
+  });
+
+  it('Create-Offer page submit navigates to Cat21CreateOfferConfirm with intent in location.state', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-create-offer/cat21-create-offer-page.tsx'),
+    );
+    expect(src).toMatch(
+      /navigate\(RouteUrls\.Cat21CreateOfferConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/,
+    );
+  });
+
+  it('Both pages read prefilledCatId from location.state for iter-13f deep-linking', () => {
+    const transferSrc = read(
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-transfer/cat21-transfer-page.tsx'),
+    );
+    const offerSrc = read(
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-create-offer/cat21-create-offer-page.tsx'),
+    );
+    expect(transferSrc).toMatch(/prefilledCatId\??/);
+    expect(offerSrc).toMatch(/prefilledCatId\??/);
+  });
+});
+
 describe('iter 13b — wizard form surfaces allowedOperations', () => {
   // Without this pin, a future refactor that drops the checkbox group
   // from the wizard form would leave allowedOperations settable only

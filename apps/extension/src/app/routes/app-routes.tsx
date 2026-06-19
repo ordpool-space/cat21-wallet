@@ -30,7 +30,9 @@ import { useFlags } from '@app/features/feature-flags';
 import { TokenDetails } from '@app/features/token/token-details';
 import { Cat21AgentPolicyWizard } from '@app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard';
 import { Cat21ConfirmRoute } from '@app/pages/cat21-confirm/cat21-confirm-route';
+import { Cat21CreateOfferPage } from '@app/pages/cat21-create-offer/cat21-create-offer-page';
 import { Cat21MintPage } from '@app/pages/cat21-mint/cat21-mint-page';
+import { Cat21TransferPage } from '@app/pages/cat21-transfer/cat21-transfer-page';
 import { FundPage } from '@app/pages/fund/fund';
 import { Home } from '@app/pages/home/home';
 import { LegacyAccountAuth } from '@app/pages/legacy-account-auth/legacy-account-auth';
@@ -276,6 +278,29 @@ function useAppRoutes() {
             element={
               <AccountGate>
                 <Cat21MintPage />
+              </AccountGate>
+            }
+          />
+
+          {/* Cat21 manual-flow Transfer form — iter 13d. Per-cat
+              action buttons (iter 13f) deep-link with prefilledCatId
+              in location.state. */}
+          <Route
+            path={RouteUrls.Cat21Transfer}
+            element={
+              <AccountGate>
+                <Cat21TransferPage />
+              </AccountGate>
+            }
+          />
+
+          {/* Cat21 manual-flow Create-Offer form — iter 13e. Same
+              per-cat-action deep-link model as Transfer. */}
+          <Route
+            path={RouteUrls.Cat21CreateOffer}
+            element={
+              <AccountGate>
+                <Cat21CreateOfferPage />
               </AccountGate>
             }
           />
