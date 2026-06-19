@@ -19,6 +19,7 @@ import { useCurrentAccountId } from '@app/store/accounts/account';
 import { useSignBitcoinTx } from '@app/store/accounts/blockchain/bitcoin/bitcoin.hooks';
 import { useNativeSegwitAccountIndexAddressIndexZero } from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
 import { accountIdToSliceKey } from '@app/store/agent-policy/agent-policy.hooks';
+import { selectAgentPolicyForAccount } from '@app/store/agent-policy/agent-policy.selectors';
 import { incrementSpentToday } from '@app/store/agent-policy/agent-policy.slice';
 import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 import { makeAgentPolicyDeps } from '@background/cat21/agent-policy-deps';
@@ -117,10 +118,14 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
 
     return {
       // ---- Real wires ----
-      getAccountContext: () => ({
-        paymentAddress: paymentAddress ?? '',
-        network: networkLabel,
-      }),
+      getAccountContext: () => {
+        const policy = selectAgentPolicyForAccount(store.getState(), accountKey);
+        return {
+          paymentAddress: paymentAddress ?? '',
+          network: networkLabel,
+          allowedOperations: stripCat21Prefix(policy?.allowedOperations),
+        };
+      },
       agentMode: agentPolicy.agentMode,
       evaluateAgentPolicy: agentPolicy.evaluateAgentPolicy,
       recordSpend: sats => {
@@ -285,4 +290,23 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     catQuery.data,
     catQuery.error,
   ]);
+}
+
+/**
+ * Translate the agent-policy's `cat21_*` operation kinds to the bare
+ * names the SDK structural gate's `Cat21OperationGateConfig.allowedOperations`
+ * uses (`'mint' | 'transfer' | 'create_offer' | 'accept_offer'`). The
+ * two layers of the SDK chose different conventions; this is the
+ * single seam where the prefix is stripped.
+ *
+ * Returns `undefined` (not an empty array) when the source field is
+ * missing OR empty so `gateConfig` can spread-conditionally and omit
+ * the `allowedOperations` key entirely (the SDK treats unset and
+ * empty array as equivalently permissive, but omitting reads cleaner).
+ */
+function stripCat21Prefix(
+  source: ReadonlyArray<'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer'> | undefined,
+): ReadonlyArray<'mint' | 'transfer' | 'create_offer' | 'accept_offer'> | undefined {
+  if (!source || source.length === 0) return undefined;
+  return source.map(k => k.slice('cat21_'.length) as 'mint' | 'transfer' | 'create_offer' | 'accept_offer');
 }

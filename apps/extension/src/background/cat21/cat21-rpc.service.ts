@@ -64,6 +64,15 @@ export interface Cat21AccountContext {
   paymentAddress: string;
   /** Network the account is operating on. */
   network: 'mainnet' | 'testnet';
+  /**
+   * Operation-kind allowlist sourced from the per-account
+   * `AgentPolicy.allowedOperations` (with the `cat21_` prefix
+   * stripped to match the SDK gate's bare-name convention). When
+   * set and non-empty, the SDK structural gate rejects any other
+   * operation kind with `operation-kind-not-allowed`. Empty or
+   * unset = permissive (default).
+   */
+  allowedOperations?: ReadonlyArray<'mint' | 'transfer' | 'create_offer' | 'accept_offer'>;
 }
 
 /**
@@ -590,6 +599,9 @@ function gateConfig(accountCtx: Cat21AccountContext): Cat21OperationGateConfig {
   return {
     network: walletNetworkToSdkNetwork(accountCtx.network),
     ownPaymentAddress: accountCtx.paymentAddress,
+    ...(accountCtx.allowedOperations && accountCtx.allowedOperations.length > 0
+      ? { allowedOperations: accountCtx.allowedOperations }
+      : {}),
     ...WALLET_GATE_CAPS,
   };
 }

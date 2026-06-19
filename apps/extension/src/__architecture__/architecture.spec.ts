@@ -960,6 +960,26 @@ describe('iter 16 — SDK validateCat21Operation is the single gate (no consumer
     expect(src).toMatch(/maxFeeRatePerVbyte:\s*1000/);
     expect(src).toMatch(/maxPriceSats:\s*21_000_000_000/);
   });
+
+  it("gateConfig forwards accountCtx.allowedOperations to the SDK gate when set", () => {
+    // Pin the iter-16b wire: the per-account agent-policy's
+    // operation-kind allowlist must reach the SDK structural gate.
+    // Without this, a "mint only" agent policy would be silently
+    // ineffective at the structural gate (the agent-policy
+    // evaluator might also enforce, but the structural gate runs
+    // first and gives the cleanest deny reason).
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
+    expect(src).toMatch(/allowedOperations:\s*accountCtx\.allowedOperations/);
+  });
+
+  it('use-cat21-rpc-deps reads allowedOperations from selectAgentPolicyForAccount and strips the cat21_ prefix', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-confirm/use-cat21-rpc-deps.ts'),
+    );
+    expect(src).toMatch(/selectAgentPolicyForAccount/);
+    expect(src).toMatch(/stripCat21Prefix\(/);
+    expect(src).toMatch(/'cat21_'\.length/);
+  });
 });
 
 describe('iter 12g-prep3 — decodeWalletProbeState fail-closed contract', () => {
