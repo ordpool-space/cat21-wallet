@@ -60,6 +60,12 @@ export enum RouteUrls {
   // as the Transfer form.
   Cat21CreateOffer = '/cat21-create-offer',
 
+  // Cat21 my-cats list page — iter 13f. Lists the active account's
+  // cats from cat21-ord; each row surfaces Transfer / List-for-sale
+  // buttons that deep-link the iter-13d/e form pages with the catId
+  // pre-filled.
+  Cat21List = '/cat21-list',
+
   // Cat21 manual-flow confirmation popups — iter 11c.
   // The container reads the intent from location.state.
   Cat21MintConfirm = '/cat21-mint-confirm',

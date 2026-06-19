@@ -945,6 +945,49 @@ describe('iter 13de — Transfer + Create-Offer form pages', () => {
   });
 });
 
+describe('iter 13f — My cats list page + per-cat action wire', () => {
+  // Without this pin a future refactor that drops the per-cat
+  // navigation calls leaves Transfer/Sell reachable only by direct
+  // URL — the natural per-cat entry point disappears.
+
+  const LIST = 'apps/extension/src/app/pages/cat21-list/cat21-list-page.tsx';
+
+  it('RouteUrls registers Cat21List', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/shared/route-urls.ts'));
+    expect(src).toMatch(/Cat21List\s*=\s*'\/cat21-list'/);
+  });
+
+  it('app-routes.tsx mounts the Cat21List page under AccountGate', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/app/routes/app-routes.tsx'));
+    expect(src).toMatch(/path=\{RouteUrls\.Cat21List\}[\s\S]{0,200}Cat21ListPage/);
+  });
+
+  it('account-actions surfaces the My cats button', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/app/pages/home/components/account-actions-current/account-actions.tsx'),
+    );
+    expect(src).toMatch(/data-testid="cat21-list-home-button"/);
+    expect(src).toMatch(/navigate\(RouteUrls\.Cat21List\)/);
+  });
+
+  it('list page deep-links Transfer with prefilledCatId in location.state', () => {
+    const src = read(join(REPO_ROOT, LIST));
+    expect(src).toMatch(/navigate\(RouteUrls\.Cat21Transfer,[\s\S]{0,200}prefilledCatId:\s*catId/);
+  });
+
+  it('list page deep-links Create-Offer with prefilledCatId + prefilledPaymentAddress', () => {
+    const src = read(join(REPO_ROOT, LIST));
+    expect(src).toMatch(/navigate\(RouteUrls\.Cat21CreateOffer,[\s\S]{0,400}prefilledCatId:\s*catId/);
+    expect(src).toMatch(/prefilledPaymentAddress:\s*paymentAddress/);
+  });
+
+  it('list page queries cat21-ord with the active account address', () => {
+    const src = read(join(REPO_ROOT, LIST));
+    expect(src).toMatch(/fetchAddressCat21s\(paymentAddress/);
+    expect(src).toMatch(/enabled:\s*paymentAddress\s*!=\s*null/);
+  });
+});
+
 describe('iter 13b — wizard form surfaces allowedOperations', () => {
   // Without this pin, a future refactor that drops the checkbox group
   // from the wizard form would leave allowedOperations settable only

@@ -31,6 +31,7 @@ import { TokenDetails } from '@app/features/token/token-details';
 import { Cat21AgentPolicyWizard } from '@app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard';
 import { Cat21ConfirmRoute } from '@app/pages/cat21-confirm/cat21-confirm-route';
 import { Cat21CreateOfferPage } from '@app/pages/cat21-create-offer/cat21-create-offer-page';
+import { Cat21ListPage } from '@app/pages/cat21-list/cat21-list-page';
 import { Cat21MintPage } from '@app/pages/cat21-mint/cat21-mint-page';
 import { Cat21TransferPage } from '@app/pages/cat21-transfer/cat21-transfer-page';
 import { FundPage } from '@app/pages/fund/fund';
@@ -301,6 +302,19 @@ function useAppRoutes() {
             element={
               <AccountGate>
                 <Cat21CreateOfferPage />
+              </AccountGate>
+            }
+          />
+
+          {/* Cat21 my-cats list — iter 13f. Queries cat21-ord for the
+              active account's cats and surfaces per-row Transfer /
+              Sell action buttons that deep-link the forms with
+              prefilledCatId. */}
+          <Route
+            path={RouteUrls.Cat21List}
+            element={
+              <AccountGate>
+                <Cat21ListPage />
               </AccountGate>
             }
           />
