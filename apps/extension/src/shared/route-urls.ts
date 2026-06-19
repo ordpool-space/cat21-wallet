@@ -45,6 +45,11 @@ export enum RouteUrls {
   // Cat21 agent-policy wizard — iter 10c.
   Cat21AgentPolicy = '/cat21-agent-policy',
 
+  // Cat21 manual-flow Mint form — iter 13c. Recipient + fee-rate
+  // form that lands on Cat21MintConfirm with the intent in
+  // location.state.
+  Cat21Mint = '/cat21-mint',
+
   // Cat21 manual-flow confirmation popups — iter 11c.
   // The container reads the intent from location.state.
   Cat21MintConfirm = '/cat21-mint-confirm',

@@ -866,6 +866,40 @@ describe('iter 12g-prep — background-side wiring glue + state cache', () => {
   });
 });
 
+describe('iter 13c — Mint page + home action wire', () => {
+  // Without these pins a future refactor that drops the action
+  // button or unregisters the route silently strands Path 2's
+  // mint flow — the SDK gate + sign-and-broadcast pipeline stays
+  // alive in source but unreachable from the wallet UI.
+
+  it('RouteUrls registers Cat21Mint', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/shared/route-urls.ts'));
+    expect(src).toMatch(/Cat21Mint\s*=\s*'\/cat21-mint'/);
+  });
+
+  it('app-routes.tsx registers the Cat21Mint route under AccountGate', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/app/routes/app-routes.tsx'));
+    expect(src).toMatch(/path=\{RouteUrls\.Cat21Mint\}[\s\S]{0,200}Cat21MintPage/);
+  });
+
+  it('account-actions surfaces the Mint cat button (Path 2 entry)', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/app/pages/home/components/account-actions-current/account-actions.tsx'),
+    );
+    expect(src).toMatch(/data-testid="cat21-mint-home-button"/);
+    expect(src).toMatch(/navigate\(RouteUrls\.Cat21Mint\)/);
+  });
+
+  it('mint page submit navigates to Cat21MintConfirm with intent in location.state', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-mint/cat21-mint-page.tsx'),
+    );
+    expect(src).toMatch(
+      /navigate\(RouteUrls\.Cat21MintConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/,
+    );
+  });
+});
+
 describe('iter 13b — wizard form surfaces allowedOperations', () => {
   // Without this pin, a future refactor that drops the checkbox group
   // from the wizard form would leave allowedOperations settable only

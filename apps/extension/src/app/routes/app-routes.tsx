@@ -30,6 +30,7 @@ import { useFlags } from '@app/features/feature-flags';
 import { TokenDetails } from '@app/features/token/token-details';
 import { Cat21AgentPolicyWizard } from '@app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard';
 import { Cat21ConfirmRoute } from '@app/pages/cat21-confirm/cat21-confirm-route';
+import { Cat21MintPage } from '@app/pages/cat21-mint/cat21-mint-page';
 import { FundPage } from '@app/pages/fund/fund';
 import { Home } from '@app/pages/home/home';
 import { LegacyAccountAuth } from '@app/pages/legacy-account-auth/legacy-account-auth';
@@ -263,6 +264,18 @@ function useAppRoutes() {
             element={
               <AccountGate>
                 <Cat21AgentPolicyWizard />
+              </AccountGate>
+            }
+          />
+
+          {/* Cat21 manual-flow Mint form — iter 13c. Form-only, no
+              keychain. AccountGated for paymentAddress derivation
+              that the SDK gate uses on the confirm step. */}
+          <Route
+            path={RouteUrls.Cat21Mint}
+            element={
+              <AccountGate>
+                <Cat21MintPage />
               </AccountGate>
             }
           />
