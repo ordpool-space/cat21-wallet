@@ -1,4 +1,17 @@
-import type { AgentPolicy } from 'ordpool-sdk/core';
+import type { AgentActionKind, AgentPolicy } from 'ordpool-sdk/core';
+
+/**
+ * The four operation kinds the wizard's allowlist UI offers. Order
+ * is fixed so the rendered checkboxes match the mental model of the
+ * pipeline (mint → transfer → list → accept). Matches the SDK's
+ * `AgentActionKind` union verbatim.
+ */
+export const AGENT_OPERATION_KINDS: ReadonlyArray<AgentActionKind> = [
+  'cat21_mint',
+  'cat21_transfer',
+  'cat21_create_offer',
+  'cat21_accept_offer',
+];
 
 /**
  * Form-values shape used by the wizard. Numeric fields are typed as
@@ -15,6 +28,15 @@ export interface AgentPolicyWizardValues {
   maxFeeRateSatPerVbyte: string;
   floorPriceSatsPerCat: string;
   allowedCounterpartiesRaw: string;
+  /**
+   * Per-operation allowlist. UI shape is `Record<kind, boolean>`
+   * (one checkbox per kind); coerce time turns it into the
+   * `AgentActionKind[]` the slice stores. All-true OR all-false
+   * collapse to empty array (= permissive) so a wallet user who
+   * doesn't care about per-kind gating doesn't need to learn what
+   * the field does.
+   */
+  allowedOperations: Record<AgentActionKind, boolean>;
 }
 
 /**
@@ -35,11 +57,41 @@ export const DEFAULT_WIZARD_VALUES: AgentPolicyWizardValues = {
   maxFeeRateSatPerVbyte: '50',
   floorPriceSatsPerCat: '21000',
   allowedCounterpartiesRaw: '',
+  // Default permissive: every kind checked. The coerce step
+  // collapses "all checked" to the empty array, which the SDK
+  // treats as "no allowlist; all kinds accepted".
+  allowedOperations: {
+    cat21_mint: true,
+    cat21_transfer: true,
+    cat21_create_offer: true,
+    cat21_accept_offer: true,
+  },
 };
 
 type AgentPolicyValidationResult =
   | { ok: true; policy: AgentPolicy }
   | { ok: false; errors: Record<keyof AgentPolicyWizardValues, string | undefined> };
+
+/**
+ * Collapse the checkbox map into the SDK's allowlist shape. Returns
+ * `undefined` (= field omitted on AgentPolicy) when ALL kinds are
+ * checked OR none are checked — both are "no restriction". The
+ * settings UI treats those two extremes as equivalent so a user
+ * staring at four checked checkboxes doesn't have to learn that
+ * "all four checked" and "all four unchecked" behave the same.
+ *
+ * Only the partial-selection case (one to three boxes checked)
+ * produces a real allowlist.
+ */
+export function coerceAllowedOperations(
+  selection: Record<AgentActionKind, boolean>,
+): AgentActionKind[] | undefined {
+  const picked = AGENT_OPERATION_KINDS.filter(k => selection[k]);
+  if (picked.length === 0 || picked.length === AGENT_OPERATION_KINDS.length) {
+    return undefined;
+  }
+  return picked;
+}
 
 /**
  * Coerce + validate the wizard's form values into a real `AgentPolicy`.
@@ -68,6 +120,7 @@ export function validateAndCoerceWizardValues(
       maxFeeRateSatPerVbyte: undefined,
       floorPriceSatsPerCat: undefined,
       allowedCounterpartiesRaw: undefined,
+      allowedOperations: undefined,
     },
   };
 
@@ -128,6 +181,8 @@ export function validateAndCoerceWizardValues(
     };
   }
 
+  const allowedOperations = coerceAllowedOperations(values.allowedOperations);
+
   return {
     ok: true,
     policy: {
@@ -137,6 +192,7 @@ export function validateAndCoerceWizardValues(
       maxFeeRateSatPerVbyte,
       floorPriceSatsPerCat,
       allowedCounterparties,
+      ...(allowedOperations !== undefined ? { allowedOperations } : {}),
     },
   };
 }

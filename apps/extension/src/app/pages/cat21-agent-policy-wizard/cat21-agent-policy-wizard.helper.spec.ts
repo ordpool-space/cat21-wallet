@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  coerceAllowedOperations,
   DEFAULT_WIZARD_VALUES,
   validateAndCoerceWizardValues,
 } from './cat21-agent-policy-wizard.helper';
@@ -9,11 +10,7 @@ describe('validateAndCoerceWizardValues', () => {
   describe('happy path', () => {
     it('coerces sat fields to numbers and trims allowed-counterparties', () => {
       const result = validateAndCoerceWizardValues({
-        enabled: true,
-        maxSpendPerActionSats: '10000',
-        dailyCapSats: '100000',
-        maxFeeRateSatPerVbyte: '50',
-        floorPriceSatsPerCat: '21000',
+        ...DEFAULT_WIZARD_VALUES,
         allowedCounterpartiesRaw: ' bc1qaaa , \n bc1qbbb \n ',
       });
       expect(result.ok).toBe(true);
@@ -99,12 +96,11 @@ describe('validateAndCoerceWizardValues', () => {
       // Wizard UX preference: show every error simultaneously so the
       // user can fix the whole form in one pass.
       const result = validateAndCoerceWizardValues({
-        enabled: true,
+        ...DEFAULT_WIZARD_VALUES,
         maxSpendPerActionSats: 'abc',
         dailyCapSats: '-1',
         maxFeeRateSatPerVbyte: '0',
         floorPriceSatsPerCat: '0.5',
-        allowedCounterpartiesRaw: '',
       });
       expect(result.ok).toBe(false);
       if (!result.ok) {
@@ -156,5 +152,77 @@ describe('validateAndCoerceWizardValues', () => {
         expect(result.policy.allowedCounterparties).toEqual(['a', 'b', 'c']);
       }
     });
+  });
+});
+
+describe('coerceAllowedOperations', () => {
+  it('returns undefined when ALL four kinds are checked (= permissive)', () => {
+    expect(
+      coerceAllowedOperations({
+        cat21_mint: true,
+        cat21_transfer: true,
+        cat21_create_offer: true,
+        cat21_accept_offer: true,
+      }),
+    ).toBeUndefined();
+  });
+
+  it('returns undefined when NO kinds are checked (UI no-op; treated as permissive)', () => {
+    expect(
+      coerceAllowedOperations({
+        cat21_mint: false,
+        cat21_transfer: false,
+        cat21_create_offer: false,
+        cat21_accept_offer: false,
+      }),
+    ).toBeUndefined();
+  });
+
+  it('returns just the picked kinds on a partial selection (mint only)', () => {
+    expect(
+      coerceAllowedOperations({
+        cat21_mint: true,
+        cat21_transfer: false,
+        cat21_create_offer: false,
+        cat21_accept_offer: false,
+      }),
+    ).toEqual(['cat21_mint']);
+  });
+
+  it('preserves the AGENT_OPERATION_KINDS order regardless of selection order', () => {
+    expect(
+      coerceAllowedOperations({
+        cat21_accept_offer: true,
+        cat21_mint: true,
+        cat21_create_offer: false,
+        cat21_transfer: true,
+      }),
+    ).toEqual(['cat21_mint', 'cat21_transfer', 'cat21_accept_offer']);
+  });
+});
+
+describe('validateAndCoerceWizardValues — allowedOperations', () => {
+  it('default wizard values (all four checked) produce a policy without allowedOperations field', () => {
+    const result = validateAndCoerceWizardValues(DEFAULT_WIZARD_VALUES);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.policy.allowedOperations).toBeUndefined();
+    }
+  });
+
+  it('partial selection lands on the policy as a strict allowlist', () => {
+    const result = validateAndCoerceWizardValues({
+      ...DEFAULT_WIZARD_VALUES,
+      allowedOperations: {
+        cat21_mint: true,
+        cat21_transfer: true,
+        cat21_create_offer: false,
+        cat21_accept_offer: false,
+      },
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.policy.allowedOperations).toEqual(['cat21_mint', 'cat21_transfer']);
+    }
   });
 });

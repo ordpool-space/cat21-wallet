@@ -13,11 +13,25 @@ import {
   useSetAgentPolicyForCurrentAccount,
 } from '@app/store/agent-policy/agent-policy.hooks';
 
+import type { AgentActionKind } from 'ordpool-sdk/core';
+
 import {
+  AGENT_OPERATION_KINDS,
   type AgentPolicyWizardValues,
   DEFAULT_WIZARD_VALUES,
   validateAndCoerceWizardValues,
 } from './cat21-agent-policy-wizard.helper';
+
+/**
+ * Human-readable label per operation kind. Kept colocated with the
+ * wizard because no other consumer needs this mapping.
+ */
+const OPERATION_LABELS: Record<AgentActionKind, string> = {
+  cat21_mint: 'Mint',
+  cat21_transfer: 'Transfer',
+  cat21_create_offer: 'List for sale',
+  cat21_accept_offer: 'Accept offers',
+};
 
 /**
  * Cat21 agent-policy wizard (iter 10c).
@@ -56,6 +70,16 @@ export function Cat21AgentPolicyWizard() {
         maxFeeRateSatPerVbyte: String(existingPolicy.maxFeeRateSatPerVbyte),
         floorPriceSatsPerCat: String(existingPolicy.floorPriceSatsPerCat),
         allowedCounterpartiesRaw: existingPolicy.allowedCounterparties.join('\n'),
+        // An existing policy without `allowedOperations` (or with the
+        // field omitted) means "no restriction"; render every kind
+        // checked. An explicit non-empty list checks only the listed
+        // kinds. The coerce step on save collapses all-checked back to
+        // the omitted shape.
+        allowedOperations: existingPolicy.allowedOperations
+          ? Object.fromEntries(
+              AGENT_OPERATION_KINDS.map(k => [k, existingPolicy.allowedOperations!.includes(k)]),
+            ) as Record<AgentActionKind, boolean>
+          : DEFAULT_WIZARD_VALUES.allowedOperations,
       }
     : DEFAULT_WIZARD_VALUES;
 
@@ -75,7 +99,7 @@ export function Cat21AgentPolicyWizard() {
         void navigate(-1);
       }}
     >
-      {({ handleChange, handleSubmit, values, isSubmitting }) => {
+      {({ handleChange, handleSubmit, values, isSubmitting, setFieldValue }) => {
         const validation = validateAndCoerceWizardValues(values);
         const fieldErrors = validation.ok ? null : validation.errors;
 
@@ -137,6 +161,35 @@ export function Cat21AgentPolicyWizard() {
                     value={values.allowedCounterpartiesRaw}
                     onChange={handleChange}
                   />
+                  <Flex direction="column" gap="space.01">
+                    <styled.label textStyle="label.02">
+                      Allowed operations (check at least one; all-checked = no
+                      restriction)
+                    </styled.label>
+                    {AGENT_OPERATION_KINDS.map(kind => (
+                      <Flex
+                        key={kind}
+                        as="label"
+                        alignItems="center"
+                        gap="space.02"
+                        textStyle="body.02"
+                      >
+                        <styled.input
+                          type="checkbox"
+                          name={`allowedOperations.${kind}`}
+                          data-testid={`cat21-agent-policy-op-${kind}`}
+                          checked={values.allowedOperations[kind]}
+                          onChange={e =>
+                            void setFieldValue(
+                              `allowedOperations.${kind}`,
+                              e.target.checked,
+                            )
+                          }
+                        />
+                        {OPERATION_LABELS[kind]}
+                      </Flex>
+                    ))}
+                  </Flex>
                   {globalError ? <ErrorLabel>{globalError}</ErrorLabel> : null}
                 </Flex>
               </Form>

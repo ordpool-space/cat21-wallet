@@ -866,6 +866,39 @@ describe('iter 12g-prep — background-side wiring glue + state cache', () => {
   });
 });
 
+describe('iter 13b — wizard form surfaces allowedOperations', () => {
+  // Without this pin, a future refactor that drops the checkbox group
+  // from the wizard form would leave allowedOperations settable only
+  // via direct Redux mutation — the iter-16b end-to-end wire becomes
+  // unreachable for non-engineer users.
+
+  const WIZARD = 'apps/extension/src/app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard.tsx';
+  const HELPER = 'apps/extension/src/app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard.helper.ts';
+
+  it('wizard renders a checkbox per AGENT_OPERATION_KINDS entry', () => {
+    const src = read(join(REPO_ROOT, WIZARD));
+    expect(src).toMatch(/AGENT_OPERATION_KINDS\.map\(kind =>/);
+    expect(src).toMatch(/name=\{`allowedOperations\.\$\{kind\}`\}/);
+  });
+
+  it('helper exposes AGENT_OPERATION_KINDS as the canonical four-kind list', () => {
+    const src = read(join(REPO_ROOT, HELPER));
+    expect(src).toMatch(/AGENT_OPERATION_KINDS:\s*ReadonlyArray<AgentActionKind>/);
+    expect(src).toMatch(/'cat21_mint'/);
+    expect(src).toMatch(/'cat21_transfer'/);
+    expect(src).toMatch(/'cat21_create_offer'/);
+    expect(src).toMatch(/'cat21_accept_offer'/);
+  });
+
+  it('coerceAllowedOperations collapses all-checked / none-checked to undefined', () => {
+    const src = read(join(REPO_ROOT, HELPER));
+    // The collapse rule is the load-bearing UX: a settings page that
+    // can leak "all four checked != permissive" creates confusing
+    // behaviour where the gate rejects ops the UI shows as allowed.
+    expect(src).toMatch(/length === 0 \|\| picked\.length === AGENT_OPERATION_KINDS\.length/);
+  });
+});
+
 describe('iter 13a — Settings menu surfaces the Cat21 Agent Mode entry', () => {
   // Without this pin, a future refactor that drops the settings link
   // would leave the wizard reachable only by typing the route URL —
