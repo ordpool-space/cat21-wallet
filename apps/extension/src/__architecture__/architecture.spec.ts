@@ -184,28 +184,38 @@ describe('HARD RULE — mint logic lives in the SDK, not inline in the wallet', 
 });
 
 describe('HARD RULE — acceptOffer signs ONLY input 0 (the seller cat input)', () => {
-  it('acceptOffer body passes [0] (not "all") as the inputIndexes to both signers', () => {
+  // Each rpc method declares its `inputIndexes` choice in its call to
+  // the shared `signAndBroadcast` helper; the helper threads that
+  // verbatim into `signWithConfirmation` / `signSilently`. The pins
+  // below check BOTH layers — the per-method declaration AND the
+  // helper's pass-through — so a refactor cannot accidentally
+  // decouple them.
+
+  it('acceptOffer body declares inputIndexes: [0] (not "all")', () => {
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const match = src.match(/async acceptOffer\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(match).not.toBeNull();
     const body = match![1];
-    expect(body).toMatch(/signWithConfirmation\([^)]*,\s*\[0\]\s*\)/);
-    expect(body).toMatch(/signSilently\([^)]*\[0\]\s*\)/);
+    expect(body).toMatch(/inputIndexes:\s*\[0\]/);
     // Strong negative: acceptOffer must NOT pass 'all' anywhere.
     const allOccurrences = body.match(/'all'/g) ?? [];
     expect(allOccurrences.length).toBe(0);
   });
 
-  it("mint and transfer pass 'all' (self-built PSBTs; every input is wallet-owned)", () => {
+  it("mint and transfer declare inputIndexes: 'all' (self-built PSBTs; every input is wallet-owned)", () => {
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const mintMatch = src.match(/async mint\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     const transferMatch = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(mintMatch).not.toBeNull();
     expect(transferMatch).not.toBeNull();
-    expect(mintMatch![1]).toMatch(/signWithConfirmation\([^)]*,\s*'all'\s*\)/);
-    expect(mintMatch![1]).toMatch(/signSilently\([^)]*'all'\s*\)/);
-    expect(transferMatch![1]).toMatch(/signWithConfirmation\([^)]*,\s*'all'\s*\)/);
-    expect(transferMatch![1]).toMatch(/signSilently\([^)]*'all'\s*\)/);
+    expect(mintMatch![1]).toMatch(/inputIndexes:\s*'all'/);
+    expect(transferMatch![1]).toMatch(/inputIndexes:\s*'all'/);
+  });
+
+  it('signAndBroadcast threads inputIndexes verbatim into both signers', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
+    expect(src).toMatch(/signWithConfirmation\([^)]*,\s*args\.inputIndexes\s*\)/);
+    expect(src).toMatch(/signSilently\([^)]*args\.inputIndexes\s*\)/);
   });
 
   it('Cat21RpcDeps signWithConfirmation + signSilently carry an inputIndexes parameter', () => {
@@ -892,14 +902,17 @@ describe('iter 16 — SDK validateCat21Operation is the single gate (no consumer
     expect(src).toMatch(/validateCat21Operation[\s\S]{0,400}from\s+['"]ordpool-sdk\/core['"]/);
   });
 
-  it('all four Cat21RpcService methods invoke runGate before any other work', () => {
-    // The contract pin: the gate runs FIRST in every rpc method
-    // body. If a future refactor inlines validation or skips it,
-    // this spec catches it.
+  it('all four Cat21RpcService methods invoke openPipeline before any other work', () => {
+    // The contract pin: the SDK gate runs FIRST in every rpc method
+    // body, via the shared `openPipeline` helper (which calls runGate
+    // before resolving signing mode). A refactor that inlines or
+    // skips validation breaks this regex.
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     for (const kind of ['mint', 'transfer', 'create_offer', 'accept_offer']) {
-      expect(src).toMatch(new RegExp(`runGate\\(\\s*\\{\\s*kind:\\s*'${kind}'`));
+      expect(src).toMatch(new RegExp(`openPipeline\\(\\s*\\{\\s*kind:\\s*'${kind}'`));
     }
+    // openPipeline itself must call runGate (no slip-around path).
+    expect(src).toMatch(/runGate\(operation,/);
   });
 
   it('cat21-rpc.service.ts has no `enforce*Invariants` references (no fallback path)', () => {

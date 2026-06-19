@@ -11,9 +11,9 @@
  * Validation: `validateCat21Operation` from the SDK is the single
  * bulletproof gate. Every rejection reason maps to a closed-set
  * named variant; the downstream rpc-service maps SDK reasons onto
- * its own `Cat21RpcDenyReason` union. The branded `Validated<I>`
- * marker type is gone — the discriminated-union return type from
- * the gate is the runtime witness that validation ran.
+ * its own `Cat21RpcDenyReason` union. The discriminated-union
+ * return type from the gate is the runtime witness that validation
+ * ran — no branded type or out-of-band marker needed.
  *
  * Per CLAUDE.md HARD RULE #6, the typed `cat21_*` actions live on the
  * internal `Cat21RpcService` only, reachable from two transports:

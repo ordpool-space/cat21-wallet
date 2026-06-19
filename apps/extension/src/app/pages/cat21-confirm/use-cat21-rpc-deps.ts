@@ -5,7 +5,6 @@ import * as btc from '@scure/btc-signer';
 import { useQuery } from '@tanstack/react-query';
 import {
   CAT21_POSTAGE_SATS,
-  Network,
   broadcastCat21,
   pickLargestFundingUtxoThatCovers,
   validateCat21BuyOfferPsbt,
@@ -23,7 +22,10 @@ import { accountIdToSliceKey } from '@app/store/agent-policy/agent-policy.hooks'
 import { incrementSpentToday } from '@app/store/agent-policy/agent-policy.slice';
 import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 import { makeAgentPolicyDeps } from '@background/cat21/agent-policy-deps';
-import type { Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
+import {
+  type Cat21RpcDeps,
+  walletNetworkToSdkNetwork,
+} from '@background/cat21/cat21-rpc.service';
 
 /**
  * Build the popup-side `Cat21RpcDeps` for `Cat21RpcService`. Every
@@ -139,7 +141,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
           expectedSellerUtxo: args.expectedSellerUtxo,
           floorPriceSats: args.floorPriceSats,
           expectedSellerPaymentAddress: args.expectedSellerPaymentAddress,
-          network: args.network === 'mainnet' ? Network.Mainnet : Network.Testnet3,
+          network: walletNetworkToSdkNetwork(args.network),
         }),
       // Wallet-routed broadcast via Leather's existing
       // `transactionsApi.broadcastTransaction` (which the wallet

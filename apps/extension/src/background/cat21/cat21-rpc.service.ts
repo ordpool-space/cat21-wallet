@@ -1,7 +1,8 @@
 import {
+  Cat21GateResources,
   Cat21OfferValidation,
+  Cat21Operation,
   Cat21OperationGateConfig,
-  Cat21OperationGateResult,
   Cat21TransferCatInput,
   KnownOrdinalWalletType,
   Network,
@@ -172,13 +173,11 @@ export interface Cat21RpcDeps {
  * Every method follows the same pipeline (CLAUDE.md "Cat21 RPC
  * architecture"):
  *
- *   1. Run hard invariants → returns Validated<I> brand
- *   2. Resolve signing mode (autonomous vs manual)
- *   3. Build PSBT (wallet owns the bytes)
+ *   1. runGate — SDK validateCat21Operation; returns discriminated resources
+ *   2. resolveModeOrFail — autonomous vs manual, gated by policy + transport
+ *   3. Build PSBT via the SDK builder (wallet owns the bytes)
  *   4. Post-build assertions (already inside the builder)
- *   5. Sign (silent in autonomous, popup-confirmed in manual)
- *   6. Broadcast (mempool first, Slipstream on >400k weight)
- *   7. Return { ok, value }
+ *   5. signAndBroadcast — sign (silent or popup-confirmed) then dispatch
  *
  * Every method takes a `transport` argument because the mode resolver
  * needs it. The dispatcher computes transport from the chrome.runtime
@@ -188,42 +187,24 @@ export class Cat21RpcService {
   constructor(private readonly deps: Cat21RpcDeps) {}
 
   async mint(intent: Cat21MintIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
-    const accountCtx = this.deps.getAccountContext();
+    const opened = this.openPipeline({ kind: 'mint', intent }, transport);
+    if ('result' in opened) return opened.result;
+    const { mode, accountCtx } = opened;
 
-    const gateResult = runGate({ kind: 'mint', intent }, gateConfig(accountCtx));
-    if ('result' in gateResult) return gateResult.result;
-    const validated = intent;
-
-    let mode: 'autonomous' | 'manual';
-    try {
-      mode = resolveSigningMode({
-        intent: validated,
-        transport,
-        agentMode: this.deps.agentMode,
-        evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
-      });
-    } catch (err) {
-      if (err instanceof ModeResolverError) {
-        return denied(modeResolverReasonToRpcReason(err.rejection), err.detail);
-      }
-      return denied('intent-invariant-violated', errorDetail(err));
-    }
-
-    const tipValue = validated.tip && validated.tip.value > 0 ? validated.tip.value : 0;
+    const tipValue = intent.tip && intent.tip.value > 0 ? intent.tip.value : 0;
     const sdkNetwork = walletNetworkToSdkNetwork(accountCtx.network);
     const destinations = {
-      recipientAddress: validated.recipient,
+      recipientAddress: intent.recipient,
       senderChangeAddress: accountCtx.paymentAddress,
       tip:
-        validated.tip && validated.tip.value > 0
-          ? { address: validated.tip.address, valueSats: validated.tip.value }
+        intent.tip && intent.tip.value > 0
+          ? { address: intent.tip.address, valueSats: intent.tip.value }
           : undefined,
     };
 
-    // Pick a funding UTXO that covers postage + tip + a placeholder fee.
     // `pickLargestFundingUtxoThatCovers` (the wallet's deps default)
-    // almost always gives a UTXO that still covers the final fee
-    // after simulation; we re-assert below before re-building.
+    // almost always returns a UTXO that still covers the final fee
+    // after simulation; the re-pick branch is the rare-case backstop.
     const placeholderFee = 1_000;
     let fundingUtxo: Cat21FundingUtxo;
     try {
@@ -232,24 +213,18 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
     }
 
-    // Two-pass fee simulation via the SDK. Replaces the historic
-    // static `Math.ceil(feeRate * vsizeGuess)` — at high fee rates
-    // the static guess either over- or under-pays.
     let estimatedFee: number;
     try {
       ({ finalFeeSats: estimatedFee } = simulateMintFee({
         network: sdkNetwork,
         fundingInput: { ...fundingUtxo },
         destinations,
-        feeRatePerVbyte: validated.feeRate,
+        feeRatePerVbyte: intent.feeRate,
       }));
     } catch (err) {
       return denied('intent-invariant-violated', `fee-simulation-failed: ${errorDetail(err)}`);
     }
 
-    // If the simulated final fee out-grew the placeholder by enough to
-    // exceed the picked UTXO, re-pick. Largest-first picker makes this
-    // path rare in practice.
     if (fundingUtxo.value < 546 + tipValue + estimatedFee) {
       try {
         fundingUtxo = this.deps.pickFundingUtxo(546 + tipValue + estimatedFee);
@@ -271,64 +246,34 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
     }
 
-    let signed: SignedTx;
-    try {
-      signed =
-        mode === 'manual'
-          ? await this.deps.signWithConfirmation(built.psbt, validated, 'all')
-          : await this.deps.signSilently(built.psbt, 'all');
-    } catch (err) {
-      return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
-    }
-
-    let result: BroadcastResult;
-    try {
-      result = await this.deps.broadcast(signed);
-    } catch (err) {
-      return denied('broadcast-failed', errorDetail(err));
-    }
-
-    this.deps.recordSpend(546 + tipValue + estimatedFee);
-    return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
+    return this.signAndBroadcast({
+      mode,
+      psbt: built.psbt,
+      intent,
+      inputIndexes: 'all',
+      spendSats: 546 + tipValue + estimatedFee,
+    });
   }
 
   async transfer(intent: Cat21TransferIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
-    const accountCtx = this.deps.getAccountContext();
-
-    const gateResult = runGate({ kind: 'transfer', intent }, gateConfig(accountCtx));
-    if ('result' in gateResult) return gateResult.result;
-    const validated = intent;
-
-    let mode: 'autonomous' | 'manual';
-    try {
-      mode = resolveSigningMode({
-        intent: validated,
-        transport,
-        agentMode: this.deps.agentMode,
-        evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
-      });
-    } catch (err) {
-      if (err instanceof ModeResolverError) {
-        return denied(modeResolverReasonToRpcReason(err.rejection), err.detail);
-      }
-      return denied('intent-invariant-violated', errorDetail(err));
-    }
+    const opened = this.openPipeline({ kind: 'transfer', intent }, transport);
+    if ('result' in opened) return opened.result;
+    const { mode, accountCtx } = opened;
 
     let catUtxo: TransferUtxo;
     try {
-      catUtxo = this.deps.resolveCatUtxo(validated.catId);
+      catUtxo = this.deps.resolveCatUtxo(intent.catId);
     } catch (err) {
       return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
-    // SDK HARD RULE: every cat UTXO is exactly 546 sats (the protocol
-    // postage). The fee always has to come from a separate funding
-    // input — never the cat UTXO itself, because 546 < 546 + fee for
-    // any positive fee. So we always pick a funding UTXO; no
-    // surplus-self-fund branch exists by design.
+    // SDK HARD RULE: every cat UTXO is exactly 546 sats (protocol
+    // postage). The fee always comes from a separate funding input —
+    // 546 < 546 + fee for any positive fee — so no surplus-self-fund
+    // branch exists by design.
     const sdkNetwork = walletNetworkToSdkNetwork(accountCtx.network);
     const transferDestinations = {
-      recipientAddress: validated.recipient,
+      recipientAddress: intent.recipient,
       senderChangeAddress: accountCtx.paymentAddress,
     };
     const placeholderFee = 1_000;
@@ -341,10 +286,6 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
     }
 
-    // Two-pass fee simulation via the SDK. Replaces the historic
-    // static `Math.ceil(feeRate * 220)` — at high fee rates and for
-    // larger transfer shapes (multiple inputs) the static guess
-    // diverges from the real vsize by a lot.
     let estimatedFee: number;
     try {
       ({ finalFeeSats: estimatedFee } = simulateTransferFee({
@@ -352,16 +293,13 @@ export class Cat21RpcService {
         catUtxo,
         fundingInputs,
         destinations: transferDestinations,
-        feeRatePerVbyte: validated.feeRate,
+        feeRatePerVbyte: intent.feeRate,
       }));
     } catch (err) {
       return denied('intent-invariant-violated', `fee-simulation-failed: ${errorDetail(err)}`);
     }
 
     if (pickedFundingUtxo.value < estimatedFee) {
-      // Re-pick if the simulated final fee outgrew the placeholder
-      // by enough to exceed the picked UTXO. Largest-first picker
-      // makes this path rare.
       try {
         pickedFundingUtxo = this.deps.pickFundingUtxo(estimatedFee);
         fundingInputs.length = 0;
@@ -385,25 +323,13 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
     }
 
-    let signed: SignedTx;
-    try {
-      signed =
-        mode === 'manual'
-          ? await this.deps.signWithConfirmation(built.psbt, validated, 'all')
-          : await this.deps.signSilently(built.psbt, 'all');
-    } catch (err) {
-      return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
-    }
-
-    let result: BroadcastResult;
-    try {
-      result = await this.deps.broadcast(signed);
-    } catch (err) {
-      return denied('broadcast-failed', errorDetail(err));
-    }
-
-    this.deps.recordSpend(546 + estimatedFee);
-    return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
+    return this.signAndBroadcast({
+      mode,
+      psbt: built.psbt,
+      intent,
+      inputIndexes: 'all',
+      spendSats: 546 + estimatedFee,
+    });
   }
 
   /**
@@ -425,44 +351,27 @@ export class Cat21RpcService {
     intent: Cat21CreateOfferIntent,
     transport: Cat21Transport
   ): Promise<Cat21RpcResult> {
-    const accountCtx = this.deps.getAccountContext();
-
-    const gateResult = runGate({ kind: 'create_offer', intent }, gateConfig(accountCtx));
-    if ('result' in gateResult) return gateResult.result;
-    const validated = intent;
-
-    let mode: 'autonomous' | 'manual';
-    try {
-      mode = resolveSigningMode({
-        intent: validated,
-        transport,
-        agentMode: this.deps.agentMode,
-        evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
-      });
-    } catch (err) {
-      if (err instanceof ModeResolverError) {
-        return denied(modeResolverReasonToRpcReason(err.rejection), err.detail);
-      }
-      return denied('intent-invariant-violated', errorDetail(err));
-    }
+    const opened = this.openPipeline({ kind: 'create_offer', intent }, transport);
+    if ('result' in opened) return opened.result;
+    const { mode } = opened;
 
     let catUtxo: TransferUtxo;
     try {
-      catUtxo = this.deps.resolveCatUtxo(validated.catId);
+      catUtxo = this.deps.resolveCatUtxo(intent.catId);
     } catch (err) {
       return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
     if (mode === 'manual') {
       try {
-        await this.deps.confirmListingPublication(validated);
+        await this.deps.confirmListingPublication(intent);
       } catch (err) {
         return denied('broadcast-failed', `listing-cancelled: ${errorDetail(err)}`);
       }
     }
 
     const listing = buildListing({
-      intent: validated,
+      intent,
       sellerUtxo: { txid: catUtxo.txid, vout: catUtxo.vout },
     });
 
@@ -479,29 +388,12 @@ export class Cat21RpcService {
     intent: Cat21AcceptOfferIntent,
     transport: Cat21Transport
   ): Promise<Cat21RpcResult> {
-    const accountCtx = this.deps.getAccountContext();
+    const opened = this.openPipeline({ kind: 'accept_offer', intent }, transport);
+    if ('result' in opened) return opened.result;
+    const { mode, accountCtx, resources } = opened;
+    const psbtBytes = resources.offerPsbtBytes;
 
-    const gateResult = runGate({ kind: 'accept_offer', intent }, gateConfig(accountCtx));
-    if ('result' in gateResult) return gateResult.result;
-    const psbtBytes = (gateResult.gate.resources as { offerPsbtBytes: Uint8Array }).offerPsbtBytes;
-    const validated = { ...intent, psbtBytes };
-
-    let mode: 'autonomous' | 'manual';
-    try {
-      mode = resolveSigningMode({
-        intent: validated,
-        transport,
-        agentMode: this.deps.agentMode,
-        evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
-      });
-    } catch (err) {
-      if (err instanceof ModeResolverError) {
-        return denied(modeResolverReasonToRpcReason(err.rejection), err.detail);
-      }
-      return denied('intent-invariant-violated', errorDetail(err));
-    }
-
-    // Re-confirm wallet ownership of the cat. This catches three attacks
+    // Re-confirm wallet ownership of the cat. Catches three attacks
     // the SDK validator (input 0 == expectedSellerUtxo) cannot:
     //   1. Stale listings — seller transferred the cat between publishing
     //      the listing and signing acceptance; UTXO is now somewhere else.
@@ -512,24 +404,24 @@ export class Cat21RpcService {
     // INTENT ↔ CHAIN-NOW.
     let catUtxo;
     try {
-      catUtxo = this.deps.resolveCatUtxo(validated.expectedCatId);
+      catUtxo = this.deps.resolveCatUtxo(intent.expectedCatId);
     } catch (err) {
       return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
     if (
-      catUtxo.txid !== validated.expectedSellerUtxo.txid ||
-      catUtxo.vout !== validated.expectedSellerUtxo.vout
+      catUtxo.txid !== intent.expectedSellerUtxo.txid ||
+      catUtxo.vout !== intent.expectedSellerUtxo.vout
     ) {
       return denied(
         'inbound-offer-mismatch',
-        `expectedSellerUtxo ${validated.expectedSellerUtxo.txid}:${validated.expectedSellerUtxo.vout} disagrees with on-chain cat location ${catUtxo.txid}:${catUtxo.vout}`
+        `expectedSellerUtxo ${intent.expectedSellerUtxo.txid}:${intent.expectedSellerUtxo.vout} disagrees with on-chain cat location ${catUtxo.txid}:${catUtxo.vout}`
       );
     }
 
     const validation = validateAcceptOffer(
       {
-        intent: validated,
-        psbtBytes: validated.psbtBytes,
+        intent,
+        psbtBytes,
         expectedSellerPaymentAddress: accountCtx.paymentAddress,
         network: accountCtx.network,
       },
@@ -539,12 +431,77 @@ export class Cat21RpcService {
       return denied('inbound-offer-mismatch', `${validation.reason}: ${validation.detail ?? ''}`);
     }
 
+    // The seller doesn't spend BTC, but the policy daily cap exists to
+    // backstop autonomous agents from accepting an unbounded number of
+    // offers per day; using pricePaidSats as the deal-size proxy lets
+    // the cap fire on activity volume, not just on outflow.
+    return this.signAndBroadcast({
+      mode,
+      psbt: psbtBytes,
+      intent,
+      inputIndexes: [0],
+      spendSats: validation.pricePaidSats,
+    });
+  }
+
+  /**
+   * Pipeline preamble: run the SDK gate, then resolve the signing
+   * mode. Returns either the early-return result (rejection) or the
+   * resolved `{ mode, accountCtx, resources }` for the per-method body
+   * to consume. The `resources` field is narrowed to the kind passed
+   * in so consumers don't cast.
+   */
+  private openPipeline<K extends Cat21OperationKind>(
+    operation: Cat21OperationOfKind<K>,
+    transport: Cat21Transport
+  ):
+    | { result: Cat21RpcResult }
+    | {
+        mode: 'autonomous' | 'manual';
+        accountCtx: Cat21AccountContext;
+        resources: Cat21GateResourcesOfKind<K>;
+      } {
+    const accountCtx = this.deps.getAccountContext();
+
+    const gateResult = runGate(operation, gateConfig(accountCtx));
+    if ('result' in gateResult) return gateResult;
+
+    let mode: 'autonomous' | 'manual';
+    try {
+      mode = resolveSigningMode({
+        intent: operation.intent,
+        transport,
+        agentMode: this.deps.agentMode,
+        evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
+      });
+    } catch (err) {
+      if (err instanceof ModeResolverError) {
+        return { result: denied(modeResolverReasonToRpcReason(err.rejection), err.detail) };
+      }
+      return { result: denied('intent-invariant-violated', errorDetail(err)) };
+    }
+
+    return { mode, accountCtx, resources: gateResult.resources };
+  }
+
+  /**
+   * Pipeline tail: sign (silent or popup-confirmed) then dispatch to
+   * the broadcaster. Always records `spendSats` against the daily cap
+   * on success.
+   */
+  private async signAndBroadcast(args: {
+    mode: 'autonomous' | 'manual';
+    psbt: Uint8Array;
+    intent: Cat21Intent;
+    inputIndexes: 'all' | number[];
+    spendSats: number;
+  }): Promise<Cat21RpcResult> {
     let signed: SignedTx;
     try {
       signed =
-        mode === 'manual'
-          ? await this.deps.signWithConfirmation(validated.psbtBytes, validated, [0])
-          : await this.deps.signSilently(validated.psbtBytes, [0]);
+        args.mode === 'manual'
+          ? await this.deps.signWithConfirmation(args.psbt, args.intent, args.inputIndexes)
+          : await this.deps.signSilently(args.psbt, args.inputIndexes);
     } catch (err) {
       return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
     }
@@ -556,12 +513,7 @@ export class Cat21RpcService {
       return denied('broadcast-failed', errorDetail(err));
     }
 
-    // Record the deal size against the daily cap. The seller doesn't
-    // spend BTC, but the policy daily cap exists to backstop autonomous
-    // agents from accepting an unbounded number of offers per day; using
-    // pricePaidSats as the deal-size proxy lets the cap fire on activity
-    // volume, not just on outflow.
-    this.deps.recordSpend(validation.pricePaidSats);
+    this.deps.recordSpend(args.spendSats);
     return { ok: true, value: { kind: 'broadcast', txid: result.txid, channel: result.channel } };
   }
 }
@@ -571,7 +523,7 @@ export class Cat21RpcService {
  * Wallet currently exposes only `'mainnet' | 'testnet'`; testnet maps
  * to Testnet3 (the chain ordpool defaults to in tests).
  */
-function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet'): Network {
+export function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet'): Network {
   return net === 'mainnet' ? Network.Mainnet : Network.Testnet3;
 }
 
@@ -590,25 +542,36 @@ function errorDetail(err: unknown): string {
   return String(err);
 }
 
+type Cat21OperationKind = Cat21Operation['kind'];
+type Cat21OperationOfKind<K extends Cat21OperationKind> = Extract<Cat21Operation, { kind: K }>;
+type Cat21GateResourcesOfKind<K extends Cat21OperationKind> = Extract<
+  Cat21GateResources,
+  { kind: K }
+>;
+
 /**
- * SDK gate runner. Returns a typed denied result on rejection so each
- * rpc method can early-return one line. The SDK reason string is
- * surfaced verbatim as the denial's `detail` so consumers can dispatch
- * on it; the wallet's wider `Cat21RpcDenyReason` stays at
- * `intent-invariant-violated` for any gate rejection.
+ * SDK gate runner. Generic over the operation kind so the returned
+ * `resources` field is narrowed to the matching `Cat21GateResources`
+ * variant (no consumer-side cast). The SDK reason string is surfaced
+ * verbatim as the denial's `detail`; the wallet's wider
+ * `Cat21RpcDenyReason` stays at `intent-invariant-violated` for any
+ * gate rejection.
  */
-function runGate(
-  operation: Parameters<typeof validateCat21Operation>[0]['operation'],
+function runGate<K extends Cat21OperationKind>(
+  operation: Cat21OperationOfKind<K>,
   config: Cat21OperationGateConfig
 ):
-  | { ok: true; gate: Extract<Cat21OperationGateResult, { ok: true }> }
+  | { ok: true; resources: Cat21GateResourcesOfKind<K> }
   | { result: Cat21RpcResult } {
   const gate = validateCat21Operation({ config, operation });
   if (!gate.ok) {
     const detail = gate.detail ? `${gate.reason}: ${gate.detail}` : gate.reason;
     return { result: denied('intent-invariant-violated', detail) };
   }
-  return { ok: true, gate };
+  // SDK's `Cat21GateResources` is discriminated on `kind` and the gate
+  // always returns the variant matching the input kind; TS can't prove
+  // that correlation across the SDK boundary, so one localised cast.
+  return { ok: true, resources: gate.resources as Cat21GateResourcesOfKind<K> };
 }
 
 /**
