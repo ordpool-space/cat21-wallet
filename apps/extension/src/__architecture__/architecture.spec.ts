@@ -866,6 +866,36 @@ describe('iter 12g-prep — background-side wiring glue + state cache', () => {
   });
 });
 
+describe('iter 12g — background.ts wires installCat21NmhAgent at boot', () => {
+  // Without these pins, a future refactor that strips the boot call
+  // from background.ts leaves Path 3 silently dead — the surface
+  // exists in source but no connectNative port ever opens.
+
+  const BACKGROUND = 'apps/extension/src/background/background.ts';
+
+  it('background.ts calls installCat21NmhAgent (Path 3 boot wire)', () => {
+    const src = read(join(REPO_ROOT, BACKGROUND));
+    expect(src).toMatch(/installCat21NmhAgent\s*\(/);
+  });
+
+  it('background.ts bootstraps the probe-state cache before the install (cache.read returns DEFAULT_STATE until then)', () => {
+    const src = read(join(REPO_ROOT, BACKGROUND));
+    expect(src).toMatch(/makeBackgroundProbeStateCache\s*\(/);
+    expect(src).toMatch(/cat21ProbeStateCache\.bootstrap\(\)/);
+  });
+
+  it('background.ts hands cat21OrdClient + cache into makeReadOnlyProbeWires', () => {
+    const src = read(join(REPO_ROOT, BACKGROUND));
+    expect(src).toMatch(/makeReadOnlyProbeWires\s*\(/);
+    expect(src).toMatch(/cat21OrdClient:\s*getCat21OrdApiClient\(\)/);
+  });
+
+  it('background.ts uses triggerRequestPopupWindowOpen as the popup-open mechanism', () => {
+    const src = read(join(REPO_ROOT, BACKGROUND));
+    expect(src).toMatch(/triggerPopupOpen:\s*triggerRequestPopupWindowOpen/);
+  });
+});
+
 describe('iter 16 — SDK validateCat21Operation is the single gate (no consumer-side invariants)', () => {
   // The wallet used to have an `invariants/` folder with four
   // per-flow gates and a `Validated<I>` brand. Both were deleted
