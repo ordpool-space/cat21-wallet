@@ -866,6 +866,25 @@ describe('iter 12g-prep — background-side wiring glue + state cache', () => {
   });
 });
 
+describe('iter 13a — Settings menu surfaces the Cat21 Agent Mode entry', () => {
+  // Without this pin, a future refactor that drops the settings link
+  // would leave the wizard reachable only by typing the route URL —
+  // the per-account policy (spend caps, fee ceiling, counterparty
+  // allowlist, operation allowlist) becomes invisible to users.
+
+  const MENU = 'apps/extension/src/app/pages/settings/menu-buttons.tsx';
+
+  it('settings menu links to RouteUrls.Cat21AgentPolicy', () => {
+    const src = read(join(REPO_ROOT, MENU));
+    expect(src).toMatch(/navigate\(RouteUrls\.Cat21AgentPolicy\)/);
+  });
+
+  it('settings entry carries a stable data-testid for E2E hooks', () => {
+    const src = read(join(REPO_ROOT, MENU));
+    expect(src).toMatch(/data-testid="cat21-agent-mode-settings-button"/);
+  });
+});
+
 describe('iter 12g — background.ts wires installCat21NmhAgent at boot', () => {
   // Without these pins, a future refactor that strips the boot call
   // from background.ts leaves Path 3 silently dead — the surface

@@ -12,6 +12,9 @@ import {
   CodeIcon,
   KeyIcon,
   MegaphoneIcon,
+  // HACK -- Cat21: PulseIcon for the Cat21 Agent Mode settings entry
+  // (autonomous-mode policy, "agent's heartbeat").
+  PulseIcon,
   SunInCloudIcon,
   SupportIcon,
 } from '@leather.io/ui';
@@ -72,6 +75,19 @@ export function MenuButtons() {
             }}
             icon={<GlobeTiltedIcon />}
           /> */}
+
+      {/* HACK -- Cat21: Settings entry for the Cat21 Agent Mode wizard.
+          Surfaces the iter-10 agent-policy slice (per-account caps, fee
+          ceiling, counterparty + operation allowlists) without forcing
+          the user to type the route URL. Wizard component lives at
+          `cat21-agent-policy-wizard/cat21-agent-policy-wizard.tsx`. */}
+      <SettingsButton
+        data-testid="cat21-agent-mode-settings-button"
+        variant="chevron"
+        title="Cat21 Agent Mode"
+        onClick={() => navigate(RouteUrls.Cat21AgentPolicy)}
+        icon={<PulseIcon />}
+      />
 
       <SettingsButton
         data-testid={SettingsSelectors.ToggleNotifications}
