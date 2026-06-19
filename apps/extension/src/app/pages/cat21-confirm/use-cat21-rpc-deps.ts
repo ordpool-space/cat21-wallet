@@ -4,6 +4,7 @@ import { useStore } from 'react-redux';
 import * as btc from '@scure/btc-signer';
 import { useQuery } from '@tanstack/react-query';
 import {
+  type AgentActionKind,
   CAT21_POSTAGE_SATS,
   broadcastCat21,
   pickLargestFundingUtxoThatCovers,
@@ -277,6 +278,10 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         return { hex: signedTx.hex, weight: signedTx.weight };
       },
     };
+    // tanstack-query returns a fresh result object on every render even
+    // when the data didn't change. Depend on the load-bearing fields
+    // (data + isLoading) so a stable query-result identity-change
+    // doesn't rebuild the deps and re-create the agent-policy gate.
   }, [
     store,
     dispatch,
@@ -284,7 +289,8 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     networkLabel,
     accountKey,
     bitcoinClient,
-    utxoQuery,
+    utxoQuery.utxos,
+    utxoQuery.isLoading,
     signBitcoinTx,
     catIdHint,
     catQuery.data,
@@ -304,9 +310,11 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
  * the `allowedOperations` key entirely (the SDK treats unset and
  * empty array as equivalently permissive, but omitting reads cleaner).
  */
+type SdkGateOperationKind = 'mint' | 'transfer' | 'create_offer' | 'accept_offer';
+
 function stripCat21Prefix(
-  source: ReadonlyArray<'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer'> | undefined,
-): ReadonlyArray<'mint' | 'transfer' | 'create_offer' | 'accept_offer'> | undefined {
+  source: ReadonlyArray<AgentActionKind> | undefined,
+): ReadonlyArray<SdkGateOperationKind> | undefined {
   if (!source || source.length === 0) return undefined;
-  return source.map(k => k.slice('cat21_'.length) as 'mint' | 'transfer' | 'create_offer' | 'accept_offer');
+  return source.map(k => k.slice('cat21_'.length) as SdkGateOperationKind);
 }

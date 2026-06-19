@@ -47,6 +47,94 @@ export function Cat21ListPage() {
     staleTime: 30_000,
   });
 
+  function renderBody() {
+    if (paymentAddress == null) {
+      return (
+        <styled.p textStyle="body.02" data-testid="cat21-list-no-address">
+          No native-segwit address derived yet.
+        </styled.p>
+      );
+    }
+    if (isPending) {
+      return (
+        <styled.p textStyle="body.02" data-testid="cat21-list-loading">
+          Loading cats…
+        </styled.p>
+      );
+    }
+    if (isError) {
+      return (
+        <Flex direction="column" gap="space.02" data-testid="cat21-list-error">
+          <ErrorLabel>Could not reach cat21-ord. Try again.</ErrorLabel>
+          <Button variant="outline" onClick={() => void refetch()} type="button">
+            Retry
+          </Button>
+        </Flex>
+      );
+    }
+    if (cats.inscriptions.length === 0) {
+      return (
+        <styled.p textStyle="body.02" data-testid="cat21-list-empty">
+          No cats at this address yet. Mint your first one from the home screen.
+        </styled.p>
+      );
+    }
+    return (
+      <Flex direction="column" gap="space.03" data-testid="cat21-list-rows">
+        {cats.inscriptions.map(catId => (
+          <Flex
+            key={catId}
+            direction="column"
+            gap="space.02"
+            p="space.03"
+            borderColor="ink.border-default"
+            borderWidth="1px"
+            borderRadius="xs"
+          >
+            <styled.code
+              textStyle="label.02"
+              wordBreak="break-all"
+              data-testid={`cat21-list-cat-id-${catId}`}
+            >
+              {catId}
+            </styled.code>
+            <Flex gap="space.02">
+              <Button
+                variant="outline"
+                fullWidth
+                type="button"
+                data-testid={`cat21-list-transfer-${catId}`}
+                onClick={() =>
+                  void navigate(RouteUrls.Cat21Transfer, {
+                    state: { prefilledCatId: catId },
+                  })
+                }
+              >
+                Transfer
+              </Button>
+              <Button
+                variant="outline"
+                fullWidth
+                type="button"
+                data-testid={`cat21-list-list-${catId}`}
+                onClick={() =>
+                  void navigate(RouteUrls.Cat21CreateOffer, {
+                    state: {
+                      prefilledCatId: catId,
+                      prefilledPaymentAddress: paymentAddress,
+                    },
+                  })
+                }
+              >
+                List for sale
+              </Button>
+            </Flex>
+          </Flex>
+        ))}
+      </Flex>
+    );
+  }
+
   return (
     <Content>
       <Flex direction="column" gap="space.05" px="space.05">
@@ -55,80 +143,7 @@ export function Cat21ListPage() {
           Cats held by this account, sourced from cat21-ord. Pick an action per cat to start a
           manual transfer or listing.
         </styled.p>
-
-        {paymentAddress == null ? (
-          <styled.p textStyle="body.02" data-testid="cat21-list-no-address">
-            No native-segwit address derived yet.
-          </styled.p>
-        ) : isPending ? (
-          <styled.p textStyle="body.02" data-testid="cat21-list-loading">
-            Loading cats…
-          </styled.p>
-        ) : isError ? (
-          <Flex direction="column" gap="space.02" data-testid="cat21-list-error">
-            <ErrorLabel>Could not reach cat21-ord. Try again.</ErrorLabel>
-            <Button variant="outline" onClick={() => void refetch()} type="button">
-              Retry
-            </Button>
-          </Flex>
-        ) : cats.inscriptions.length === 0 ? (
-          <styled.p textStyle="body.02" data-testid="cat21-list-empty">
-            No cats at this address yet. Mint your first one from the home screen.
-          </styled.p>
-        ) : (
-          <Flex direction="column" gap="space.03" data-testid="cat21-list-rows">
-            {cats.inscriptions.map(catId => (
-              <Flex
-                key={catId}
-                direction="column"
-                gap="space.02"
-                p="space.03"
-                borderColor="ink.border-default"
-                borderWidth="1px"
-                borderRadius="xs"
-              >
-                <styled.code
-                  textStyle="label.02"
-                  wordBreak="break-all"
-                  data-testid={`cat21-list-cat-id-${catId}`}
-                >
-                  {catId}
-                </styled.code>
-                <Flex gap="space.02">
-                  <Button
-                    variant="outline"
-                    fullWidth
-                    type="button"
-                    data-testid={`cat21-list-transfer-${catId}`}
-                    onClick={() =>
-                      void navigate(RouteUrls.Cat21Transfer, {
-                        state: { prefilledCatId: catId },
-                      })
-                    }
-                  >
-                    Transfer
-                  </Button>
-                  <Button
-                    variant="outline"
-                    fullWidth
-                    type="button"
-                    data-testid={`cat21-list-list-${catId}`}
-                    onClick={() =>
-                      void navigate(RouteUrls.Cat21CreateOffer, {
-                        state: {
-                          prefilledCatId: catId,
-                          prefilledPaymentAddress: paymentAddress,
-                        },
-                      })
-                    }
-                  >
-                    List for sale
-                  </Button>
-                </Flex>
-              </Flex>
-            ))}
-          </Flex>
-        )}
+        {renderBody()}
       </Flex>
     </Content>
   );

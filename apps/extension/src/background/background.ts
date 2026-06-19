@@ -41,7 +41,9 @@ const cat21ProbeStateCache = makeBackgroundProbeStateCache({
   onChanged: chrome.storage.onChanged,
   decode: decodeWalletProbeState,
 });
-void cat21ProbeStateCache.bootstrap();
+cat21ProbeStateCache.bootstrap().catch(e => {
+  logger.error('cat21 probe-state bootstrap failed: ', e);
+});
 installCat21NmhAgent({
   connectNative: chrome.runtime.connectNative.bind(chrome.runtime),
   storage: chrome.storage.session,

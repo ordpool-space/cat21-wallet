@@ -1,3 +1,5 @@
+import { CAT21_POSTAGE_SATS } from 'ordpool-sdk/core';
+
 import type { Cat21CreateOfferIntent } from '@background/cat21/types';
 
 /**
@@ -28,9 +30,6 @@ type Cat21CreateOfferFormResult =
   | { ok: false; errors: Record<keyof Cat21CreateOfferFormValues, string | undefined> };
 
 const CAT_ID_RE = /^[0-9a-f]{64}i\d+$/u;
-
-/** Postage floor (sats). Matches the SDK gate's check. */
-const CAT21_POSTAGE_SATS = 546;
 
 export function validateAndCoerceCreateOfferForm(
   values: Cat21CreateOfferFormValues,

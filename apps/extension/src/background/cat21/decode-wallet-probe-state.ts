@@ -118,33 +118,58 @@ function decodeNetwork(value: unknown): 'mainnet' | 'testnet' {
 }
 
 /**
- * `outer.softwareKeys` (and/or the equivalent active-account
- * tracker) carries the current account selection. Until the
- * cutover commit confirms the precise slice path, this returns
- * the defaults so the agent treats the wallet as "not yet
- * oriented" — which is the boot-race-friendly contract.
+ * Read the active fingerprint + accountIndex from the persisted
+ * `active` slice and look up `agentPolicy.policies[<accountId>].enabled`.
+ * The accountId format is `${fingerprint}:${accountIndex}` —
+ * matches `accountIdToSliceKey` so the popup-side selectors and
+ * the background-side probes share one identity.
  *
- * The maintainer fills in the slice picks during iter 12g; the
- * spec then drives both branches (slice present vs slice
- * missing) and asserts the agent sees what the popup sees.
+ * Every step fails closed: missing slice / malformed JSON /
+ * shape drift returns the boot-race-friendly defaults.
  */
 function decodeAccountAndAgentMode(outer: Record<string, unknown>): {
   accountId: string;
   agentModeEnabled: boolean;
 } {
-  // The agent-policy slice serialisation. `policies[accountId].enabled`
-  // is the answer if (a) the slice exists, (b) the active accountId
-  // is known, (c) the policy entry exists for that account.
+  const accountId = decodeActiveAccountId(outer.active);
+  if (accountId === DEFAULT_STATE.accountId) {
+    return { accountId, agentModeEnabled: false };
+  }
+
   const agentPolicySlice = parseInnerJson(outer.agentPolicy);
   if (!isRecord(agentPolicySlice)) {
-    return { accountId: DEFAULT_STATE.accountId, agentModeEnabled: false };
+    return { accountId, agentModeEnabled: false };
   }
-  // Active-account discovery: the wallet's redux-persist root carries
-  // `softwareKeys` (or `inMemoryKeys`) with the active fingerprint +
-  // account index. Until iter 12g resolves the exact path, leave the
-  // accountId at default — agent-policy lookup then misses, agentMode
-  // surfaces as `false`, list_cats returns `[]`. Fail-closed.
-  return { accountId: DEFAULT_STATE.accountId, agentModeEnabled: false };
+  const policies = agentPolicySlice.policies;
+  if (!isRecord(policies)) {
+    return { accountId, agentModeEnabled: false };
+  }
+  const policy = policies[accountId];
+  if (!isRecord(policy)) {
+    return { accountId, agentModeEnabled: false };
+  }
+  return { accountId, agentModeEnabled: policy.enabled === true };
+}
+
+/**
+ * `outer.active` is the JSON-serialised `active` slice. Its shape
+ * is `{ account: { fingerprint, accountIndex } | null }`. Returns
+ * the default sentinel for a missing slice / null account / malformed
+ * fingerprint, so downstream lookups miss safely instead of crashing.
+ */
+function decodeActiveAccountId(value: unknown): string {
+  const slice = parseInnerJson(value);
+  if (!isRecord(slice)) return DEFAULT_STATE.accountId;
+  const account = slice.account;
+  if (!isRecord(account)) return DEFAULT_STATE.accountId;
+  const { fingerprint, accountIndex } = account;
+  if (typeof fingerprint !== 'string' || fingerprint.length === 0) {
+    return DEFAULT_STATE.accountId;
+  }
+  if (typeof accountIndex !== 'number' || !Number.isInteger(accountIndex) || accountIndex < 0) {
+    return DEFAULT_STATE.accountId;
+  }
+  return `${fingerprint}:${accountIndex}`;
 }
 
 function parseInnerJson(value: unknown): unknown {

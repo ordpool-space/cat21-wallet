@@ -11,6 +11,7 @@ import { RouteUrls } from '@shared/route-urls';
 import { ErrorLabel } from '@app/components/error-label';
 import { Content } from '@app/components/layout';
 
+import { Cat21FormField } from '../cat21-shared/cat21-form-field';
 import {
   type Cat21CreateOfferFormValues,
   DEFAULT_CREATE_OFFER_FORM_VALUES,
@@ -49,15 +50,13 @@ export function Cat21CreateOfferPage() {
   return (
     <Formik
       initialValues={initialValues}
-      onSubmit={(values, { setSubmitting }) => {
+      onSubmit={values => {
         const result = validateAndCoerceCreateOfferForm(values);
         if (!result.ok) {
           setGlobalError('Please fix the highlighted fields.');
-          setSubmitting(false);
           return;
         }
         setGlobalError(null);
-        setSubmitting(false);
         void navigate(RouteUrls.Cat21CreateOfferConfirm, { state: { intent: result.intent } });
       }}
     >
@@ -75,14 +74,14 @@ export function Cat21CreateOfferPage() {
               </styled.p>
               <Form data-testid="cat21-create-offer-form">
                 <Flex direction="column" gap="space.04">
-                  <FormField
+                  <Cat21FormField
                     label="Cat ID (inscription id)"
                     name="catId"
                     value={values.catId}
                     onChange={handleChange}
                     error={fieldErrors?.catId}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Asking price (sats)"
                     name="priceSats"
                     type="number"
@@ -90,7 +89,7 @@ export function Cat21CreateOfferPage() {
                     onChange={handleChange}
                     error={fieldErrors?.priceSats}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Payment address (where the BTC lands)"
                     name="paymentAddress"
                     value={values.paymentAddress}
@@ -130,34 +129,3 @@ export function Cat21CreateOfferPage() {
   );
 }
 
-interface FormFieldProps {
-  label: string;
-  name: keyof Cat21CreateOfferFormValues;
-  type?: 'text' | 'number';
-  value: string;
-  onChange(e: React.ChangeEvent<HTMLInputElement>): void;
-  error?: string;
-}
-
-function FormField(props: FormFieldProps) {
-  const { label, name, type, value, onChange, error } = props;
-  return (
-    <Flex direction="column" gap="space.01">
-      <styled.label htmlFor={name} textStyle="label.02">
-        {label}
-      </styled.label>
-      <styled.input
-        id={name}
-        name={name}
-        type={type ?? 'text'}
-        value={value}
-        onChange={onChange}
-        padding="space.02"
-        borderColor="ink.border-default"
-        borderWidth="1px"
-        borderRadius="xs"
-      />
-      {error ? <ErrorLabel>{error}</ErrorLabel> : null}
-    </Flex>
-  );
-}

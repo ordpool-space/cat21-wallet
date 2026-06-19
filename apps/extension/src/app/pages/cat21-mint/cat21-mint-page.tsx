@@ -11,8 +11,8 @@ import { RouteUrls } from '@shared/route-urls';
 import { ErrorLabel } from '@app/components/error-label';
 import { Content } from '@app/components/layout';
 
+import { Cat21FormField } from '../cat21-shared/cat21-form-field';
 import {
-  type Cat21MintFormValues,
   DEFAULT_MINT_FORM_VALUES,
   validateAndCoerceMintForm,
 } from './cat21-mint-form.helper';
@@ -36,15 +36,13 @@ export function Cat21MintPage() {
   return (
     <Formik
       initialValues={DEFAULT_MINT_FORM_VALUES}
-      onSubmit={(values, { setSubmitting }) => {
+      onSubmit={values => {
         const result = validateAndCoerceMintForm(values);
         if (!result.ok) {
           setGlobalError('Please fix the highlighted fields.');
-          setSubmitting(false);
           return;
         }
         setGlobalError(null);
-        setSubmitting(false);
         void navigate(RouteUrls.Cat21MintConfirm, { state: { intent: result.intent } });
       }}
     >
@@ -62,14 +60,14 @@ export function Cat21MintPage() {
               </styled.p>
               <Form data-testid="cat21-mint-form">
                 <Flex direction="column" gap="space.04">
-                  <FormField
+                  <Cat21FormField
                     label="Recipient address"
                     name="recipient"
                     value={values.recipient}
                     onChange={handleChange}
                     error={fieldErrors?.recipient}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Fee rate (sat/vB)"
                     name="feeRate"
                     type="number"
@@ -77,14 +75,14 @@ export function Cat21MintPage() {
                     onChange={handleChange}
                     error={fieldErrors?.feeRate}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Tip address (optional)"
                     name="tipAddress"
                     value={values.tipAddress}
                     onChange={handleChange}
                     error={fieldErrors?.tipAddress}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Tip value in sats (optional)"
                     name="tipValueSats"
                     type="number"
@@ -125,34 +123,3 @@ export function Cat21MintPage() {
   );
 }
 
-interface FormFieldProps {
-  label: string;
-  name: keyof Cat21MintFormValues;
-  type?: 'text' | 'number';
-  value: string;
-  onChange(e: React.ChangeEvent<HTMLInputElement>): void;
-  error?: string;
-}
-
-function FormField(props: FormFieldProps) {
-  const { label, name, type, value, onChange, error } = props;
-  return (
-    <Flex direction="column" gap="space.01">
-      <styled.label htmlFor={name} textStyle="label.02">
-        {label}
-      </styled.label>
-      <styled.input
-        id={name}
-        name={name}
-        type={type ?? 'text'}
-        value={value}
-        onChange={onChange}
-        padding="space.02"
-        borderColor="ink.border-default"
-        borderWidth="1px"
-        borderRadius="xs"
-      />
-      {error ? <ErrorLabel>{error}</ErrorLabel> : null}
-    </Flex>
-  );
-}

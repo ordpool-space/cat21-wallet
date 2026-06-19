@@ -70,26 +70,71 @@ describe('decodeWalletProbeState network normalisation', () => {
   });
 });
 
-describe('decodeWalletProbeState fail-closed contract for accountId + agentMode', () => {
-  it("returns accountId '' + agentModeEnabled false when no agentPolicy slice exists", () => {
+describe('decodeWalletProbeState accountId + agentMode wire', () => {
+  it("returns accountId '' + agentModeEnabled false when neither active nor agentPolicy slices exist", () => {
     const root = persistedRoot({ networks: { currentNetworkId: 'mainnet' } });
     const state = decodeWalletProbeState(root);
     expect(state.accountId).toBe('');
     expect(state.agentModeEnabled).toBe(false);
   });
 
-  it("returns accountId '' + agentModeEnabled false even when agentPolicy slice has policies (active-account lookup is iter-12g maintainer-decision wire-up)", () => {
+  it('reads the active account id from the active slice (fingerprint:accountIndex)', () => {
     const root = persistedRoot({
       networks: { currentNetworkId: 'mainnet' },
+      active: { account: { fingerprint: 'fp', accountIndex: 0 } },
+    });
+    expect(decodeWalletProbeState(root).accountId).toBe('fp:0');
+  });
+
+  it('returns agentModeEnabled true when the active account has an enabled policy', () => {
+    const root = persistedRoot({
+      networks: { currentNetworkId: 'mainnet' },
+      active: { account: { fingerprint: 'fp', accountIndex: 0 } },
       agentPolicy: { policies: { 'fp:0': { enabled: true } }, spentToday: {} },
     });
-    const state = decodeWalletProbeState(root);
-    // Until iter 12g resolves the active-account slice path, the
-    // decoder fails closed: the agent learns nothing about which
-    // policy applies, so agentModeEnabled stays false even though
-    // a policy exists for fp:0.
-    expect(state.accountId).toBe('');
-    expect(state.agentModeEnabled).toBe(false);
+    expect(decodeWalletProbeState(root).agentModeEnabled).toBe(true);
+  });
+
+  it('returns agentModeEnabled false when the active account has a disabled policy', () => {
+    const root = persistedRoot({
+      networks: { currentNetworkId: 'mainnet' },
+      active: { account: { fingerprint: 'fp', accountIndex: 0 } },
+      agentPolicy: { policies: { 'fp:0': { enabled: false } }, spentToday: {} },
+    });
+    expect(decodeWalletProbeState(root).agentModeEnabled).toBe(false);
+  });
+
+  it('returns agentModeEnabled false when there is no policy for the active account', () => {
+    const root = persistedRoot({
+      networks: { currentNetworkId: 'mainnet' },
+      active: { account: { fingerprint: 'fp', accountIndex: 0 } },
+      agentPolicy: { policies: { 'other-fp:1': { enabled: true } }, spentToday: {} },
+    });
+    expect(decodeWalletProbeState(root).agentModeEnabled).toBe(false);
+  });
+
+  it("returns accountId '' for a malformed active slice (null account)", () => {
+    const root = persistedRoot({
+      networks: { currentNetworkId: 'mainnet' },
+      active: { account: null },
+    });
+    expect(decodeWalletProbeState(root).accountId).toBe('');
+  });
+
+  it("returns accountId '' when fingerprint is empty", () => {
+    const root = persistedRoot({
+      networks: { currentNetworkId: 'mainnet' },
+      active: { account: { fingerprint: '', accountIndex: 0 } },
+    });
+    expect(decodeWalletProbeState(root).accountId).toBe('');
+  });
+
+  it("returns accountId '' when accountIndex is non-integer", () => {
+    const root = persistedRoot({
+      networks: { currentNetworkId: 'mainnet' },
+      active: { account: { fingerprint: 'fp', accountIndex: 0.5 } },
+    });
+    expect(decodeWalletProbeState(root).accountId).toBe('');
   });
 });
 

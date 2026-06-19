@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 
 import { Form, Formik } from 'formik';
@@ -8,6 +8,8 @@ import { Button } from '@leather.io/ui';
 
 import { ErrorLabel } from '@app/components/error-label';
 import { Content } from '@app/components/layout';
+
+import { Cat21FormField } from '../cat21-shared/cat21-form-field';
 import {
   useAgentPolicyForCurrentAccount,
   useSetAgentPolicyForCurrentAccount,
@@ -62,40 +64,47 @@ export function Cat21AgentPolicyWizard() {
   const setPolicy = useSetAgentPolicyForCurrentAccount();
   const [globalError, setGlobalError] = useState<string | null>(null);
 
-  const initialValues: AgentPolicyWizardValues = existingPolicy
-    ? {
-        enabled: existingPolicy.enabled,
-        maxSpendPerActionSats: String(existingPolicy.maxSpendPerActionSats),
-        dailyCapSats: String(existingPolicy.dailyCapSats),
-        maxFeeRateSatPerVbyte: String(existingPolicy.maxFeeRateSatPerVbyte),
-        floorPriceSatsPerCat: String(existingPolicy.floorPriceSatsPerCat),
-        allowedCounterpartiesRaw: existingPolicy.allowedCounterparties.join('\n'),
-        // An existing policy without `allowedOperations` (or with the
-        // field omitted) means "no restriction"; render every kind
-        // checked. An explicit non-empty list checks only the listed
-        // kinds. The coerce step on save collapses all-checked back to
-        // the omitted shape.
-        allowedOperations: existingPolicy.allowedOperations
-          ? Object.fromEntries(
-              AGENT_OPERATION_KINDS.map(k => [k, existingPolicy.allowedOperations!.includes(k)]),
-            ) as Record<AgentActionKind, boolean>
-          : DEFAULT_WIZARD_VALUES.allowedOperations,
-      }
-    : DEFAULT_WIZARD_VALUES;
+  // Formik treats `initialValues` as stable: a fresh object reference
+  // on every render makes it think the user-entered values should be
+  // reset. Memoize against the upstream policy so editing a field
+  // doesn't blow the form away.
+  const initialValues = useMemo<AgentPolicyWizardValues>(
+    () =>
+      existingPolicy
+        ? {
+            enabled: existingPolicy.enabled,
+            maxSpendPerActionSats: String(existingPolicy.maxSpendPerActionSats),
+            dailyCapSats: String(existingPolicy.dailyCapSats),
+            maxFeeRateSatPerVbyte: String(existingPolicy.maxFeeRateSatPerVbyte),
+            floorPriceSatsPerCat: String(existingPolicy.floorPriceSatsPerCat),
+            allowedCounterpartiesRaw: existingPolicy.allowedCounterparties.join('\n'),
+            // An existing policy without `allowedOperations` means "no
+            // restriction"; render every kind checked. An explicit
+            // non-empty list checks only the listed kinds. The coerce
+            // step on save collapses all-checked back to omitted.
+            allowedOperations: AGENT_OPERATION_KINDS.reduce(
+              (acc, k) => {
+                acc[k] = existingPolicy.allowedOperations?.includes(k) ?? true;
+                return acc;
+              },
+              {} as Record<AgentActionKind, boolean>,
+            ),
+          }
+        : DEFAULT_WIZARD_VALUES,
+    [existingPolicy],
+  );
 
   return (
     <Formik
       initialValues={initialValues}
-      onSubmit={(values, { setSubmitting }) => {
+      onSubmit={values => {
         const result = validateAndCoerceWizardValues(values);
         if (!result.ok) {
           setGlobalError('Please fix the highlighted fields.');
-          setSubmitting(false);
           return;
         }
         setPolicy(result.policy);
         setGlobalError(null);
-        setSubmitting(false);
         void navigate(-1);
       }}
     >
@@ -115,14 +124,14 @@ export function Cat21AgentPolicyWizard() {
               </styled.p>
               <Form data-testid="cat21-agent-policy-form">
                 <Flex direction="column" gap="space.04">
-                  <FormField
+                  <Cat21FormField
                     label="Agent mode enabled"
                     name="enabled"
                     type="checkbox"
                     checked={values.enabled}
                     onChange={handleChange}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Per-action cap (sats)"
                     name="maxSpendPerActionSats"
                     type="number"
@@ -130,7 +139,7 @@ export function Cat21AgentPolicyWizard() {
                     onChange={handleChange}
                     error={fieldErrors?.maxSpendPerActionSats}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Daily cap (sats)"
                     name="dailyCapSats"
                     type="number"
@@ -138,7 +147,7 @@ export function Cat21AgentPolicyWizard() {
                     onChange={handleChange}
                     error={fieldErrors?.dailyCapSats}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Max fee-rate (sat/vB)"
                     name="maxFeeRateSatPerVbyte"
                     type="number"
@@ -146,7 +155,7 @@ export function Cat21AgentPolicyWizard() {
                     onChange={handleChange}
                     error={fieldErrors?.maxFeeRateSatPerVbyte}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Floor price per cat (sats)"
                     name="floorPriceSatsPerCat"
                     type="number"
@@ -154,7 +163,7 @@ export function Cat21AgentPolicyWizard() {
                     onChange={handleChange}
                     error={fieldErrors?.floorPriceSatsPerCat}
                   />
-                  <FormField
+                  <Cat21FormField
                     label="Allowed counterparties (one address per line, leave blank to allow any)"
                     name="allowedCounterpartiesRaw"
                     as="textarea"
@@ -223,52 +232,3 @@ export function Cat21AgentPolicyWizard() {
   );
 }
 
-interface FormFieldProps {
-  label: string;
-  name: string;
-  type?: 'text' | 'number' | 'checkbox';
-  as?: 'textarea';
-  value?: string;
-  checked?: boolean;
-  onChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>): void;
-  error?: string;
-}
-
-function FormField(props: FormFieldProps) {
-  const { label, name, type, as, value, checked, onChange, error } = props;
-  return (
-    <Flex direction="column" gap="space.01">
-      <styled.label htmlFor={name} textStyle="label.02">
-        {label}
-      </styled.label>
-      {as === 'textarea' ? (
-        <styled.textarea
-          id={name}
-          name={name}
-          value={value}
-          onChange={onChange}
-          rows={3}
-          width="100%"
-          padding="space.02"
-          borderColor="ink.border-default"
-          borderWidth="1px"
-          borderRadius="xs"
-        />
-      ) : (
-        <styled.input
-          id={name}
-          name={name}
-          type={type ?? 'text'}
-          value={type === 'checkbox' ? undefined : value}
-          checked={type === 'checkbox' ? checked : undefined}
-          onChange={onChange}
-          padding="space.02"
-          borderColor="ink.border-default"
-          borderWidth="1px"
-          borderRadius="xs"
-        />
-      )}
-      {error ? <ErrorLabel>{error}</ErrorLabel> : null}
-    </Flex>
-  );
-}
