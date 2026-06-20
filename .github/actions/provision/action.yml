@@ -22,25 +22,12 @@ runs:
         registry-url: 'https://registry.npmjs.org/'
         cache: 'pnpm'
 
-    # ordpool-sdk is consumed via `link:../../../ordpool-sdk` from
-    # apps/extension/package.json. pnpm resolves that link during
-    # install, so the SDK MUST exist at that sibling path BEFORE
-    # `pnpm install`. actions/checkout refuses to write outside
-    # $GITHUB_WORKSPACE, so we do a plain `git clone` into the
-    # parent dir. The wallet's pre-hook check-sdk-fresh.cjs verifies
-    # dist-core/ exists at runtime.
-    - name: clone-and-build-ordpool-sdk
-      shell: bash
-      run: |
-        set -euo pipefail
-        cd ..
-        if [ ! -d ordpool-sdk ]; then
-          git clone --depth=1 --branch=main \
-            https://github.com/ordpool-space/ordpool-sdk.git ordpool-sdk
-        fi
-        cd ordpool-sdk
-        npm ci --ignore-scripts
-        npm run build:core
+    # ordpool-sdk is consumed via a SHA-pinned github tarball
+    # (apps/extension/package.json → "ordpool-sdk":
+    # "github:ordpool-space/ordpool-sdk#<sha>"). The SDK ships
+    # pre-built dist-core/ in git, so `pnpm install` fetches the
+    # tarball with working bytes already inside. No clone, no
+    # build, no staleness guard. Reproducible per-commit.
 
     - env:
         PROVISION_MOBILE: ${{ inputs.PROVISION_MOBILE }}

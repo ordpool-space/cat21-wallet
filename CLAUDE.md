@@ -348,14 +348,22 @@ from 'ordpool-sdk'`. CI is red the moment one slips in.
 
 ### How the wallet consumes the SDK
 
-`apps/extension/package.json`:
+`apps/extension/package.json` pins a SDK git SHA, same as every
+other ordpool consumer (`ordpool/frontend`,
+`cat21-indexer/frontend`):
 
 ```json
-"ordpool-sdk": "link:../../../ordpool-sdk"
+"ordpool-sdk": "github:ordpool-space/ordpool-sdk#<sha>"
 ```
 
-The link points at the SDK repo root; resolution lands on the
-`exports` map in `ordpool-sdk/package.json`:
+pnpm fetches the github tarball at that SHA. The tarball ships
+pre-built `dist-core/` (Angular-free CommonJS), so installation
+needs no postinstall build step — `ignore-scripts=true` doesn't
+break us, and the prepare-hook-in-node_modules ng-packagr failure
+mode doesn't apply.
+
+Resolution lands on the `exports` map in
+`ordpool-sdk/package.json`:
 
 ```json
 "./core": {
@@ -364,36 +372,55 @@ The link points at the SDK repo root; resolution lands on the
 }
 ```
 
-So the wallet imports **compiled CommonJS bytes** from
-`ordpool-sdk/dist-core/`, NOT the TypeScript source. Editing SDK
-source without rebuilding leaves the wallet running against stale
-bytes — the silent failure mode.
+The wallet imports **compiled CommonJS bytes** from
+`ordpool-sdk/dist-core/`. The SDK's tsconfig.core.json emits CJS
+specifically so Node-direct consumers (vitest) accept directory
+imports; bundler consumers (webpack/vite) handle either shape.
 
-### Staleness guard (mandatory)
+### Old `link:` pattern is RETIRED (2026-06-20)
 
-The wallet's pre-hooks (`pretest:unit`, `prebuild`, `pretypecheck`)
-run `node scripts/check-sdk-fresh.cjs` before vitest / webpack /
-tsc. The guard:
+Before commits `603ab78`+`f0a08bd` on the SDK, the wallet used
+`"ordpool-sdk": "link:../../../ordpool-sdk"`. That pattern had two
+problems the user surfaced:
 
-- Walks `ordpool-sdk/src/` (excluding `*.spec.ts`) and
-  `ordpool-sdk/dist-core/`, compares newest mtime of each.
-- If `src/` is newer, exits 1 with a coloured "STALE" message
-  listing both timestamps and the rebuild command.
-- If `dist-core/` doesn't exist, exits 1 with the build command.
-- Runs in ~10ms; silent when fresh.
+1. **No reproducibility.** The wallet linked "whatever's on the
+   maintainer's disk", not a specific commit. CI cloned SDK `main`
+   into a sibling dir, so the SDK version was whatever main HEAD
+   happened to be at install time. Different CI runs of the same
+   wallet commit could consume different SDK code.
+2. **Mismatch with other consumers.** `ordpool/frontend` and
+   `cat21-indexer/frontend` pin SHAs; cat21-wallet didn't.
+
+The fix: the SDK now ships pre-built `dist/` + `dist-core/` in
+git, so the wallet can adopt the same SHA-pin pattern as everyone
+else. No more `link:`. No more staleness guards. CI deterministic.
 
 ### Dev workflow
 
 ```bash
-# heavy SDK editing: keep this running in a side terminal
-pnpm sdk:watch        # tsc -p tsconfig.core.json --watch
-
-# one-button rebuild (when the guard fires)
-pnpm sdk:build        # cd …/ordpool-sdk && npm run build:core
-
-# manual check (rarely needed; the pre-hooks do it for you)
-pnpm check:sdk-fresh
+# Update the wallet to a new SDK SHA:
+# 1. Edit apps/extension/package.json: bump the SHA.
+# 2. Reinstall.
+pnpm install
+# 3. Verify.
+pnpm --filter @leather.io/extension typecheck
+pnpm --filter @leather.io/extension test:unit
+# 4. Commit BOTH package.json AND pnpm-lock.yaml.
 ```
+
+For live local SDK iteration without bumping SHAs, fall back to
+`npm link`:
+
+```bash
+# In ordpool-sdk/
+npm run build && cd dist-core && npm link
+
+# In cat21-wallet/apps/extension/
+npm link ordpool-sdk
+```
+
+Remember to `pnpm install` again when you want to revert to the
+SHA-pinned production install.
 
 ### When you add a new pure helper to the SDK
 
@@ -403,8 +430,10 @@ pnpm check:sdk-fresh
    `/core` subpath.
 4. Add the source file to the `include` list in
    `ordpool-sdk/tsconfig.core.json`.
-5. `npm run build:core` (or `pnpm sdk:build` from the wallet) to
-   regenerate `dist-core/`.
+5. `npm run build` in the SDK (`build:angular && build:core`).
+6. `git add src/ dist/ dist-core/` + commit + push to SDK `main`.
+7. In the wallet: bump `apps/extension/package.json` to the new
+   SHA, `pnpm install`, commit both package.json + pnpm-lock.yaml.
 
 If the new helper drags Angular (uses `@Injectable`, `InjectionToken`,
 `HttpClient`, etc.), it CANNOT live in `core.ts` — it stays in
