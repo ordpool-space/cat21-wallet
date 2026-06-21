@@ -32,7 +32,7 @@ type Cat21CreateOfferFormResult =
 const CAT_ID_RE = /^[0-9a-f]{64}i\d+$/u;
 
 export function validateAndCoerceCreateOfferForm(
-  values: Cat21CreateOfferFormValues,
+  values: Cat21CreateOfferFormValues
 ): Cat21CreateOfferFormResult {
   const errors: Cat21CreateOfferFormResult & { ok: false } = {
     ok: false,

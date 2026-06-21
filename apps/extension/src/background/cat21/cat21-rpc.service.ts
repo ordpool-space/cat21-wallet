@@ -569,9 +569,7 @@ type Cat21GateResourcesOfKind<K extends Cat21OperationKind> = Extract<
 function runGate<K extends Cat21OperationKind>(
   operation: Cat21OperationOfKind<K>,
   config: Cat21OperationGateConfig
-):
-  | { ok: true; resources: Cat21GateResourcesOfKind<K> }
-  | { result: Cat21RpcResult } {
+): { ok: true; resources: Cat21GateResourcesOfKind<K> } | { result: Cat21RpcResult } {
   const gate = validateCat21Operation({ config, operation });
   if (!gate.ok) {
     const detail = gate.detail ? `${gate.reason}: ${gate.detail}` : gate.reason;

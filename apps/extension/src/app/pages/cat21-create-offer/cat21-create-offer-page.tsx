@@ -34,10 +34,11 @@ import {
 export function Cat21CreateOfferPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const state = (location.state as {
-    prefilledCatId?: string;
-    prefilledPaymentAddress?: string;
-  } | null) ?? {};
+  const state =
+    (location.state as {
+      prefilledCatId?: string;
+      prefilledPaymentAddress?: string;
+    } | null) ?? {};
   const [globalError, setGlobalError] = useState<string | null>(null);
 
   const initialValues: Cat21CreateOfferFormValues = {
@@ -128,4 +129,3 @@ export function Cat21CreateOfferPage() {
     </Formik>
   );
 }
-

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-
 /**
  * Integration spec for `useCat21RequestFromUrl` (iter 15). Pins the
  * popup-side state machine that bridges Path 3's URL stash to the
@@ -20,7 +19,6 @@
  * `nmh-popup-relay.spec.ts` (5 specs). This spec pins the React-side
  * wiring those background-side specs can't reach.
  */
-
 import { type ReactNode } from 'react';
 import { MemoryRouter } from 'react-router';
 

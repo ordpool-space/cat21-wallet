@@ -60,8 +60,8 @@ export function Cat21TransferPage() {
             <Flex direction="column" gap="space.05" px="space.05">
               <styled.h1 textStyle="heading.03">Transfer a CAT-21</styled.h1>
               <styled.p textStyle="body.02">
-                Send the cat at the given inscription id to a new owner. The next screen shows
-                the full cost (postage + fee) before you sign.
+                Send the cat at the given inscription id to a new owner. The next screen shows the
+                full cost (postage + fee) before you sign.
               </styled.p>
               <Form data-testid="cat21-transfer-form">
                 <Flex direction="column" gap="space.04">
@@ -119,4 +119,3 @@ export function Cat21TransferPage() {
     </Formik>
   );
 }
-

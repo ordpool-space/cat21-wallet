@@ -441,12 +441,21 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
   );
 
   it('AgentActionKind on the SDK side uses the literal four wallet RPC names', () => {
-    // This is the second half of Round-2 audit Finding 6: the SDK's
-    // policy gate `kind` union must be the identity-function of the
-    // wallet's RPC method names. Round-1 closed this; the assertion
-    // here pins it so a future SDK rename (e.g. back to 'mint' / 'buy'
-    // / 'sell-accept') goes red on the wallet side.
-    const src = read(join(REPO_ROOT, '../ordpool-sdk/src/agent-mode/agent-policy.types.ts'));
+    // Pins that the SDK's policy gate `kind` union is the identity
+    // function of the wallet's RPC method names. A future SDK rename
+    // (e.g. back to 'mint' / 'sell-accept') turns this red.
+    //
+    // Reads the SHA-pinned SDK from `node_modules/ordpool-sdk/dist-core/`
+    // (.d.ts is shipped in the tarball; safe to read at test time).
+    // The pre-SHA-pin path `../ordpool-sdk/src/agent-mode/agent-policy.types.ts`
+    // would only work on a maintainer's disk; CI doesn't have the
+    // sibling-repo clone.
+    const src = read(
+      join(
+        EXTENSION_ROOT,
+        'node_modules/ordpool-sdk/dist-core/agent-mode/agent-policy.types.d.ts',
+      ),
+    );
     expect(src).toMatch(/'cat21_mint'/);
     expect(src).toMatch(/'cat21_transfer'/);
     expect(src).toMatch(/'cat21_create_offer'/);
@@ -884,18 +893,19 @@ describe('iter 13c — Mint page + home action wire', () => {
 
   it('account-actions surfaces the Mint cat button (Path 2 entry)', () => {
     const src = read(
-      join(EXTENSION_ROOT, 'src/app/pages/home/components/account-actions-current/account-actions.tsx'),
+      join(
+        EXTENSION_ROOT,
+        'src/app/pages/home/components/account-actions-current/account-actions.tsx'
+      )
     );
     expect(src).toMatch(/data-testid="cat21-mint-home-button"/);
     expect(src).toMatch(/navigate\(RouteUrls\.Cat21Mint\)/);
   });
 
   it('mint page submit navigates to Cat21MintConfirm with intent in location.state', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/app/pages/cat21-mint/cat21-mint-page.tsx'),
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/app/pages/cat21-mint/cat21-mint-page.tsx'));
     expect(src).toMatch(
-      /navigate\(RouteUrls\.Cat21MintConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/,
+      /navigate\(RouteUrls\.Cat21MintConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/
     );
   });
 });
@@ -916,29 +926,27 @@ describe('iter 13de — Transfer + Create-Offer form pages', () => {
   });
 
   it('Transfer page submit navigates to Cat21TransferConfirm with intent in location.state', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/app/pages/cat21-transfer/cat21-transfer-page.tsx'),
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/app/pages/cat21-transfer/cat21-transfer-page.tsx'));
     expect(src).toMatch(
-      /navigate\(RouteUrls\.Cat21TransferConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/,
+      /navigate\(RouteUrls\.Cat21TransferConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/
     );
   });
 
   it('Create-Offer page submit navigates to Cat21CreateOfferConfirm with intent in location.state', () => {
     const src = read(
-      join(EXTENSION_ROOT, 'src/app/pages/cat21-create-offer/cat21-create-offer-page.tsx'),
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-create-offer/cat21-create-offer-page.tsx')
     );
     expect(src).toMatch(
-      /navigate\(RouteUrls\.Cat21CreateOfferConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/,
+      /navigate\(RouteUrls\.Cat21CreateOfferConfirm,\s*\{\s*state:\s*\{\s*intent:\s*result\.intent\s*\}\s*\}\)/
     );
   });
 
   it('Both pages read prefilledCatId from location.state for iter-13f deep-linking', () => {
     const transferSrc = read(
-      join(EXTENSION_ROOT, 'src/app/pages/cat21-transfer/cat21-transfer-page.tsx'),
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-transfer/cat21-transfer-page.tsx')
     );
     const offerSrc = read(
-      join(EXTENSION_ROOT, 'src/app/pages/cat21-create-offer/cat21-create-offer-page.tsx'),
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-create-offer/cat21-create-offer-page.tsx')
     );
     expect(transferSrc).toMatch(/prefilledCatId\??/);
     expect(offerSrc).toMatch(/prefilledCatId\??/);
@@ -964,7 +972,10 @@ describe('iter 13f — My cats list page + per-cat action wire', () => {
 
   it('account-actions surfaces the My cats button', () => {
     const src = read(
-      join(EXTENSION_ROOT, 'src/app/pages/home/components/account-actions-current/account-actions.tsx'),
+      join(
+        EXTENSION_ROOT,
+        'src/app/pages/home/components/account-actions-current/account-actions.tsx'
+      )
     );
     expect(src).toMatch(/data-testid="cat21-list-home-button"/);
     expect(src).toMatch(/navigate\(RouteUrls\.Cat21List\)/);
@@ -977,7 +988,9 @@ describe('iter 13f — My cats list page + per-cat action wire', () => {
 
   it('list page deep-links Create-Offer with prefilledCatId + prefilledPaymentAddress', () => {
     const src = read(join(REPO_ROOT, LIST));
-    expect(src).toMatch(/navigate\(RouteUrls\.Cat21CreateOffer,[\s\S]{0,400}prefilledCatId:\s*catId/);
+    expect(src).toMatch(
+      /navigate\(RouteUrls\.Cat21CreateOffer,[\s\S]{0,400}prefilledCatId:\s*catId/
+    );
     expect(src).toMatch(/prefilledPaymentAddress:\s*paymentAddress/);
   });
 
@@ -994,8 +1007,10 @@ describe('iter 13b — wizard form surfaces allowedOperations', () => {
   // via direct Redux mutation — the iter-16b end-to-end wire becomes
   // unreachable for non-engineer users.
 
-  const WIZARD = 'apps/extension/src/app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard.tsx';
-  const HELPER = 'apps/extension/src/app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard.helper.ts';
+  const WIZARD =
+    'apps/extension/src/app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard.tsx';
+  const HELPER =
+    'apps/extension/src/app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard.helper.ts';
 
   it('wizard renders a checkbox per AGENT_OPERATION_KINDS entry', () => {
     const src = read(join(REPO_ROOT, WIZARD));
@@ -1135,7 +1150,7 @@ describe('iter 16 — SDK validateCat21Operation is the single gate (no consumer
     expect(src).toMatch(/maxPriceSats:\s*21_000_000_000/);
   });
 
-  it("gateConfig forwards accountCtx.allowedOperations to the SDK gate when set", () => {
+  it('gateConfig forwards accountCtx.allowedOperations to the SDK gate when set', () => {
     // Pin the iter-16b wire: the per-account agent-policy's
     // operation-kind allowlist must reach the SDK structural gate.
     // Without this, a "mint only" agent policy would be silently
@@ -1147,9 +1162,7 @@ describe('iter 16 — SDK validateCat21Operation is the single gate (no consumer
   });
 
   it('use-cat21-rpc-deps reads allowedOperations from selectAgentPolicyForAccount and strips the cat21_ prefix', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/app/pages/cat21-confirm/use-cat21-rpc-deps.ts'),
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/app/pages/cat21-confirm/use-cat21-rpc-deps.ts'));
     expect(src).toMatch(/selectAgentPolicyForAccount/);
     expect(src).toMatch(/stripCat21Prefix\(/);
     expect(src).toMatch(/'cat21_'\.length/);

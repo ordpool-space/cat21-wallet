@@ -24,10 +24,7 @@ import { selectAgentPolicyForAccount } from '@app/store/agent-policy/agent-polic
 import { incrementSpentToday } from '@app/store/agent-policy/agent-policy.slice';
 import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 import { makeAgentPolicyDeps } from '@background/cat21/agent-policy-deps';
-import {
-  type Cat21RpcDeps,
-  walletNetworkToSdkNetwork,
-} from '@background/cat21/cat21-rpc.service';
+import { type Cat21RpcDeps, walletNetworkToSdkNetwork } from '@background/cat21/cat21-rpc.service';
 
 /**
  * Build the popup-side `Cat21RpcDeps` for `Cat21RpcService`. Every
@@ -313,7 +310,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
 type SdkGateOperationKind = 'mint' | 'transfer' | 'create_offer' | 'accept_offer';
 
 function stripCat21Prefix(
-  source: ReadonlyArray<AgentActionKind> | undefined,
+  source: ReadonlyArray<AgentActionKind> | undefined
 ): ReadonlyArray<SdkGateOperationKind> | undefined {
   if (!source || source.length === 0) return undefined;
   return source.map(k => k.slice('cat21_'.length) as SdkGateOperationKind);

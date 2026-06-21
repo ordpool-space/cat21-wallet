@@ -8,7 +8,7 @@ import type { Cat21MintIntent } from '@background/cat21/types';
  * `tipValueSats` means "no tip output" (consistent with how the SDK
  * mint builder skips output 1 when tip value is 0).
  */
-export interface Cat21MintFormValues {
+interface Cat21MintFormValues {
   recipient: string;
   feeRate: string;
   tipAddress: string;

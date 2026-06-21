@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  coerceAllowedOperations,
   DEFAULT_WIZARD_VALUES,
+  coerceAllowedOperations,
   validateAndCoerceWizardValues,
 } from './cat21-agent-policy-wizard.helper';
 
@@ -163,7 +163,7 @@ describe('coerceAllowedOperations', () => {
         cat21_transfer: true,
         cat21_create_offer: true,
         cat21_accept_offer: true,
-      }),
+      })
     ).toBeUndefined();
   });
 
@@ -174,7 +174,7 @@ describe('coerceAllowedOperations', () => {
         cat21_transfer: false,
         cat21_create_offer: false,
         cat21_accept_offer: false,
-      }),
+      })
     ).toBeUndefined();
   });
 
@@ -185,7 +185,7 @@ describe('coerceAllowedOperations', () => {
         cat21_transfer: false,
         cat21_create_offer: false,
         cat21_accept_offer: false,
-      }),
+      })
     ).toEqual(['cat21_mint']);
   });
 
@@ -196,7 +196,7 @@ describe('coerceAllowedOperations', () => {
         cat21_mint: true,
         cat21_create_offer: false,
         cat21_transfer: true,
-      }),
+      })
     ).toEqual(['cat21_mint', 'cat21_transfer', 'cat21_accept_offer']);
   });
 });

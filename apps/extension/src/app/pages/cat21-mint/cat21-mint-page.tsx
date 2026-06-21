@@ -12,10 +12,7 @@ import { ErrorLabel } from '@app/components/error-label';
 import { Content } from '@app/components/layout';
 
 import { Cat21FormField } from '../cat21-shared/cat21-form-field';
-import {
-  DEFAULT_MINT_FORM_VALUES,
-  validateAndCoerceMintForm,
-} from './cat21-mint-form.helper';
+import { DEFAULT_MINT_FORM_VALUES, validateAndCoerceMintForm } from './cat21-mint-form.helper';
 
 /**
  * Manual Mint form (iter 13c). Lets a wallet user start a CAT-21
@@ -55,8 +52,8 @@ export function Cat21MintPage() {
             <Flex direction="column" gap="space.05" px="space.05">
               <styled.h1 textStyle="heading.03">Mint a CAT-21</styled.h1>
               <styled.p textStyle="body.02">
-                Set the recipient address and your fee-rate budget. The next screen shows the
-                full cost (postage + fee + optional tip) before you sign.
+                Set the recipient address and your fee-rate budget. The next screen shows the full
+                cost (postage + fee + optional tip) before you sign.
               </styled.p>
               <Form data-testid="cat21-mint-form">
                 <Flex direction="column" gap="space.04">
@@ -122,4 +119,3 @@ export function Cat21MintPage() {
     </Formik>
   );
 }
-

@@ -84,7 +84,7 @@ type AgentPolicyValidationResult =
  * produces a real allowlist.
  */
 export function coerceAllowedOperations(
-  selection: Record<AgentActionKind, boolean>,
+  selection: Record<AgentActionKind, boolean>
 ): AgentActionKind[] | undefined {
   const picked = AGENT_OPERATION_KINDS.filter(k => selection[k]);
   if (picked.length === 0 || picked.length === AGENT_OPERATION_KINDS.length) {

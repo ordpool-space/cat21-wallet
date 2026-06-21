@@ -1,9 +1,8 @@
 //
 // This file is the entrypoint to the extension's background script
 // https://developer.chrome.com/docs/extensions/mv3/architecture-overview/#background_script
-import { getCat21OrdApiClient } from '@leather.io/services';
-
 import type { RpcRequests } from '@leather.io/rpc';
+import { getCat21OrdApiClient } from '@leather.io/services';
 
 import { listenForSessionDurationPort } from '@shared/analytics/session-duration-tracking';
 import { logger } from '@shared/logger';

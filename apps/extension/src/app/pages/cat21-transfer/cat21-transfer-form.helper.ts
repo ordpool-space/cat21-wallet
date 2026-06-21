@@ -34,7 +34,7 @@ const CAT_ID_RE = /^[0-9a-f]{64}i\d+$/u;
  * inscription id is malformed.
  */
 export function validateAndCoerceTransferForm(
-  values: Cat21TransferFormValues,
+  values: Cat21TransferFormValues
 ): Cat21TransferFormResult {
   const errors: Cat21TransferFormResult & { ok: false } = {
     ok: false,

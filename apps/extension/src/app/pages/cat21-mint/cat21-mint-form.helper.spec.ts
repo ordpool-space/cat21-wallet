@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  DEFAULT_MINT_FORM_VALUES,
-  validateAndCoerceMintForm,
-} from './cat21-mint-form.helper';
+import { DEFAULT_MINT_FORM_VALUES, validateAndCoerceMintForm } from './cat21-mint-form.helper';
 
 describe('validateAndCoerceMintForm', () => {
   describe('happy path', () => {

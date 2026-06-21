@@ -3,20 +3,18 @@ import { useNavigate } from 'react-router';
 
 import { Form, Formik } from 'formik';
 import { Flex, styled } from 'leather-styles/jsx';
+import type { AgentActionKind } from 'ordpool-sdk/core';
 
 import { Button } from '@leather.io/ui';
 
 import { ErrorLabel } from '@app/components/error-label';
 import { Content } from '@app/components/layout';
-
-import { Cat21FormField } from '../cat21-shared/cat21-form-field';
 import {
   useAgentPolicyForCurrentAccount,
   useSetAgentPolicyForCurrentAccount,
 } from '@app/store/agent-policy/agent-policy.hooks';
 
-import type { AgentActionKind } from 'ordpool-sdk/core';
-
+import { Cat21FormField } from '../cat21-shared/cat21-form-field';
 import {
   AGENT_OPERATION_KINDS,
   type AgentPolicyWizardValues,
@@ -87,11 +85,11 @@ export function Cat21AgentPolicyWizard() {
                 acc[k] = existingPolicy.allowedOperations?.includes(k) ?? true;
                 return acc;
               },
-              {} as Record<AgentActionKind, boolean>,
+              {} as Record<AgentActionKind, boolean>
             ),
           }
         : DEFAULT_WIZARD_VALUES,
-    [existingPolicy],
+    [existingPolicy]
   );
 
   return (
@@ -172,8 +170,7 @@ export function Cat21AgentPolicyWizard() {
                   />
                   <Flex direction="column" gap="space.01">
                     <styled.label textStyle="label.02">
-                      Allowed operations (check at least one; all-checked = no
-                      restriction)
+                      Allowed operations (check at least one; all-checked = no restriction)
                     </styled.label>
                     {AGENT_OPERATION_KINDS.map(kind => (
                       <Flex
@@ -189,10 +186,7 @@ export function Cat21AgentPolicyWizard() {
                           data-testid={`cat21-agent-policy-op-${kind}`}
                           checked={values.allowedOperations[kind]}
                           onChange={e =>
-                            void setFieldValue(
-                              `allowedOperations.${kind}`,
-                              e.target.checked,
-                            )
+                            void setFieldValue(`allowedOperations.${kind}`, e.target.checked)
                           }
                         />
                         {OPERATION_LABELS[kind]}
@@ -231,4 +225,3 @@ export function Cat21AgentPolicyWizard() {
     </Formik>
   );
 }
-
