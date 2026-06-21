@@ -9,6 +9,8 @@ import type { Cat21Transport } from '@background/cat21/mode-resolver';
 import { clearCat21Request } from '@background/cat21/popup-bridge';
 import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 
+import { useHasActiveInMemoryWalletSecretKey } from '@app/store/in-memory-key/in-memory-key.selectors';
+
 import { extractCatIdHint } from './extract-cat-id-hint';
 import { useCat21RequestFromUrl } from './use-cat21-request-from-url';
 import { useCat21RpcDeps } from './use-cat21-rpc-deps';
@@ -58,6 +60,12 @@ export function Cat21ConfirmRoute() {
 
   const stateIntent = (location.state as { intent?: Cat21Intent } | null)?.intent;
   const urlRequest = useCat21RequestFromUrl();
+  // Audit H1: gate Path 3 autoconfirm on the wallet being unlocked.
+  // Otherwise an AFK user (or a sleeping wallet) sees no popup
+  // interaction but the keychain access can still proceed if it's
+  // ever cached. Hard-fail-closed: if locked, send a typed denial
+  // back to the agent instead of triggering keychain decryption.
+  const isWalletUnlocked = useHasActiveInMemoryWalletSecretKey();
 
   // The popup may be reached two ways: Path 2 (intent on react-router
   // `location.state`) or Path 3 (the background's NMH listener stashed
@@ -141,6 +149,19 @@ export function Cat21ConfirmRoute() {
     if (urlRequest.status !== 'ready') return;
     if (urlRequest.transport !== 'mcp-nmh') return;
     if (autoConfirmedRef.current) return;
+    // Audit H1 — locked-wallet gate. Refuse the autoconfirm before
+    // any service call (and therefore before any keychain access)
+    // when the wallet is locked. Post a typed denial back so the
+    // agent learns explicitly rather than hanging.
+    if (!isWalletUnlocked) {
+      autoConfirmedRef.current = true;
+      const { requestId } = urlRequest;
+      void finalisePath3(requestId, {
+        ok: false,
+        value: { reason: 'agent-disabled', detail: 'wallet-locked' },
+      });
+      return;
+    }
     autoConfirmedRef.current = true;
     confirm(urlRequest.intent);
     // `deps` and `confirm` close over many things that re-render-thrash
@@ -148,7 +169,7 @@ export function Cat21ConfirmRoute() {
     // etc.). The `autoConfirmedRef` guard keeps this at-most-once;
     // intentionally not listing the rest.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlRequest.status]);
+  }, [urlRequest.status, isWalletUnlocked]);
 
   if (urlRequest.status === 'loading') {
     return <div data-testid="cat21-confirm-loading">Loading request…</div>;

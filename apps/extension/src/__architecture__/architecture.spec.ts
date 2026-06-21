@@ -1056,6 +1056,47 @@ describe('iter 13b — wizard form surfaces allowedOperations', () => {
   });
 });
 
+describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () => {
+  // Without this gate, an AFK user (wallet unlocked earlier in
+  // session, then walked away) could be silent-signed by an MCP
+  // agent: the keychain still holds keys in memory, signBitcoinTx
+  // proceeds. The lock guard refuses the autoconfirm before any
+  // service call (and therefore before any keychain access).
+  const ROUTE = 'apps/extension/src/app/pages/cat21-confirm/cat21-confirm-route.tsx';
+
+  it('Cat21ConfirmRoute reads useHasActiveInMemoryWalletSecretKey', () => {
+    const src = read(join(REPO_ROOT, ROUTE));
+    expect(src).toMatch(/useHasActiveInMemoryWalletSecretKey\(\)/);
+  });
+
+  it('autoconfirm useEffect fail-closes with reason agent-disabled detail wallet-locked when locked', () => {
+    const src = read(join(REPO_ROOT, ROUTE));
+    expect(src).toMatch(
+      /if\s*\(!isWalletUnlocked\)\s*\{[\s\S]{0,400}reason:\s*'agent-disabled'[\s\S]{0,100}detail:\s*'wallet-locked'/
+    );
+  });
+});
+
+describe('audit H4 — cat21-ord query cache keys are NOT persisted to disk', () => {
+  // Without this filter the wallet writes a permanent on-disk log of
+  // which BTC addresses the user has viewed and which cats live
+  // there (cache key starts with the address). PRIVACY-POLICY claims
+  // "nothing identifies users by address" — the
+  // shouldDehydrateQuery predicate is where that promise lives.
+  const PERSISTENCE = 'apps/extension/src/app/common/persistence.ts';
+
+  it('persistQueryClient passes dehydrateOptions.shouldDehydrateQuery', () => {
+    const src = read(join(REPO_ROOT, PERSISTENCE));
+    expect(src).toMatch(/dehydrateOptions:\s*\{[\s\S]{0,200}shouldDehydrateQuery:/);
+  });
+
+  it('CAT21_PRIVACY_LEAK_KEY_PREFIXES lists cat21-ord-* (the primary address-shaped key)', () => {
+    const src = read(join(REPO_ROOT, PERSISTENCE));
+    expect(src).toMatch(/CAT21_PRIVACY_LEAK_KEY_PREFIXES[\s\S]{0,400}'cat21-ord-'/);
+    expect(src).toMatch(/CAT21_PRIVACY_LEAK_KEY_PREFIXES[\s\S]{0,400}'http-cat21-ord-'/);
+  });
+});
+
 describe('audit H2 — agentPolicy slice is persisted across MV3 suspend', () => {
   // Without this, `spentToday` resets to `{}` on every service-worker
   // wake; an agent could blow through the daily cap by triggering
