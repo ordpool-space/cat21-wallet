@@ -119,7 +119,6 @@
         "@noble/secp256k1",
         "base64url",
         "ecdsa-sig-formatter",
-        "ordpool-sdk",
         "react-hook-form",
         "@hookform/resolvers"
       ],

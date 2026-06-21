@@ -188,7 +188,6 @@ function cat21IntentToAgentContext(
  * `{ allowed: false, reason: 'agent-disabled' }` — agent mode is OFF
  * by default for any new account.
  */
-/** @knipignore -- HACK Cat21: dispatcher constructor wires this in next slice. */
 export function makeAgentPolicyDeps(args: AgentPolicyDepsArgs): AgentPolicyDeps {
   const { getState, dispatch, accountId, dayKeyFn } = args;
 

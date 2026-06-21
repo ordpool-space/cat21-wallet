@@ -42,7 +42,10 @@ export function Cat21ListPage() {
     refetch,
   } = useQuery({
     queryKey: ['cat21-ord-address-cat21s', paymentAddress],
-    queryFn: () => cat21OrdClient.fetchAddressCat21s(paymentAddress as string),
+    queryFn: () => {
+      if (paymentAddress == null) throw new Error('paymentAddress not yet derived');
+      return cat21OrdClient.fetchAddressCat21s(paymentAddress);
+    },
     enabled: paymentAddress != null,
     staleTime: 30_000,
   });

@@ -6,7 +6,7 @@ import type { AgentActionKind, AgentPolicy } from 'ordpool-sdk/core';
  * pipeline (mint → transfer → list → accept). Matches the SDK's
  * `AgentActionKind` union verbatim.
  */
-export const AGENT_OPERATION_KINDS: ReadonlyArray<AgentActionKind> = [
+export const AGENT_OPERATION_KINDS: readonly AgentActionKind[] = [
   'cat21_mint',
   'cat21_transfer',
   'cat21_create_offer',
@@ -83,6 +83,8 @@ type AgentPolicyValidationResult =
  * Only the partial-selection case (one to three boxes checked)
  * produces a real allowlist.
  */
+/** @knipignore -- HACK Cat21: spec-only export (spec files are knip-ignored;
+ * the spec covers the all-checked / none-checked collapse rule). */
 export function coerceAllowedOperations(
   selection: Record<AgentActionKind, boolean>
 ): AgentActionKind[] | undefined {

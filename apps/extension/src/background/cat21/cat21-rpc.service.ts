@@ -72,7 +72,7 @@ export interface Cat21AccountContext {
    * operation kind with `operation-kind-not-allowed`. Empty or
    * unset = permissive (default).
    */
-  allowedOperations?: ReadonlyArray<'mint' | 'transfer' | 'create_offer' | 'accept_offer'>;
+  allowedOperations?: readonly ('mint' | 'transfer' | 'create_offer' | 'accept_offer')[];
 }
 
 /**

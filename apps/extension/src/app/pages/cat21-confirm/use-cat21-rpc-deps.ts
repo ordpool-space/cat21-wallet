@@ -310,8 +310,8 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
 type SdkGateOperationKind = 'mint' | 'transfer' | 'create_offer' | 'accept_offer';
 
 function stripCat21Prefix(
-  source: ReadonlyArray<AgentActionKind> | undefined
-): ReadonlyArray<SdkGateOperationKind> | undefined {
+  source: readonly AgentActionKind[] | undefined
+): readonly SdkGateOperationKind[] | undefined {
   if (!source || source.length === 0) return undefined;
   return source.map(k => k.slice('cat21_'.length) as SdkGateOperationKind);
 }

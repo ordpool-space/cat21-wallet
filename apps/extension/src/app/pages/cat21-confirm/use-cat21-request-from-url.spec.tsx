@@ -25,8 +25,11 @@ import { MemoryRouter } from 'react-router';
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import type { SessionStorageLike } from '@background/cat21/popup-bridge';
-import { cat21RequestStorageKey, stashCat21Request } from '@background/cat21/popup-bridge';
+import {
+  type SessionStorageLike,
+  cat21RequestStorageKey,
+  stashCat21Request,
+} from '@background/cat21/popup-bridge';
 
 import { useCat21RequestFromUrl } from './use-cat21-request-from-url';
 
@@ -55,9 +58,10 @@ function makeFakeStorage(): SessionStorageLike & { peek(): Record<string, unknow
 }
 
 function wrapWithRouter(initialEntries: string[]) {
-  return ({ children }: { children: ReactNode }) => (
-    <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
-  );
+  function RouterWrapper({ children }: { children: ReactNode }) {
+    return <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>;
+  }
+  return RouterWrapper;
 }
 
 const SAMPLE_INTENT = {

@@ -451,10 +451,7 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
     // would only work on a maintainer's disk; CI doesn't have the
     // sibling-repo clone.
     const src = read(
-      join(
-        EXTENSION_ROOT,
-        'node_modules/ordpool-sdk/dist-core/agent-mode/agent-policy.types.d.ts',
-      ),
+      join(EXTENSION_ROOT, 'node_modules/ordpool-sdk/dist-core/agent-mode/agent-policy.types.d.ts')
     );
     expect(src).toMatch(/'cat21_mint'/);
     expect(src).toMatch(/'cat21_transfer'/);
