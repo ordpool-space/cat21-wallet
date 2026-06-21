@@ -86,6 +86,18 @@ const aliases = {
   'leather-styles': path.resolve('leather-styles'),
   react: path.resolve('./node_modules/react'),
   'react-dom': path.resolve('./node_modules/react-dom'),
+  // HACK -- Cat21 (audit C1): swap every telemetry vendor import to
+  // a local no-op stub. Zero bytes from @sentry/*, mixpanel-browser,
+  // and launchdarkly-react-client-sdk ship in the production bundle.
+  // The stubs live in `src/shared/telemetry-stubs/`; see file
+  // headers there for the threat model.
+  '@sentry/react$': path.resolve('./src/shared/telemetry-stubs/sentry.ts'),
+  '@sentry/browser$': path.resolve('./src/shared/telemetry-stubs/sentry.ts'),
+  '@sentry/core$': path.resolve('./src/shared/telemetry-stubs/sentry.ts'),
+  'mixpanel-browser$': path.resolve('./src/shared/telemetry-stubs/mixpanel.ts'),
+  'launchdarkly-react-client-sdk$': path.resolve(
+    './src/shared/telemetry-stubs/launchdarkly.tsx'
+  ),
 };
 
 export const config = {

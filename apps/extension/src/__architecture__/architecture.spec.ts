@@ -1056,6 +1056,55 @@ describe('iter 13b — wizard form surfaces allowedOperations', () => {
   });
 });
 
+describe('audit C1 — telemetry stack is stubbed out (zero bytes ship)', () => {
+  // PRIVACY-POLICY.md commits the wallet to zero telemetry. The
+  // upstream Leather stack (Sentry + Mixpanel + LaunchDarkly) was
+  // shipping balances + xpub-derived identifier + route history when
+  // env vars were populated. The stubs replace every vendor SDK at
+  // bundle time via webpack `resolve.alias` — the real packages
+  // never reach the production bundle.
+
+  it('webpack aliases @sentry/react and @sentry/browser to the local stub', () => {
+    const src = read(join(EXTENSION_ROOT, 'webpack/webpack.config.base.js'));
+    expect(src).toMatch(/'@sentry\/react\$':\s*path\.resolve\(['"]\.\/src\/shared\/telemetry-stubs\/sentry\.ts/);
+    expect(src).toMatch(/'@sentry\/browser\$':\s*path\.resolve\(['"]\.\/src\/shared\/telemetry-stubs\/sentry\.ts/);
+  });
+
+  it('webpack aliases mixpanel-browser to the local stub', () => {
+    const src = read(join(EXTENSION_ROOT, 'webpack/webpack.config.base.js'));
+    expect(src).toMatch(
+      /'mixpanel-browser\$':\s*path\.resolve\(['"]\.\/src\/shared\/telemetry-stubs\/mixpanel\.ts/
+    );
+  });
+
+  it('webpack aliases launchdarkly-react-client-sdk to the local stub', () => {
+    const src = read(join(EXTENSION_ROOT, 'webpack/webpack.config.base.js'));
+    expect(src).toMatch(/'launchdarkly-react-client-sdk\$'/);
+    expect(src).toMatch(/telemetry-stubs\/launchdarkly\.tsx/);
+  });
+
+  it('analytics.ts is a no-op shim (no real @sentry/* or mixpanel imports)', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/shared/utils/analytics.ts'));
+    expect(src).not.toMatch(/from\s+['"]@sentry\//);
+    expect(src).not.toMatch(/from\s+['"]mixpanel-browser['"]/);
+  });
+
+  it('feature-flags is a no-op shim (no real launchdarkly import)', () => {
+    const src = read(
+      join(EXTENSION_ROOT, 'src/app/features/feature-flags/index.tsx')
+    );
+    expect(src).not.toMatch(/from\s+['"]launchdarkly-react-client-sdk['"]/);
+  });
+
+  it('webpack.config.prod.js does NOT import @sentry/webpack-plugin (no source-map upload)', () => {
+    const src = read(join(EXTENSION_ROOT, 'webpack/webpack.config.prod.js'));
+    // The IMPORT must be gone; an explanatory HACK comment about the
+    // historical block stays as a marker for the upstream sync.
+    expect(src).not.toMatch(/^import\s.*sentryWebpackPlugin/m);
+    expect(src).not.toMatch(/from\s+['"]@sentry\/webpack-plugin['"]/);
+  });
+});
+
 describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () => {
   // Without this gate, an AFK user (wallet unlocked earlier in
   // session, then walked away) could be silent-signed by an MCP

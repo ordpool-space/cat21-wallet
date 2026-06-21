@@ -1,11 +1,12 @@
-import { sentryWebpackPlugin } from '@sentry/webpack-plugin';
 import webpack from 'webpack';
 
-import packageJson from '../package.json' with { type: 'json' };
 import { config } from './webpack.config.base.js';
 
-const sentryAuthToken = process.env.SENTRY_AUTH_TOKEN;
-
+// HACK -- Cat21 (audit C1): the @sentry/webpack-plugin block has
+// been removed. Cat21 Wallet ships zero telemetry per
+// PRIVACY-POLICY.md; we do not upload source maps or attach a
+// `release` identifier to any Sentry org. The SENTRY_AUTH_TOKEN
+// env var is no longer read here.
 config.mode = 'production';
 
 config.optimization = {
@@ -35,25 +36,9 @@ config.plugins = [
     exclude: [/inpage/, /content\-script/, /browser\-polyfill/],
     filename: '[file].map',
   }),
-  ...(sentryAuthToken
-    ? [
-        sentryWebpackPlugin({
-          org: 'trust-machines',
-          project: 'leather',
-
-          // Specify the directory containing build artifacts
-          include: './dist',
-
-          // Auth tokens can be obtained from https://sentry.io/settings/account/api/auth-tokens/
-          // and needs the `project:releases` and `org:read` scopes
-          authToken: sentryAuthToken,
-
-          release: {
-            name: packageJson.version,
-          },
-        }),
-      ]
-    : []),
+  // HACK -- Cat21 (audit C1): the inherited sentryWebpackPlugin block
+  // (`org: 'trust-machines', project: 'leather'`) is gone. We do not
+  // upload source maps or release identifiers to any third party.
 ];
 
 config.devtool = false;
