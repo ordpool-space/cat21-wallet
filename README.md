@@ -12,10 +12,30 @@ Cat21 Wallet is a non-fork clone of [`leather-io/mono`](https://github.com/leath
 
 The plan that drives this fork lives in the workspace at [`CAT21-WALLET-FORK-PLAN.md`](https://github.com/ordpool-space/headquarter). See ADR-14 for the repo setup that keeps this repo independent of upstream Leather on GitHub's fork graph.
 
-## Installation
+## Installation (beta testers — side-load)
 
-1. `pnpm i` at the `mono` root
-2. Run `pnpm build`
+Cat21 Wallet isn't on the Chrome Web Store yet. To run the first beta:
+
+1. Grab the trusted-build zip from the latest [Release](https://github.com/ordpool-space/cat21-wallet/releases) (tag prefix `cat21-v`).
+2. Verify the build provenance:
+   ```sh
+   gh attestation verify cat21-wallet-extension.zip \
+     --repo ordpool-space/cat21-wallet
+   ```
+   A pass means GitHub's OIDC identity for this repo signed a sigstore attestation saying this exact zip was built from the tagged commit on a GitHub-hosted runner.
+3. Unzip and load into Chrome: `chrome://extensions` → toggle **Developer mode** on → **Load unpacked** → pick the unzipped folder.
+4. The extension shows as **Cat21 Wallet**. Open it, create a fresh wallet (do NOT use your main seed), fund a few thousand sats to the wallet's BTC address, then:
+   - **Home → Mint cat** to mint your first CAT-21 cat (Path 2 manual flow).
+   - **Home → My cats** to list the cats your account holds; per-row Transfer / List for sale buttons deep-link the forms.
+   - **Settings → Cat21 Agent Mode** to configure per-account caps for the MCP agent surface (Path 3 autonomous flow).
+
+This is a beta. Report issues at [github.com/ordpool-space/cat21-wallet/issues](https://github.com/ordpool-space/cat21-wallet/issues). Don't put life-changing money in this wallet.
+
+## Installation (developers — build from source)
+
+1. `pnpm i` at the workspace root.
+2. `pnpm build` inside `apps/extension`.
+3. Side-load `apps/extension/dist` the same way as the beta zip above.
 
 See `CLAUDE.md` for the upstream Leather developer guide; the workflow conventions (Conventional Commits, verification pipeline, Code style) apply to this fork as well per ADR-11.
 
