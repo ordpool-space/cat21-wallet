@@ -84,19 +84,17 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: detect-pnpm-version-from-package-json
-        id: pnpm-version
+      - name: assert-pnpm-pinned-in-package-json
         run: |
           # The packageManager field is the source of truth for pnpm
-          # version + integrity hash. We do not let any action pick one.
+          # version + integrity hash. Assert it's set so action-setup's
+          # auto-detect path uses our pin, not its bundled default.
           pm=$(node -e "console.log(require('./package.json').packageManager)")
           if [[ "$pm" != pnpm@* ]]; then
             echo "ERROR: packageManager in package.json is '$pm', expected pnpm@<version>"
             exit 1
           fi
-          version=$(echo "$pm" | sed 's/pnpm@//' | cut -d'+' -f1)
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "Detected pnpm version: ${version}"
+          echo "packageManager: ${pm}"
 
       # Cache disabled across this trusted-build pipeline on purpose.
       # zizmor flags package-manager cache as a cache-poisoning attack
@@ -110,9 +108,10 @@ jobs:
           node-version-file: '.nvmrc'
 
       - name: setup-pnpm
+        # No `version:` input — action-setup v4 reads packageManager
+        # from package.json automatically and rejects double-pinning.
         uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2  # v4.0.0
         with:
-          version: ${{ steps.pnpm-version.outputs.version }}
           run_install: false
 
       - name: install-dependencies-frozen-lockfile
