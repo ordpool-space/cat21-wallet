@@ -714,6 +714,24 @@ describe('iter 12 — Path 3 NMH bridge plumbing (popup-mediated MCP autonomous)
     expect(src).toMatch(/onMessage\.removeListener\(listener\)/);
   });
 
+  it('subscribeToCat21Result requires a sender-verifier and consults it before resolving (audit C2)', () => {
+    // Without this check, any extension page or co-resident extension
+    // that learns the requestId can inject a forged broadcast result.
+    // The verifier closure (production wires `sender.id ===
+    // chrome.runtime.id && sender.tab === undefined`) is the
+    // load-bearing integrity check.
+    const src = read(join(REPO_ROOT, RESULT_BUS));
+    expect(src).toMatch(/verifySender:\s*\(sender:[^)]*\)\s*=>\s*boolean/);
+    expect(src).toMatch(/if\s*\(!verifySender\(sender\)\)\s*return/);
+  });
+
+  it('background.ts wires the production sender verifier with chrome.runtime.id (audit C2)', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/background/background.ts'));
+    expect(src).toMatch(
+      /verifyResultBusSender:\s*sender\s*=>[\s\S]{0,200}chrome\.runtime\.id[\s\S]{0,200}sender\?\.tab\s*===\s*undefined/
+    );
+  });
+
   it('attachNativeHostToPopupRelay translates relay errors into typed broadcast-failed denials', () => {
     // The pin: the attach catches any throw and posts a denial with
     // `reason: 'broadcast-failed'` + `detail: 'relay-error: ...'`.
@@ -1035,6 +1053,17 @@ describe('iter 13b — wizard form surfaces allowedOperations', () => {
     // can leak "all four checked != permissive" creates confusing
     // behaviour where the gate rejects ops the UI shows as allowed.
     expect(src).toMatch(/length === 0 \|\| picked\.length === AGENT_OPERATION_KINDS\.length/);
+  });
+});
+
+describe('audit H2 — agentPolicy slice is persisted across MV3 suspend', () => {
+  // Without this, `spentToday` resets to `{}` on every service-worker
+  // wake; an agent could blow through the daily cap by triggering
+  // worker idle. The persist whitelist is the single point that
+  // determines what survives suspend.
+  it('redux-persist whitelist includes agentPolicy', () => {
+    const src = read(join(EXTENSION_ROOT, 'src/shared/storage/redux-persist.ts'));
+    expect(src).toMatch(/whitelist:[\s\S]{0,800}'agentPolicy'/);
   });
 });
 

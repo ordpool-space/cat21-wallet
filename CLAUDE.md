@@ -26,14 +26,14 @@ so the field has no consensus meaning. It's pure protocol-marker bytes.
 
 | Operation | Rule | Where enforced |
 |---|---|---|
-| Building a mint tx | `lockTime = 21`. Hard runtime assert. | `apps/extension/src/background/cat21/builders/mint-builder.ts` |
-| Building a transfer tx | `lockTime = 21`. Hard runtime assert. | `apps/extension/src/background/cat21/builders/transfer-builder.ts` |
+| Building a mint tx | `lockTime = 21`. Hard runtime assert. | `ordpool-sdk/src/cat21-mint/cat21-mint.helper.ts → buildCat21MintPsbt` |
+| Building a transfer tx | `lockTime = 21`. Hard runtime assert. | `ordpool-sdk/src/cat21-transfer/cat21-transfer.helper.ts → buildCat21TransferPsbt` |
 | Building a buy-offer PSBT (buyer-initiated, our SDK) | `lockTime = 21`. Hard runtime assert. | `ordpool-sdk/src/cat21-offer/cat21-offer.helper.ts → buildCat21BuyOfferPsbt` |
-| Cat21wallet input sequence on any tx we build | `0xfffffffd` (RBF allowed; our own accelerate flow preserves `lockTime=21` through replacement). | `CAT21_WALLET_MINT_INPUT_SEQUENCE` in `mint-builder.ts` |
-| Other-wallet mint input sequence | `0xfffffffe` (RBF disabled; locks third-party accelerate UIs out of touching the marker). | `ordpool-sdk/src/cat21-mint/cat21.service.helper.ts` |
+| Cat21wallet input sequence on any tx we build | `0xfffffffd` (RBF allowed; our own accelerate flow preserves `lockTime=21` through replacement). | `CAT21_MINT_INPUT_SEQUENCE` for `cat21wallet` in `ordpool-sdk/src/cat21-protocol/cat21-sequence.ts → resolveCat21InputSequence` |
+| Other-wallet mint input sequence | `0xfffffffe` (RBF disabled; locks third-party accelerate UIs out of touching the marker). | `ordpool-sdk/src/cat21-protocol/cat21-sequence.ts → resolveCat21InputSequence` |
 | Replacing a CAT-21 tx via RBF (our accelerate path) | Replacement MUST keep `lockTime = 21`. Hard runtime assert. | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` |
 | Cat-bearing UTXO in plain BTC send | Refused; UTXO lives in `protected` bucket. | `packages/services/src/utxos/utxos.service.ts` |
-| Accepting an inbound buy-offer PSBT (we sign, we don't build) | Sign as-is regardless of lockTime. Buyer's choice; missing `21` is their missed bonus mint, not a cat loss. The popup displays the inbound lockTime so a human seller sees what they're signing. | `apps/extension/src/background/cat21/builders/accept-offer-validator.ts`, `apps/extension/src/background/cat21/cat21-rpc.service.ts → acceptOffer` |
+| Accepting an inbound buy-offer PSBT (we sign, we don't build) | Sign as-is regardless of lockTime. Buyer's choice; missing `21` is their missed bonus mint, not a cat loss. The popup displays the inbound lockTime so a human seller sees what they're signing. | `apps/extension/src/background/cat21/builders/accept-offer-validator.ts` (wallet wrapper delegating to `ordpool-sdk/src/cat21-offer/cat21-offer.helper.ts → validateCat21BuyOfferPsbt`), `apps/extension/src/background/cat21/cat21-rpc.service.ts → acceptOffer` |
 | RBF by other tooling on our broadcast txs | Out of our control. Their replacement is a new tx with new signatures; if they drop `lockTime=21`, missed mint, not lost cat. | n/a — by design |
 
 ### Why our code defaults to 21 everywhere

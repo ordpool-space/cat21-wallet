@@ -53,6 +53,16 @@ installCat21NmhAgent({
     getState: cat21ProbeStateCache.read,
     cat21OrdClient: getCat21OrdApiClient(),
   }),
+  // cat21-result-bus integrity check: accept only messages whose
+  // sender is one of our own extension pages. A bare `source` /
+  // `requestId` tag is not enough — any extension page (or
+  // co-resident extension) that learns the requestId could otherwise
+  // inject a forged broadcast result and the NMH relay would
+  // propagate the fake reply to the MCP agent. `sender.id ===
+  // chrome.runtime.id` rules out other extensions; `sender.tab ===
+  // undefined` rules out content scripts running in a tab.
+  verifyResultBusSender: sender =>
+    sender?.id === chrome.runtime.id && sender?.tab === undefined,
   onHostNotInstalled: () => logger.info('cat21 NMH host not installed — Path 3 disabled'),
 });
 

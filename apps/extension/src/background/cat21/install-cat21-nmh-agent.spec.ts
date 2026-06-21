@@ -84,6 +84,7 @@ describe('installCat21NmhAgent', () => {
       triggerPopupOpen: () => Promise.resolve(),
       getState: () => sampleState,
       readOnlyProbes: happyProbes(),
+      verifyResultBusSender: () => true,
     });
     expect(connectNative).toHaveBeenCalledTimes(1);
     expect(connectNative).toHaveBeenCalledWith('space.cat21.wallet');
@@ -99,6 +100,7 @@ describe('installCat21NmhAgent', () => {
       triggerPopupOpen: () => Promise.resolve(),
       getState: () => sampleState,
       readOnlyProbes: happyProbes(),
+      verifyResultBusSender: () => true,
     });
     // attachNativeHostToPopupRelay registers exactly one onMessage
     // listener on the port; if the lifecycle wires the attach
@@ -116,6 +118,7 @@ describe('installCat21NmhAgent', () => {
       triggerPopupOpen: () => Promise.resolve(),
       getState: () => sampleState,
       readOnlyProbes: happyProbes(),
+      verifyResultBusSender: () => true,
     });
     agent.teardown();
     expect(agent.state()).toBe('idle');

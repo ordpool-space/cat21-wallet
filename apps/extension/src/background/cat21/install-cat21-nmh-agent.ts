@@ -94,8 +94,12 @@ interface InstallCat21NmhAgentArgs {
   storage: SessionStorageLike;
   /** `chrome.runtime.onMessage`'s `{addListener, removeListener}` pair. */
   onMessage: {
-    addListener(listener: (msg: unknown) => void): void;
-    removeListener(listener: (msg: unknown) => void): void;
+    addListener(
+      listener: (msg: unknown, sender?: { id?: string; tab?: unknown; url?: string }) => void
+    ): void;
+    removeListener(
+      listener: (msg: unknown, sender?: { id?: string; tab?: unknown; url?: string }) => void
+    ): void;
   };
   /** Production wires `triggerRequestPopupWindowOpen`. */
   triggerPopupOpen(route: RouteUrls, urlParams: URLSearchParams): Promise<unknown>;
@@ -103,6 +107,13 @@ interface InstallCat21NmhAgentArgs {
   getState(): BackgroundProbeState;
   /** Read-only probe wires produced by makeReadOnlyProbeWires. */
   readOnlyProbes: ReadOnlyProbeWiresLike;
+  /**
+   * Integrity check on cat21-result-bus messages. Production closes
+   * over `chrome.runtime.id` and asserts the sender is one of our
+   * own extension pages. See `attach-native-host-to-popup-relay.ts →
+   * AttachArgs.verifyResultBusSender`.
+   */
+  verifyResultBusSender(sender: { id?: string; tab?: unknown; url?: string } | undefined): boolean;
   /** Called when the harness gives up reconnecting (install detection). */
   onHostNotInstalled?(): void;
 }
@@ -128,6 +139,7 @@ export function installCat21NmhAgent(args: InstallCat21NmhAgentArgs): {
         onMessage: args.onMessage,
         triggerPopupOpen: args.triggerPopupOpen,
         readOnlyProbes: args.readOnlyProbes,
+        verifyResultBusSender: args.verifyResultBusSender,
       });
     },
     onHostNotInstalled: args.onHostNotInstalled,

@@ -53,7 +53,13 @@ export function defineRpcRequestHandler<M extends RpcRequests['method']>(
 export async function rpcMessageHandler(request: RpcRequests, port: chrome.runtime.Port) {
   listenForOriginTabClose({ tabId: port.sender?.tab?.id });
 
-  logger.info(`Received RPC request ${request.method}`, request);
+  // HACK -- Cat21: log only the method name, not the full request payload.
+  // Audit H3: the original `logger.info(..., request)` shipped PSBT bytes,
+  // recipient addresses, and sign-message payloads into the
+  // chrome.storage.local logger ring buffer (2000 entries) and out via
+  // `copyLogsToClipboard()`. Method name alone is enough for debugging
+  // dispatcher routing; payload-level inspection happens in the handler.
+  logger.info(`Received RPC request ${request.method}`);
 
   // This typecast safely bypasses the compiler since it cannot infer or narrow
   // the type to know the `request` being passed to `handler` is the correct

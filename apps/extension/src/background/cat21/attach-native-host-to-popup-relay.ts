@@ -98,10 +98,24 @@ interface AttachArgs {
   storage: SessionStorageLike;
   triggerPopupOpen(route: RouteUrls, urlParams: URLSearchParams): Promise<unknown>;
   onMessage: {
-    addListener(listener: (msg: unknown) => void): void;
-    removeListener(listener: (msg: unknown) => void): void;
+    addListener(
+      listener: (msg: unknown, sender?: { id?: string; tab?: unknown; url?: string }) => void
+    ): void;
+    removeListener(
+      listener: (msg: unknown, sender?: { id?: string; tab?: unknown; url?: string }) => void
+    ): void;
   };
   readOnlyProbes: ReadOnlyProbeWires;
+  /**
+   * Integrity check on every cat21-result-bus message. Production
+   * closes over `chrome.runtime.id` and asserts the sender is one of
+   * our own extension pages (`sender.id === chrome.runtime.id` AND
+   * `sender.tab === undefined`). Without this check, any extension
+   * page or co-resident extension that learns the `requestId` could
+   * inject a forged `result` and the relay would propagate the fake
+   * reply to the MCP agent.
+   */
+  verifyResultBusSender(sender: { id?: string; tab?: unknown; url?: string } | undefined): boolean;
 }
 
 export function attachNativeHostToPopupRelay(args: AttachArgs): void {
@@ -130,7 +144,8 @@ export function attachNativeHostToPopupRelay(args: AttachArgs): void {
           triggerPopupOpen: async (route, urlParams) => {
             await args.triggerPopupOpen(route, urlParams);
           },
-          waitForPopupResult: requestId => subscribeToCat21Result(args.onMessage, requestId),
+          waitForPopupResult: requestId =>
+            subscribeToCat21Result(args.onMessage, requestId, args.verifyResultBusSender),
         });
       } catch (err) {
         // Translate any thrown error into a typed denial so the agent

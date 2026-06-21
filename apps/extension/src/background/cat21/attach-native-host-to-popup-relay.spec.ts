@@ -69,23 +69,28 @@ function throwingProbes() {
   };
 }
 
+type FakeSender = { id?: string; tab?: unknown; url?: string };
 function makeFakeOnMessage() {
-  const listeners = new Set<(msg: unknown) => void>();
+  const listeners = new Set<(msg: unknown, sender?: FakeSender) => void>();
   return {
     onMessage: {
-      addListener(l: (msg: unknown) => void) {
+      addListener(l: (msg: unknown, sender?: FakeSender) => void) {
         listeners.add(l);
       },
-      removeListener(l: (msg: unknown) => void) {
+      removeListener(l: (msg: unknown, sender?: FakeSender) => void) {
         listeners.delete(l);
       },
     },
     /** Used by tests to deliver a result envelope back from the "popup". */
-    deliver(msg: unknown) {
-      for (const l of [...listeners]) l(msg);
+    deliver(msg: unknown, sender: FakeSender = { id: 'own-ext-id' }) {
+      for (const l of [...listeners]) l(msg, sender);
     },
   };
 }
+
+/** Default verifier these specs wire — accepts the spec's own-ext id. */
+const acceptOwnSpecExt = (sender: FakeSender | undefined) =>
+  sender?.id === 'own-ext-id' && sender?.tab === undefined;
 
 const mintIntent: Cat21MintIntent = {
   recipient: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
@@ -104,6 +109,7 @@ describe('attachNativeHostToPopupRelay', () => {
       storage,
       onMessage: bus.onMessage,
       readOnlyProbes: throwingProbes(),
+      verifyResultBusSender: acceptOwnSpecExt,
       triggerPopupOpen(route, urlParams) {
         openedRoutes.push(route);
         const requestId = urlParams.get('cat21RequestId');
@@ -156,6 +162,7 @@ describe('attachNativeHostToPopupRelay', () => {
       storage,
       onMessage: bus.onMessage,
       readOnlyProbes: throwingProbes(),
+      verifyResultBusSender: acceptOwnSpecExt,
       triggerPopupOpen: () => Promise.reject(new Error('popup blocked by Chrome')),
     });
 
@@ -191,6 +198,7 @@ describe('attachNativeHostToPopupRelay', () => {
       storage,
       onMessage: bus.onMessage,
       readOnlyProbes: throwingProbes(),
+      verifyResultBusSender: acceptOwnSpecExt,
       triggerPopupOpen: () => Promise.resolve(),
     });
 
@@ -223,6 +231,7 @@ describe('attachNativeHostToPopupRelay', () => {
         },
         readCat21OrdStatus: () => Promise.reject(new Error('not called')),
       },
+      verifyResultBusSender: acceptOwnSpecExt,
     });
 
     port.fire({ type: 'list_cats', id: 'probe-1' });
@@ -260,6 +269,7 @@ describe('attachNativeHostToPopupRelay', () => {
         }),
         readCat21OrdStatus: () => Promise.reject(new Error('not called')),
       },
+      verifyResultBusSender: acceptOwnSpecExt,
     });
 
     port.fire({ type: 'wallet_status', id: 'probe-2' });
@@ -292,6 +302,7 @@ describe('attachNativeHostToPopupRelay', () => {
         },
         readCat21OrdStatus: () => Promise.reject(new Error('ECONNREFUSED')),
       },
+      verifyResultBusSender: acceptOwnSpecExt,
     });
 
     port.fire({ type: 'cat21_ord_status', id: 'probe-3' });
