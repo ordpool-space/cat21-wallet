@@ -11,6 +11,16 @@
       ],
       "dependsOn": [
         "^build"
+      ],
+      "env": [
+        "WALLET_ENVIRONMENT",
+        "NODE_ENV",
+        "TARGET_BROWSER",
+        "PREVIEW_RELEASE",
+        "ANALYZE",
+        "BUILD_TARGET",
+        "COMMIT_SHA",
+        "SENTRY_AUTH_TOKEN"
       ]
     },
     "build:watch": {},
