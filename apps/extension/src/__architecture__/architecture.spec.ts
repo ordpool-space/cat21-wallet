@@ -1017,7 +1017,12 @@ describe('iter 13b — wizard form surfaces allowedOperations', () => {
 
   it('helper exposes AGENT_OPERATION_KINDS as the canonical four-kind list', () => {
     const src = read(join(REPO_ROOT, HELPER));
-    expect(src).toMatch(/AGENT_OPERATION_KINDS:\s*ReadonlyArray<AgentActionKind>/);
+    // Accept either historical syntax: ReadonlyArray<AgentActionKind> or
+    // the eslint-canonical `readonly AgentActionKind[]` (typescript-eslint's
+    // array-type rule rejects the generic form).
+    expect(src).toMatch(
+      /AGENT_OPERATION_KINDS:\s*(?:ReadonlyArray<AgentActionKind>|readonly AgentActionKind\[\])/
+    );
     expect(src).toMatch(/'cat21_mint'/);
     expect(src).toMatch(/'cat21_transfer'/);
     expect(src).toMatch(/'cat21_create_offer'/);
