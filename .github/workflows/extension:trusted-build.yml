@@ -34,7 +34,12 @@ name: extension:trusted-build
 on:
   push:
     tags:
-      - 'v*'
+      # HACK -- Cat21: cat21-v* matcher (not Leather's v*). The
+      # quarterly upstream sync may import Leather's v1.0.x tags
+      # into our repo; matching v* would build a Leather commit and
+      # publish it as ours. The cat21- prefix is our reserved
+      # release namespace.
+      - 'cat21-v*'
   workflow_dispatch:
 
 # Workflow-level: minimum needed for checkout. Each job re-declares what
@@ -154,7 +159,7 @@ jobs:
           retention-days: 90
 
       - name: attach-to-release-on-tag-push
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/cat21-v')
         env:
           GH_TOKEN: ${{ github.token }}
           # Pass steps.pack output through env to avoid `${{ }}` expansion
