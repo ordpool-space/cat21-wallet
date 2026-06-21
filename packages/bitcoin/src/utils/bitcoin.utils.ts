@@ -56,9 +56,29 @@ export function whenBitcoinNetwork(mode: BitcoinNetworkModes) {
  * @example
  * `m/86'/1'/0'/0/0`
  */
+// HACK -- Cat21: ADR-7 makes Cat21 Wallet mainnet-only. We deviate from
+// BIP-44's testnet=1 convention and pin coin-type=0 for EVERY network.
+// Rationale: a consumer (cat21.space, regtest e2e harness, …) that
+// calls `signPsbt({network: 'regtest', ...})` with a PSBT whose scripts
+// are derived from our mainnet pubkeys MUST get a signature that
+// verifies against those same scripts. With coin-type=1 for non-
+// mainnet, the wallet's BIP-84/BIP-86 derivation would produce a
+// DIFFERENT private key, sign with it, and bitcoind would reject the
+// signature ("Invalid Schnorr signature" / pubkey-hash mismatch).
+// Pinning coin-type=0 universally makes the keys network-stable. The
+// network parameter then only affects bech32 HRP encoding at the
+// address layer (mainnet bc1, regtest bcrt1) — which is the only
+// network-dependent piece in a mainnet-only wallet's world view.
+//
+// Upstream Leather assumed multi-network signing was a real use case;
+// for cat21-wallet it isn't (regtest exists for e2e tests only; users
+// never see anything but mainnet). This change removes the entire
+// class of "wallet signed with the wrong key for the network arg"
+// bugs and is the closest the wallet gets to "switch networks
+// flawlessly" — there's nothing to switch.
 export const coinTypeMap: Record<NetworkModes, 0 | 1> = {
   mainnet: 0,
-  testnet: 1,
+  testnet: 0,
 };
 
 export function getBitcoinCoinTypeIndexByNetwork(network: BitcoinNetworkModes) {
