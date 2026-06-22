@@ -132,6 +132,19 @@ export const config = {
       path: require.resolve('path-browserify'),
       os: require.resolve('os-browserify/browser'),
       process: require.resolve('process/browser'),
+      // HACK -- Cat21: ordpool-sdk's `inscribe-brotli.helper`
+      // (re-exported via `ordpool-sdk/core`) does
+      //     require('node:zlib')
+      // inside a try/catch — Node-only, throws a helpful "use a
+      // WASM brotli encoder in browsers" message at runtime. Webpack
+      // 5 statically resolves the require regardless of the catch
+      // and errors out with `UnhandledSchemeError: Reading from
+      // 'node:zlib' is not handled by plugins`. Mapping the spec to
+      // `false` turns the import into an empty module at bundle
+      // time; the SDK's runtime try/catch never fires because we
+      // never call `compressBrotli` from the wallet (inscription
+      // pre-compression is cat21.space's job, not the wallet's).
+      'node:zlib': false,
     },
   },
   externals: {
@@ -255,6 +268,13 @@ export const config = {
     new webpack.IgnorePlugin({
       resourceRegExp: /^\.\/wordlists\/(?!english)/,
       contextRegExp: /bip39\/src$/,
+    }),
+    // HACK -- Cat21: drop ordpool-sdk's `node:zlib` require — see the
+    // comment in `resolve.fallback` (kept for documentation; the
+    // fallback alone doesn't intercept the `node:` scheme on webpack
+    // 5, IgnorePlugin does).
+    new webpack.IgnorePlugin({
+      resourceRegExp: /^node:zlib$/,
     }),
     new HtmlWebpackPlugin({
       template: path.join(SRC_ROOT_PATH, '../', 'public', 'html', 'index.html'),
