@@ -3,13 +3,12 @@ import { useLocation, useNavigate } from 'react-router';
 
 import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat21-confirmation-copy';
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
+import { useHasActiveInMemoryWalletSecretKey } from '@app/store/in-memory-key/in-memory-key.selectors';
 import { postCat21Result } from '@background/cat21/cat21-result-bus';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
 import type { Cat21Transport } from '@background/cat21/mode-resolver';
 import { clearCat21Request } from '@background/cat21/popup-bridge';
 import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
-
-import { useHasActiveInMemoryWalletSecretKey } from '@app/store/in-memory-key/in-memory-key.selectors';
 
 import { extractCatIdHint } from './extract-cat-id-hint';
 import { useCat21RequestFromUrl } from './use-cat21-request-from-url';

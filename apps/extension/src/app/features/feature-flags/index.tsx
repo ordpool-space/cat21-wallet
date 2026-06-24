@@ -17,8 +17,12 @@ function NoopProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export function createLaunchDarklyProvider() {
-  return NoopProvider;
+export function createLaunchDarklyProvider(): Promise<typeof NoopProvider> {
+  // HACK -- Cat21 (audit C1): return a Promise to match upstream's
+  // `asyncWithLDProvider` shape. The call site (`app.tsx:32`) does
+  // `await createLaunchDarklyProvider()` for the upstream API; awaiting
+  // a sync value trips `@typescript-eslint/await-thenable`.
+  return Promise.resolve(NoopProvider);
 }
 
 interface FeatureFlags {

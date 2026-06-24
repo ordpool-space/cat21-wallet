@@ -28,7 +28,7 @@
     "lint:fix": "pnpm lint --fix",
     "lint:prettier": "prettier . --check --ignore-path ../../.prettierignore",
     "lint:prettier:fix": "prettier . --write --ignore-path ../../.prettierignore",
-    "lint:unused-exports": "ts-unused-exports tsconfig.json --ignoreFiles=icons --ignoreFiles=leather-styles --ignoreFiles=mocks --ignoreFiles=tests",
+    "lint:unused-exports": "ts-unused-exports tsconfig.json --ignoreFiles=icons --ignoreFiles=leather-styles --ignoreFiles=mocks --ignoreFiles=tests --ignoreFiles=telemetry-stubs",
     "prebuild": "pnpm run prepare:build",
     "preinstall": "npx only-allow pnpm",
     "prepare:build": "panda codegen",

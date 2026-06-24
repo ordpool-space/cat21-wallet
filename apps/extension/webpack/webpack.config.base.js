@@ -95,9 +95,7 @@ const aliases = {
   '@sentry/browser$': path.resolve('./src/shared/telemetry-stubs/sentry.ts'),
   '@sentry/core$': path.resolve('./src/shared/telemetry-stubs/sentry.ts'),
   'mixpanel-browser$': path.resolve('./src/shared/telemetry-stubs/mixpanel.ts'),
-  'launchdarkly-react-client-sdk$': path.resolve(
-    './src/shared/telemetry-stubs/launchdarkly.tsx'
-  ),
+  'launchdarkly-react-client-sdk$': path.resolve('./src/shared/telemetry-stubs/launchdarkly.tsx'),
 };
 
 export const config = {

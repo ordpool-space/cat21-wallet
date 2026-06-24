@@ -1066,8 +1066,12 @@ describe('audit C1 — telemetry stack is stubbed out (zero bytes ship)', () => 
 
   it('webpack aliases @sentry/react and @sentry/browser to the local stub', () => {
     const src = read(join(EXTENSION_ROOT, 'webpack/webpack.config.base.js'));
-    expect(src).toMatch(/'@sentry\/react\$':\s*path\.resolve\(['"]\.\/src\/shared\/telemetry-stubs\/sentry\.ts/);
-    expect(src).toMatch(/'@sentry\/browser\$':\s*path\.resolve\(['"]\.\/src\/shared\/telemetry-stubs\/sentry\.ts/);
+    expect(src).toMatch(
+      /'@sentry\/react\$':\s*path\.resolve\(['"]\.\/src\/shared\/telemetry-stubs\/sentry\.ts/
+    );
+    expect(src).toMatch(
+      /'@sentry\/browser\$':\s*path\.resolve\(['"]\.\/src\/shared\/telemetry-stubs\/sentry\.ts/
+    );
   });
 
   it('webpack aliases mixpanel-browser to the local stub', () => {
@@ -1090,9 +1094,7 @@ describe('audit C1 — telemetry stack is stubbed out (zero bytes ship)', () => 
   });
 
   it('feature-flags is a no-op shim (no real launchdarkly import)', () => {
-    const src = read(
-      join(EXTENSION_ROOT, 'src/app/features/feature-flags/index.tsx')
-    );
+    const src = read(join(EXTENSION_ROOT, 'src/app/features/feature-flags/index.tsx'));
     expect(src).not.toMatch(/from\s+['"]launchdarkly-react-client-sdk['"]/);
   });
 

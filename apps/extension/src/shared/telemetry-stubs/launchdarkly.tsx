@@ -13,10 +13,8 @@ function NoopProvider({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
-export async function asyncWithLDProvider(
-  _config: unknown
-): Promise<typeof NoopProvider> {
-  return NoopProvider;
+export function asyncWithLDProvider(_config: unknown): Promise<typeof NoopProvider> {
+  return Promise.resolve(NoopProvider);
 }
 
 export function withLDProvider(_config: unknown) {

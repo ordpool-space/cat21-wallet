@@ -52,7 +52,11 @@ describe(deriveAddressesFromDescriptor.name, () => {
     });
     expect(results).toHaveLength(2);
     results.forEach(result => expect(result.address.startsWith('bcrt1q')).toBeTruthy());
-    expect(results[0].path).toEqual("m/84'/1'/0'/0/0");
+    // HACK -- Cat21: ADR-7 pins coin-type=0 across every network; the
+    // derived path is reported as m/84'/0'/0'/0/0 even though the tpub
+    // input was derived at m/84'/1' (the descriptor's reported path is
+    // computed from our coinType map, not the input xpub's encoding).
+    expect(results[0].path).toEqual("m/84'/0'/0'/0/0");
   });
 
   it('should derive regtest taproot addresses from a tpub descriptor', async () => {

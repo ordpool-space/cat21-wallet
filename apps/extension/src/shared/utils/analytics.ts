@@ -75,9 +75,9 @@ export function initSentry() {
   // noop — see file header
 }
 
-export async function openFeedbackSheet() {
+export function openFeedbackSheet(): Promise<null> {
   // noop — see file header. The settings "Feedback" link routes
   // here today; we'll point users at a real GitHub-issues URL
   // when the settings UI lands a proper redirect.
-  return null;
+  return Promise.resolve(null);
 }

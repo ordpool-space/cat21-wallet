@@ -69,7 +69,11 @@ function throwingProbes() {
   };
 }
 
-type FakeSender = { id?: string; tab?: unknown; url?: string };
+interface FakeSender {
+  id?: string;
+  tab?: unknown;
+  url?: string;
+}
 function makeFakeOnMessage() {
   const listeners = new Set<(msg: unknown, sender?: FakeSender) => void>();
   return {
@@ -89,8 +93,9 @@ function makeFakeOnMessage() {
 }
 
 /** Default verifier these specs wire — accepts the spec's own-ext id. */
-const acceptOwnSpecExt = (sender: FakeSender | undefined) =>
-  sender?.id === 'own-ext-id' && sender?.tab === undefined;
+function acceptOwnSpecExt(sender: FakeSender | undefined): boolean {
+  return sender?.id === 'own-ext-id' && sender?.tab === undefined;
+}
 
 const mintIntent: Cat21MintIntent = {
   recipient: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',

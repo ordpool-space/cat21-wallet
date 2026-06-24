@@ -35,8 +35,9 @@ function makeRuntimeFake(defaultSender: SenderLike = { id: 'own-ext-id' }) {
 }
 
 /** Production-shaped verifier closure: accepts only own-extension page senders. */
-const acceptOwnExtensionOnly = (sender: SenderLike | undefined) =>
-  sender?.id === 'own-ext-id' && sender?.tab === undefined;
+function acceptOwnExtensionOnly(sender: SenderLike | undefined): boolean {
+  return sender?.id === 'own-ext-id' && sender?.tab === undefined;
+}
 
 const okResult: Cat21RpcResult = {
   ok: true,
@@ -157,10 +158,10 @@ describe('cat21-result-bus sender integrity check (audit C2)', () => {
     // the wrong sender it does. This is the load-bearing case.
     const bus = makeRuntimeFake();
     let verifierCalls = 0;
-    const verifier = (s: SenderLike | undefined) => {
+    function verifier(s: SenderLike | undefined): boolean {
       verifierCalls++;
       return s?.id === 'own-ext-id' && s?.tab === undefined;
-    };
+    }
     const waiter = subscribeToCat21Result(bus.onMessage, 'req-1', verifier);
 
     // Attempt: forged sender with our extension id but content-script tab.

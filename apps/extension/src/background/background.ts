@@ -61,8 +61,7 @@ installCat21NmhAgent({
   // propagate the fake reply to the MCP agent. `sender.id ===
   // chrome.runtime.id` rules out other extensions; `sender.tab ===
   // undefined` rules out content scripts running in a tab.
-  verifyResultBusSender: sender =>
-    sender?.id === chrome.runtime.id && sender?.tab === undefined,
+  verifyResultBusSender: sender => sender?.id === chrome.runtime.id && sender?.tab === undefined,
   onHostNotInstalled: () => logger.info('cat21 NMH host not installed — Path 3 disabled'),
 });
 

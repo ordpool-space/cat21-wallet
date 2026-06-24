@@ -23,3 +23,12 @@ android/
 # noise out of our control. (apps/web isn't a Cat21 shipping target either.)
 .react-router/
 **/.react-router/
+
+# HACK -- Cat21: web app's auto-generated wrangler + msw artifacts
+# get regenerated on every build and trip lint-prettier with their
+# own formatting. Cat21 Wallet doesn't ship apps/web, but the
+# repo:code-checks workflow's `pnpm format:check` walks every
+# package via turbo. Ignore the auto-generated paths so the format
+# gate stops blocking pushes.
+apps/web/.wrangler/
+apps/web/public/mockServiceWorker.js
