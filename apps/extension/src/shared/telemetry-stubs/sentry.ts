@@ -77,6 +77,22 @@ export function feedbackIntegration(_options?: unknown): {
   };
 }
 
+/**
+ * No-op `wrapCreateBrowserRouterV7`. The real Sentry function wraps a
+ * router-creator (e.g. `createHashRouter`) with tracing instrumentation;
+ * the wrapper still returns a router. Without telemetry, the identity
+ * transform is the right no-op — `Sentry.wrapCreateBrowserRouterV7(
+ * createHashRouter)(routes)` becomes `createHashRouter(routes)`.
+ *
+ * Caller: `app-routes.tsx:85`. Missing this stub before iter X meant
+ * the wallet bundle crashed at boot with "wrapCreateBrowserRouterV7
+ * is not a function" — the page rendered blank and onboarding never
+ * reached its first testid.
+ */
+export function wrapCreateBrowserRouterV7<T>(create: T): T {
+  return create;
+}
+
 // Some upstream call sites use `Sentry.captureException(...)` via
 // `import * as Sentry from '@sentry/react'`. The namespace import
 // resolves these names from the module's exports — which we provide
@@ -97,6 +113,7 @@ const noopSentry = {
   browserTracingIntegration,
   reactRouterV7BrowserTracingIntegration,
   feedbackIntegration,
+  wrapCreateBrowserRouterV7,
   // Misc methods upstream uses opportunistically; all noop.
   withScope(callback: (scope: unknown) => void): void {
     callback({ setTag: noop, setUser: noop, setExtra: noop, setContext: noop });
