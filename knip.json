@@ -120,7 +120,17 @@
         "base64url",
         "ecdsa-sig-formatter",
         "react-hook-form",
-        "@hookform/resolvers"
+        "@hookform/resolvers",
+        // HACK -- Cat21 (audit C1): telemetry packages declared as
+        // direct deps so the wallet keeps its package.json diff
+        // surface aligned with upstream Leather (HARD RULE #3 —
+        // quarterly upstream sync); none of them are actually
+        // bundled (webpack `resolve.alias` swaps every import to
+        // local no-op stubs under `src/shared/telemetry-stubs/`).
+        "@sentry/browser",
+        "@sentry/webpack-plugin",
+        "launchdarkly-react-client-sdk",
+        "mixpanel-browser"
       ],
       "ignore": [
         "src/shared/global-types.ts",
@@ -143,7 +153,18 @@
         "src/background/messaging/rpc-request-utils.ts",
         "src/app/store/agent-policy/agent-policy.selectors.ts",
         "src/app/store/agent-policy/agent-policy.hooks.ts",
-        "src/app/features/cat21-confirmation/**"
+        "src/app/features/cat21-confirmation/**",
+        // HACK -- Cat21 (audit C1): telemetry stubs are statically
+        // unreferenced (webpack aliases imports to them at bundle
+        // time, not at type-resolution time). Knip can't see the
+        // alias link; skip the whole directory.
+        "src/shared/telemetry-stubs/**",
+        // HACK -- Cat21 (audit C1): getClientId + SENTRY_DSN are
+        // upstream-Leather-merge artifacts; statically unused now
+        // that telemetry is stripped. Keep the symbols + files so
+        // the quarterly upstream sync diff stays small.
+        "src/app/common/client-id/index.ts",
+        "src/shared/environment.ts"
       ]
     },
     "apps/mobile": {
