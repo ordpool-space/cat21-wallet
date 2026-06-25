@@ -73,18 +73,29 @@ chrome.runtime.onInstalled.addListener(async details => {
   }
 });
 
+// HACK -- Cat21 (debug-connect): broadcast probe to all tabs. The
+// previous probe gated on `port.sender?.tab?.id` and missed cases
+// where the sender info is incomplete. Fan-out to every tab so the
+// log surfaces regardless of which one (or none) actually triggered.
+function bgDbg(text: string) {
+  chrome.tabs.query({}, tabs => {
+    for (const t of tabs) {
+      if (t.id !== undefined) {
+        void chrome.tabs.sendMessage(t.id, { source: 'CAT21-DEBUG', text: `bg: ${text}` });
+      }
+    }
+  });
+}
+
+bgDbg('SW startup — onConnect listener about to be installed');
+
 // Listen for connection to the content-script - port for two-way communication
 chrome.runtime.onConnect.addListener(port => {
+  bgDbg(`onConnect fired; port.name=${port.name} sender.id=${port.sender?.id ?? 'undef'} sender.tab.id=${port.sender?.tab?.id ?? 'undef'} sender.url=${port.sender?.url ?? 'undef'}`);
   if (port.name !== CONTENT_SCRIPT_PORT) return;
 
   port.onMessage.addListener((message: LegacyMessageFromContentScript | RpcRequests, port) => {
-    // HACK -- Cat21 (debug-connect): probe — does BG receive port msgs?
-    if (port.sender?.tab?.id) {
-      void chrome.tabs.sendMessage(port.sender.tab.id, {
-        source: 'CAT21-DEBUG',
-        text: `bg port.onMessage method=${(message as any)?.method ?? 'unknown'} id=${(message as any)?.id ?? 'unknown'}`,
-      });
-    }
+    bgDbg(`port.onMessage; method=${(message as any)?.method ?? 'unknown'} id=${(message as any)?.id ?? 'unknown'} sender.tab.id=${port.sender?.tab?.id ?? 'undef'}`);
     if (!port.sender?.tab?.id)
       return logger.error('Message reached background script without a corresponding tab');
 
