@@ -26,10 +26,19 @@ let backgroundPort: any;
 // and establishes two-way communication
 function connect() {
   backgroundPort = chrome.runtime.connect({ name: CONTENT_SCRIPT_PORT });
-  backgroundPort.onDisconnect.addListener(connect);
+  // HACK -- Cat21 (debug-connect): trace port lifecycle. Repeated
+  // reconnects = SW thrash; a reconnect AT click time = the dapp's
+  // dispatch race the port was holding to. Remove once pinned.
+  backgroundPort.onDisconnect.addListener(() => {
+    // eslint-disable-next-line no-console
+    console.log('[CAT21-CS] port-disconnected; reconnecting');
+    connect();
+  });
 }
 
 connect();
+// eslint-disable-next-line no-console
+console.log('[CAT21-CS] content-script loaded', window.location.href);
 
 // Sends message to background script that an event has fired
 function sendMessageToBackground(message: LegacyMessageFromContentScript) {
@@ -38,6 +47,13 @@ function sendMessageToBackground(message: LegacyMessageFromContentScript) {
 
 // Receives message from background script to execute in browser
 chrome.runtime.onMessage.addListener((message: LegacyMessageToContentScript) => {
+  // HACK -- Cat21 (debug-connect): trace probe for the ordpool e2e
+  // popup-not-appearing investigation. If [CAT21-CS] dispatch->bg
+  // logs but [CAT21-CS] bg->page never does, the background never
+  // sent a response (popup never shown, user never approved, OR
+  // chrome.windows.create hangs). Remove once root cause is pinned.
+  // eslint-disable-next-line no-console
+  console.log('[CAT21-CS] bg->page', (message as any)?.method ?? (message as any)?.id ?? 'unknown');
   if (message.source === MESSAGE_SOURCE || (message as any).jsonrpc === '2.0') {
     window.postMessage(message, window.location.origin);
   }
@@ -58,6 +74,12 @@ function forwardDomEventToBackground({ payload, method }: ForwardDomEventToBackg
 }
 
 document.addEventListener(DomEventName.request, (event: any) => {
+  // HACK -- Cat21 (debug-connect): trace probe for the ordpool e2e
+  // popup-not-appearing investigation. If this never logs in the
+  // dapp page console, the inpage provider's CustomEvent never
+  // dispatched. Remove once root cause is pinned.
+  // eslint-disable-next-line no-console
+  console.log('[CAT21-CS] dispatch->bg', event.detail?.method, event.detail?.id);
   sendMessageToBackground({ source: MESSAGE_SOURCE, ...event.detail });
 });
 
