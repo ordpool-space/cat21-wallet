@@ -469,6 +469,10 @@ msgstr "Cannot send to yourself"
 msgid "Careful. This transaction could drain your wallet."
 msgstr "Careful. This transaction could drain your wallet."
 
+#: src/shared/display-preference.ts:65
+msgid "CAT-21"
+msgstr "CAT-21"
+
 #: src/features/settings/wallet-and-accounts/wallet-name-sheet.tsx:17
 msgid "Change name"
 msgstr "Change name"
