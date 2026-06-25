@@ -47,11 +47,16 @@ function sendMessageToBackground(message: LegacyMessageFromContentScript) {
 
 // Receives message from background script to execute in browser
 chrome.runtime.onMessage.addListener((message: LegacyMessageToContentScript) => {
-  // HACK -- Cat21 (debug-connect): trace probe for the ordpool e2e
-  // popup-not-appearing investigation. If [CAT21-CS] dispatch->bg
-  // logs but [CAT21-CS] bg->page never does, the background never
-  // sent a response (popup never shown, user never approved, OR
-  // chrome.windows.create hangs). Remove once root cause is pinned.
+  // HACK -- Cat21 (debug-connect): debug probe relay. Background
+  // sends `{source: 'CAT21-DEBUG', text: '...'}` to surface internal
+  // diagnostic checkpoints in the dapp page console (which Playwright
+  // captures). Doesn't get postMessaged to the page (the existing
+  // filter below blocks that). Remove once root cause pinned.
+  if ((message as any)?.source === 'CAT21-DEBUG') {
+    // eslint-disable-next-line no-console
+    console.log('[CAT21-BG]', (message as any).text);
+    return;
+  }
   // eslint-disable-next-line no-console
   console.log('[CAT21-CS] bg->page', (message as any)?.method ?? (message as any)?.id ?? 'unknown');
   if (message.source === MESSAGE_SOURCE || (message as any).jsonrpc === '2.0') {

@@ -78,6 +78,13 @@ chrome.runtime.onConnect.addListener(port => {
   if (port.name !== CONTENT_SCRIPT_PORT) return;
 
   port.onMessage.addListener((message: LegacyMessageFromContentScript | RpcRequests, port) => {
+    // HACK -- Cat21 (debug-connect): probe — does BG receive port msgs?
+    if (port.sender?.tab?.id) {
+      void chrome.tabs.sendMessage(port.sender.tab.id, {
+        source: 'CAT21-DEBUG',
+        text: `bg port.onMessage method=${(message as any)?.method ?? 'unknown'} id=${(message as any)?.id ?? 'unknown'}`,
+      });
+    }
     if (!port.sender?.tab?.id)
       return logger.error('Message reached background script without a corresponding tab');
 
