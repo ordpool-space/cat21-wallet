@@ -99,26 +99,33 @@ const cat21ProbeStateCache = makeBackgroundProbeStateCache({
 cat21ProbeStateCache.bootstrap().catch(e => {
   logger.error('cat21 probe-state bootstrap failed: ', e);
 });
-// HACK -- Cat21 (debug-bisect): temporarily disable installCat21NmhAgent
-// to isolate whether this wiring breaks the ordpool e2e dapp port
-// flow. If the dapp connect-popup spawns with this commented out,
-// installCat21NmhAgent is the culprit. Re-enable + fix once pinned.
-// installCat21NmhAgent({
-//   connectNative: chrome.runtime.connectNative.bind(chrome.runtime),
-//   storage: chrome.storage.session,
-//   onMessage: chrome.runtime.onMessage,
-//   triggerPopupOpen: triggerRequestPopupWindowOpen,
-//   getState: cat21ProbeStateCache.read,
-//   readOnlyProbes: makeReadOnlyProbeWires({
-//     getState: cat21ProbeStateCache.read,
-//     cat21OrdClient: getCat21OrdApiClient(),
-//   }),
-//   verifyResultBusSender: sender => sender?.id === chrome.runtime.id && sender?.tab === undefined,
-//   onHostNotInstalled: () => logger.info('cat21 NMH host not installed — Path 3 disabled'),
-// });
-void installCat21NmhAgent;
-void makeReadOnlyProbeWires;
-void getCat21OrdApiClient;
+// HACK -- Cat21 (debug-bisect2): defer NMH wiring off the SW's
+// initial sync evaluation tick. With it inline, `connectNative` is
+// called before the runtime listeners route their first event; the
+// dapp's content-script port.connect arrives during that window and
+// is silently dropped (bisect confirmed: with NMH disabled the
+// ordpool e2e regtest popup spawns; with it inline it never does).
+// setTimeout(0) defers to the next macrotask, giving the runtime
+// pipeline a chance to drain.
+setTimeout(() => {
+  installCat21NmhAgent({
+    connectNative: chrome.runtime.connectNative.bind(chrome.runtime),
+    storage: chrome.storage.session,
+    onMessage: chrome.runtime.onMessage,
+    triggerPopupOpen: triggerRequestPopupWindowOpen,
+    getState: cat21ProbeStateCache.read,
+    readOnlyProbes: makeReadOnlyProbeWires({
+      getState: cat21ProbeStateCache.read,
+      cat21OrdClient: getCat21OrdApiClient(),
+    }),
+    // cat21-result-bus integrity check: accept only messages whose
+    // sender is one of our own extension pages. `sender.id ===
+    // chrome.runtime.id` rules out other extensions; `sender.tab ===
+    // undefined` rules out content scripts running in a tab.
+    verifyResultBusSender: sender => sender?.id === chrome.runtime.id && sender?.tab === undefined,
+    onHostNotInstalled: () => logger.info('cat21 NMH host not installed — Path 3 disabled'),
+  });
+}, 0);
 
 initAddressMonitor().catch(e => {
   logger.error('Unable to Initialise Address Monitor: ', e);
