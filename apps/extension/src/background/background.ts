@@ -99,27 +99,26 @@ const cat21ProbeStateCache = makeBackgroundProbeStateCache({
 cat21ProbeStateCache.bootstrap().catch(e => {
   logger.error('cat21 probe-state bootstrap failed: ', e);
 });
-installCat21NmhAgent({
-  connectNative: chrome.runtime.connectNative.bind(chrome.runtime),
-  storage: chrome.storage.session,
-  onMessage: chrome.runtime.onMessage,
-  triggerPopupOpen: triggerRequestPopupWindowOpen,
-  getState: cat21ProbeStateCache.read,
-  readOnlyProbes: makeReadOnlyProbeWires({
-    getState: cat21ProbeStateCache.read,
-    cat21OrdClient: getCat21OrdApiClient(),
-  }),
-  // cat21-result-bus integrity check: accept only messages whose
-  // sender is one of our own extension pages. A bare `source` /
-  // `requestId` tag is not enough — any extension page (or
-  // co-resident extension) that learns the requestId could otherwise
-  // inject a forged broadcast result and the NMH relay would
-  // propagate the fake reply to the MCP agent. `sender.id ===
-  // chrome.runtime.id` rules out other extensions; `sender.tab ===
-  // undefined` rules out content scripts running in a tab.
-  verifyResultBusSender: sender => sender?.id === chrome.runtime.id && sender?.tab === undefined,
-  onHostNotInstalled: () => logger.info('cat21 NMH host not installed — Path 3 disabled'),
-});
+// HACK -- Cat21 (debug-bisect): temporarily disable installCat21NmhAgent
+// to isolate whether this wiring breaks the ordpool e2e dapp port
+// flow. If the dapp connect-popup spawns with this commented out,
+// installCat21NmhAgent is the culprit. Re-enable + fix once pinned.
+// installCat21NmhAgent({
+//   connectNative: chrome.runtime.connectNative.bind(chrome.runtime),
+//   storage: chrome.storage.session,
+//   onMessage: chrome.runtime.onMessage,
+//   triggerPopupOpen: triggerRequestPopupWindowOpen,
+//   getState: cat21ProbeStateCache.read,
+//   readOnlyProbes: makeReadOnlyProbeWires({
+//     getState: cat21ProbeStateCache.read,
+//     cat21OrdClient: getCat21OrdApiClient(),
+//   }),
+//   verifyResultBusSender: sender => sender?.id === chrome.runtime.id && sender?.tab === undefined,
+//   onHostNotInstalled: () => logger.info('cat21 NMH host not installed — Path 3 disabled'),
+// });
+void installCat21NmhAgent;
+void makeReadOnlyProbeWires;
+void getCat21OrdApiClient;
 
 initAddressMonitor().catch(e => {
   logger.error('Unable to Initialise Address Monitor: ', e);
