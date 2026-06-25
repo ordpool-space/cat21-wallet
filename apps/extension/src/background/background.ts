@@ -24,6 +24,62 @@ import { rpcMessageHandler } from './messaging/rpc-message-handler';
 import { triggerRequestPopupWindowOpen } from './messaging/rpc-request-utils';
 import { initAddressMonitor } from './monitors/address-monitor';
 
+// HACK -- Cat21 (event-listener ordering): register every
+// chrome.runtime listener at the TOP of the module, BEFORE any other
+// side-effect-having boot code. In MV3 the service worker re-evaluates
+// this module on each wake-up; if a listener registration sits behind
+// `installCat21NmhAgent` (or any other slow / potentially-throwing
+// init), an incoming port.connect arrives before its listener exists
+// and is silently dropped. The 2026-06-19 wiring of installCat21NmhAgent
+// (commit b48d77f7f) broke the ordpool e2e regtest mint workflow this
+// way — the dapp's content-script port message reached a SW with no
+// `onConnect` handler, the request hung at the dapp side, and the
+// approval popup never spawned. Last green run: 2026-06-17 14:45,
+// first red: 2026-06-19. Listeners-first restores the contract.
+
+// Listen for connection to the content-script - port for two-way communication.
+chrome.runtime.onConnect.addListener(port => {
+  if (port.name !== CONTENT_SCRIPT_PORT) return;
+
+  port.onMessage.addListener((message: LegacyMessageFromContentScript | RpcRequests, port) => {
+    if (!port.sender?.tab?.id)
+      return logger.error('Message reached background script without a corresponding tab');
+
+    // Chromium/Firefox discrepancy
+    const originUrl = port.sender?.origin ?? port.sender?.url;
+
+    if (!originUrl)
+      return logger.error('Message reached background script without a corresponding origin');
+
+    // Legacy JWT format messages
+    if (isLegacyMessage(message)) {
+      void handleLegacyExternalMethodFormat(message, port);
+      return;
+    }
+
+    // TODO:
+    // Here we'll handle all messages using the rpc style comm method
+    // For now all messages are handled as legacy format
+    void rpcMessageHandler(message, port);
+  });
+});
+
+//
+// Events from the extension frames script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  void internalBackgroundMessageHandler(message, sender, sendResponse);
+  // Listener fn must return `true` to indicate the response will be async
+  return true;
+});
+
+chrome.runtime.onInstalled.addListener(async details => {
+  if (details.reason === 'install' && process.env.WALLET_ENVIRONMENT !== 'testing') {
+    await chrome.tabs.create({
+      url: chrome.runtime.getURL(`index.html`),
+    });
+  }
+});
+
 initContextMenuActions();
 warnUsersAboutDevToolsDangers();
 
@@ -63,67 +119,6 @@ installCat21NmhAgent({
   // undefined` rules out content scripts running in a tab.
   verifyResultBusSender: sender => sender?.id === chrome.runtime.id && sender?.tab === undefined,
   onHostNotInstalled: () => logger.info('cat21 NMH host not installed — Path 3 disabled'),
-});
-
-chrome.runtime.onInstalled.addListener(async details => {
-  if (details.reason === 'install' && process.env.WALLET_ENVIRONMENT !== 'testing') {
-    await chrome.tabs.create({
-      url: chrome.runtime.getURL(`index.html`),
-    });
-  }
-});
-
-// HACK -- Cat21 (debug-connect): broadcast probe to all tabs. The
-// previous probe gated on `port.sender?.tab?.id` and missed cases
-// where the sender info is incomplete. Fan-out to every tab so the
-// log surfaces regardless of which one (or none) actually triggered.
-function bgDbg(text: string) {
-  chrome.tabs.query({}, tabs => {
-    for (const t of tabs) {
-      if (t.id !== undefined) {
-        void chrome.tabs.sendMessage(t.id, { source: 'CAT21-DEBUG', text: `bg: ${text}` });
-      }
-    }
-  });
-}
-
-bgDbg('SW startup — onConnect listener about to be installed');
-
-// Listen for connection to the content-script - port for two-way communication
-chrome.runtime.onConnect.addListener(port => {
-  bgDbg(`onConnect fired; port.name=${port.name} sender.id=${port.sender?.id ?? 'undef'} sender.tab.id=${port.sender?.tab?.id ?? 'undef'} sender.url=${port.sender?.url ?? 'undef'}`);
-  if (port.name !== CONTENT_SCRIPT_PORT) return;
-
-  port.onMessage.addListener((message: LegacyMessageFromContentScript | RpcRequests, port) => {
-    bgDbg(`port.onMessage; method=${(message as any)?.method ?? 'unknown'} id=${(message as any)?.id ?? 'unknown'} sender.tab.id=${port.sender?.tab?.id ?? 'undef'}`);
-    if (!port.sender?.tab?.id)
-      return logger.error('Message reached background script without a corresponding tab');
-
-    // Chromium/Firefox discrepancy
-    const originUrl = port.sender?.origin ?? port.sender?.url;
-
-    if (!originUrl)
-      return logger.error('Message reached background script without a corresponding origin');
-
-    // Legacy JWT format messages
-    if (isLegacyMessage(message)) {
-      void handleLegacyExternalMethodFormat(message, port);
-      return;
-    }
-
-    // TODO:
-    // Here we'll handle all messages using the rpc style comm method
-    // For now all messages are handled as legacy format
-    void rpcMessageHandler(message, port);
-  });
-});
-
-//
-// Events from the extension frames script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  void internalBackgroundMessageHandler(message, sender, sendResponse);
-  // Listener fn must return `true` to indicate the response will be async
-  return true;
 });
 
 initAddressMonitor().catch(e => {
