@@ -80,12 +80,33 @@ function forwardDomEventToBackground({ payload, method }: ForwardDomEventToBackg
 
 document.addEventListener(DomEventName.request, (event: any) => {
   // HACK -- Cat21 (debug-connect): trace probe for the ordpool e2e
-  // popup-not-appearing investigation. If this never logs in the
-  // dapp page console, the inpage provider's CustomEvent never
-  // dispatched. Remove once root cause is pinned.
+  // popup-not-appearing investigation. Remove once pinned.
   // eslint-disable-next-line no-console
   console.log('[CAT21-CS] dispatch->bg', event.detail?.method, event.detail?.id);
-  sendMessageToBackground({ source: MESSAGE_SOURCE, ...event.detail });
+
+  // Parallel SW-liveness probe: chrome.runtime.sendMessage returns
+  // a Promise that rejects if the SW isn't listening. If the port
+  // path is broken but rt.sendMessage works, the SW is alive but
+  // the port handler isn't routing. If rt.sendMessage also fails,
+  // the SW itself is dead or the runtime is detached.
+  void chrome.runtime
+    .sendMessage({ source: 'CAT21-DEBUG-PROBE', method: event.detail?.method })
+    .then(r => {
+      // eslint-disable-next-line no-console
+      console.log('[CAT21-CS] rt.sendMessage ok response=', JSON.stringify(r));
+    })
+    .catch(e => {
+      // eslint-disable-next-line no-console
+      console.log('[CAT21-CS] rt.sendMessage FAILED:', e?.message ?? String(e));
+    });
+
+  // Also probe the port directly with a try/catch around postMessage.
+  try {
+    sendMessageToBackground({ source: MESSAGE_SOURCE, ...event.detail });
+  } catch (e: any) {
+    // eslint-disable-next-line no-console
+    console.log('[CAT21-CS] sendMessageToBackground THREW:', e?.message ?? String(e));
+  }
 });
 
 // Listen for a CustomEvent (auth request) coming from the web app
