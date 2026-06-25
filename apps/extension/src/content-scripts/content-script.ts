@@ -26,19 +26,10 @@ let backgroundPort: any;
 // and establishes two-way communication
 function connect() {
   backgroundPort = chrome.runtime.connect({ name: CONTENT_SCRIPT_PORT });
-  // HACK -- Cat21 (debug-connect): trace port lifecycle. Repeated
-  // reconnects = SW thrash; a reconnect AT click time = the dapp's
-  // dispatch race the port was holding to. Remove once pinned.
-  backgroundPort.onDisconnect.addListener(() => {
-    // eslint-disable-next-line no-console
-    console.log('[CAT21-CS] port-disconnected; reconnecting');
-    connect();
-  });
+  backgroundPort.onDisconnect.addListener(connect);
 }
 
 connect();
-// eslint-disable-next-line no-console
-console.log('[CAT21-CS] content-script loaded', window.location.href);
 
 // Sends message to background script that an event has fired
 function sendMessageToBackground(message: LegacyMessageFromContentScript) {
@@ -47,18 +38,6 @@ function sendMessageToBackground(message: LegacyMessageFromContentScript) {
 
 // Receives message from background script to execute in browser
 chrome.runtime.onMessage.addListener((message: LegacyMessageToContentScript) => {
-  // HACK -- Cat21 (debug-connect): debug probe relay. Background
-  // sends `{source: 'CAT21-DEBUG', text: '...'}` to surface internal
-  // diagnostic checkpoints in the dapp page console (which Playwright
-  // captures). Doesn't get postMessaged to the page (the existing
-  // filter below blocks that). Remove once root cause pinned.
-  if ((message as any)?.source === 'CAT21-DEBUG') {
-    // eslint-disable-next-line no-console
-    console.log('[CAT21-BG]', (message as any).text);
-    return;
-  }
-  // eslint-disable-next-line no-console
-  console.log('[CAT21-CS] bg->page', (message as any)?.method ?? (message as any)?.id ?? 'unknown');
   if (message.source === MESSAGE_SOURCE || (message as any).jsonrpc === '2.0') {
     window.postMessage(message, window.location.origin);
   }
@@ -79,34 +58,7 @@ function forwardDomEventToBackground({ payload, method }: ForwardDomEventToBackg
 }
 
 document.addEventListener(DomEventName.request, (event: any) => {
-  // HACK -- Cat21 (debug-connect): trace probe for the ordpool e2e
-  // popup-not-appearing investigation. Remove once pinned.
-  // eslint-disable-next-line no-console
-  console.log('[CAT21-CS] dispatch->bg', event.detail?.method, event.detail?.id);
-
-  // Parallel SW-liveness probe: chrome.runtime.sendMessage returns
-  // a Promise that rejects if the SW isn't listening. If the port
-  // path is broken but rt.sendMessage works, the SW is alive but
-  // the port handler isn't routing. If rt.sendMessage also fails,
-  // the SW itself is dead or the runtime is detached.
-  void chrome.runtime
-    .sendMessage({ source: 'CAT21-DEBUG-PROBE', method: event.detail?.method })
-    .then(r => {
-      // eslint-disable-next-line no-console
-      console.log('[CAT21-CS] rt.sendMessage ok response=', JSON.stringify(r));
-    })
-    .catch(e => {
-      // eslint-disable-next-line no-console
-      console.log('[CAT21-CS] rt.sendMessage FAILED:', e?.message ?? String(e));
-    });
-
-  // Also probe the port directly with a try/catch around postMessage.
-  try {
-    sendMessageToBackground({ source: MESSAGE_SOURCE, ...event.detail });
-  } catch (e: any) {
-    // eslint-disable-next-line no-console
-    console.log('[CAT21-CS] sendMessageToBackground THREW:', e?.message ?? String(e));
-  }
+  sendMessageToBackground({ source: MESSAGE_SOURCE, ...event.detail });
 });
 
 // Listen for a CustomEvent (auth request) coming from the web app

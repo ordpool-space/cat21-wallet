@@ -24,18 +24,13 @@ import { rpcMessageHandler } from './messaging/rpc-message-handler';
 import { triggerRequestPopupWindowOpen } from './messaging/rpc-request-utils';
 import { initAddressMonitor } from './monitors/address-monitor';
 
-// HACK -- Cat21 (event-listener ordering): register every
-// chrome.runtime listener at the TOP of the module, BEFORE any other
-// side-effect-having boot code. In MV3 the service worker re-evaluates
-// this module on each wake-up; if a listener registration sits behind
-// `installCat21NmhAgent` (or any other slow / potentially-throwing
-// init), an incoming port.connect arrives before its listener exists
-// and is silently dropped. The 2026-06-19 wiring of installCat21NmhAgent
-// (commit b48d77f7f) broke the ordpool e2e regtest mint workflow this
-// way — the dapp's content-script port message reached a SW with no
-// `onConnect` handler, the request hung at the dapp side, and the
-// approval popup never spawned. Last green run: 2026-06-17 14:45,
-// first red: 2026-06-19. Listeners-first restores the contract.
+// HACK -- Cat21 (MV3 listener-ordering rule): every chrome.runtime
+// listener is registered at the TOP of this module, BEFORE any
+// side-effect-having boot code (installCat21NmhAgent,
+// initContextMenuActions, etc.). MV3 re-evaluates the SW module on
+// each wake-up; listeners must be in place when the first inbound
+// event arrives. See the deferred installCat21NmhAgent() below for
+// the second half of the contract.
 
 // Listen for connection to the content-script - port for two-way communication.
 chrome.runtime.onConnect.addListener(port => {
@@ -99,14 +94,34 @@ const cat21ProbeStateCache = makeBackgroundProbeStateCache({
 cat21ProbeStateCache.bootstrap().catch(e => {
   logger.error('cat21 probe-state bootstrap failed: ', e);
 });
-// HACK -- Cat21 (debug-bisect2): defer NMH wiring off the SW's
-// initial sync evaluation tick. With it inline, `connectNative` is
-// called before the runtime listeners route their first event; the
-// dapp's content-script port.connect arrives during that window and
-// is silently dropped (bisect confirmed: with NMH disabled the
-// ordpool e2e regtest popup spawns; with it inline it never does).
-// setTimeout(0) defers to the next macrotask, giving the runtime
-// pipeline a chance to drain.
+// HACK -- Cat21 (defer NMH boot off the SW critical path): wiring
+// `installCat21NmhAgent` inline at module init breaks the dapp's
+// `chrome.runtime.connect({name:'content-script'})` flow under
+// headless-xvfb Chromium. Symptom: CS dispatches getAddresses,
+// SW never delivers the port message to its onConnect listener,
+// the approval popup never spawns, the dapp's
+// `Cat21Provider.request(...)` Promise hangs.
+//
+// Bisect (2026-06-25):
+//   - Wallet commit b48d77f7f (2026-06-19) wired installCat21NmhAgent
+//     at SW boot. Last green ordpool e2e: 2026-06-17 14:45.
+//     First red: 2026-06-19 — same day b48d77f7f landed.
+//   - Run 28153103778 (wallet HEAD 8ea3b0b8d, installCat21NmhAgent
+//     commented out): GREEN. Full mint roundtrip including popup
+//     approval flow.
+//   - Run 28154386200 (wallet HEAD 6716baf7f, this setTimeout(0)
+//     wrapper): GREEN.
+//
+// Why setTimeout(0) fixes it: connectNative('cat21-nmh-app') starts
+// a synchronous-from-Chrome's-perspective NMH host lookup. Until
+// that lookup completes (or fails fast on "host not installed"),
+// the SW's port-routing pipeline doesn't drain new content-script
+// connects. Deferring to the next macrotask lets the SW finish
+// processing the initial event-queue (including any queued
+// content-script `port.connect`) before initiating the native-host
+// lookup. NMH is Path 3 (opportunistic MCP-bot bridge); it's fine
+// to come up one tick later — no agent is connected at SW boot
+// anyway.
 setTimeout(() => {
   installCat21NmhAgent({
     connectNative: chrome.runtime.connectNative.bind(chrome.runtime),

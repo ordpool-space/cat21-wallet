@@ -23,30 +23,10 @@ async function sharedGetAddressesHandler(
     urlParams.append('network', request.params.network);
   }
 
-  // HACK -- Cat21 (debug-connect): probe — handler invoked.
-  void chrome.tabs.sendMessage(tabId, {
-    source: 'CAT21-DEBUG',
-    text: `getAddresses handler entry; network=${request.params?.network ?? 'unset'} tabId=${tabId}`,
-  });
-
-  let popupResult: { id?: number } | undefined;
-  try {
-    popupResult = await triggerRequestPopupWindowOpen(RouteUrls.RpcGetAddresses, urlParams);
-  } catch (e) {
-    void chrome.tabs.sendMessage(tabId, {
-      source: 'CAT21-DEBUG',
-      text: `triggerRequestPopupWindowOpen THREW: ${(e as Error)?.message ?? String(e)}`,
-    });
-    throw e;
-  }
-  void chrome.tabs.sendMessage(tabId, {
-    source: 'CAT21-DEBUG',
-    text: `triggerRequestPopupWindowOpen done; popup.id=${popupResult?.id ?? 'undef'}`,
-  });
-
+  const { id } = await triggerRequestPopupWindowOpen(RouteUrls.RpcGetAddresses, urlParams);
   void trackRpcRequestSuccess({ endpoint: request.method });
 
-  sendErrorResponseOnUserPopupClose({ tabId, id: popupResult?.id, request });
+  sendErrorResponseOnUserPopupClose({ tabId, id, request });
 }
 
 export const getAddressesHandler = defineRpcRequestHandler(
