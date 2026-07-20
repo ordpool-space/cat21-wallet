@@ -16,6 +16,13 @@ export const ZERO_INDEX = 0;
 
 export const HIRO_EXPLORER_URL = 'https://explorer.hiro.so';
 export const MEMPOOL_BASE_URL = 'https://mempool.space';
+/**
+ * Explorer the wallet sends users to for mainnet transactions and blocks.
+ * ordpool.space decodes the CAT-21 marker on a transaction; mempool.space
+ * does not. mempool.space stays in MEMPOOL_BASE_URL for API traffic
+ * (fee estimation, network-form defaults), which is not user-facing.
+ */
+export const ORDPOOL_BASE_URL = 'https://ordpool.space';
 export const ORD_IO_URL = 'https://ord.io';
 export const GAMMA_URL = 'https://gamma.io';
 export const GAMMA_API_URL: string = `${GAMMA_URL}/api`;
