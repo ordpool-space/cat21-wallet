@@ -78,7 +78,7 @@ export function makeReadOnlyProbeWires(args: MakeProbeWiresArgs): {
       const state = args.getState();
       if (state.activeAccountAddress == null) return [];
       const result = await args.cat21OrdClient.fetchAddressCat21s(state.activeAccountAddress);
-      return result.inscriptions;
+      return result.cats;
     },
     readWalletStatus() {
       const state = args.getState();

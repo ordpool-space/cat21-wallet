@@ -21,7 +21,7 @@ function makeFakeClient(overrides?: {
   return {
     fetchAddressCat21s:
       overrides?.fetchAddressCat21s ??
-      vi.fn(() => Promise.resolve({ inscriptions: ['cat-1i0', 'cat-2i0'] })),
+      vi.fn(() => Promise.resolve({ cats: ['cat-1i0', 'cat-2i0'] })),
     fetchStatus:
       overrides?.fetchStatus ??
       vi.fn(() =>
@@ -32,15 +32,13 @@ function makeFakeClient(overrides?: {
           address_index: true as const,
           sat_index: true as const,
           cats: 75432,
-          blessed_cats: 75000,
-          cursed_cats: 432,
         })
       ),
   };
 }
 
 describe('makeReadOnlyProbeWires.listCatsAtActiveAccount', () => {
-  it('passes the active-account address to fetchAddressCat21s and returns the inscriptions array', async () => {
+  it('passes the active-account address to fetchAddressCat21s and returns the cats array', async () => {
     const client = makeFakeClient();
     const wires = makeReadOnlyProbeWires({ getState: () => sampleState, cat21OrdClient: client });
 

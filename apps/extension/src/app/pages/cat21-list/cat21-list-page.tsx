@@ -75,7 +75,7 @@ export function Cat21ListPage() {
         </Flex>
       );
     }
-    if (cats.inscriptions.length === 0) {
+    if (cats.cats.length === 0) {
       return (
         <styled.p textStyle="body.02" data-testid="cat21-list-empty">
           No cats at this address yet. Mint your first one from the home screen.
@@ -84,7 +84,7 @@ export function Cat21ListPage() {
     }
     return (
       <Flex direction="column" gap="space.03" data-testid="cat21-list-rows">
-        {cats.inscriptions.map(catId => (
+        {cats.cats.map(catId => (
           <Flex
             key={catId}
             direction="column"

@@ -23,6 +23,14 @@ export const MEMPOOL_BASE_URL = 'https://mempool.space';
  * (fee estimation, network-form defaults), which is not user-facing.
  */
 export const ORDPOOL_BASE_URL = 'https://ordpool.space';
+/** Cat detail pages, the public home of a cat. */
+export const CAT21_SITE_URL = 'https://cat21.space';
+/**
+ * The CAT-21 protocol marker. Block 21 was mined in 2009, so nLockTime=21 has
+ * no consensus meaning and is pure marker bytes. The renderer needs it because
+ * the parser refuses any transaction that is not a mint.
+ */
+export const CAT21_LOCK_TIME = 21;
 export const ORD_IO_URL = 'https://ord.io';
 export const GAMMA_URL = 'https://gamma.io';
 export const GAMMA_API_URL: string = `${GAMMA_URL}/api`;

@@ -385,7 +385,7 @@ importers:
         specifier: 2.71.1
         version: 2.71.1
       ordpool-sdk:
-        specifier: github:ordpool-space/ordpool-sdk#35d473d
+        specifier: github:ordpool-space/ordpool-sdk#35d473da7720bfd5702129c2ed9b5d2ec16c71ff
         version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/35d473da7720bfd5702129c2ed9b5d2ec16c71ff(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/base@1.2.4)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
       os-browserify:
         specifier: 0.3.0

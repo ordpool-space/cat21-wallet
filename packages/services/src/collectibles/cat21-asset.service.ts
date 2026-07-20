@@ -32,29 +32,28 @@ export class Cat21AssetService {
     const addresses = this.collectAddresses(request);
     if (addresses.length === 0) return [];
 
+    /* HACK -- Cat21: failures are not caught per item, matching upstream's
+     * InscriptionsService, which wrapped one Promise.all in a single try and
+     * let anything inside reach it. Best-in-Slot returned rich objects in one
+     * call per descriptor, so upstream had no per-item fetch and no per-item
+     * failure to swallow; ord's /address/ returns bare ids, so we fetch each
+     * cat. Swallowing those rejections individually turned "every cat failed
+     * to parse" into "this account owns no cats", which is indistinguishable
+     * from an empty wallet and hid a schema mismatch against ord. A read that
+     * cannot complete returns nothing rather than returning a quiet subset. */
     try {
       const results = await Promise.all(
-        addresses.map(address =>
-          this.cat21OrdClient.fetchAddressCat21s(address, { signal }).then(
-            res => ({ address, catIds: res.inscriptions }),
-            () => ({ address, catIds: [] as string[] })
-          )
-        )
+        addresses.map(address => this.cat21OrdClient.fetchAddressCat21s(address, { signal }))
       );
 
-      const catIds = results.flatMap(r => r.catIds);
+      const catIds = results.flatMap(res => res.cats);
       if (catIds.length === 0) return [];
 
-      const catDetails = await Promise.all(
-        catIds.map(id =>
-          this.cat21OrdClient.fetchCat21(id, { signal }).then(
-            cat => mapOrdCat21ToCat21Asset(cat),
-            () => undefined
-          )
-        )
+      const cats = await Promise.all(
+        catIds.map(id => this.cat21OrdClient.fetchCat21(id, { signal }))
       );
 
-      return catDetails.filter((asset): asset is Cat21Asset => Boolean(asset));
+      return cats.map(mapOrdCat21ToCat21Asset);
     } catch {
       return [];
     }

@@ -1,0 +1,26 @@
+{
+  "address_index": true,
+  "blessed_cats": 63749,
+  "chain": "mainnet",
+  "cursed_cats": 0,
+  "height": 958922,
+  "initial_sync_time": {
+    "secs": 0,
+    "nanos": 0
+  },
+  "cat_index": true,
+  "cats": 63749,
+  "json_api": true,
+  "lost_sats": 2895844904,
+  "minimum_rune_for_next_block": "FIDNUJ",
+  "rune_index": false,
+  "runes": 0,
+  "sat_index": true,
+  "started": "2026-07-20T09:40:18.177501159Z",
+  "transaction_index": false,
+  "unrecoverably_reorged": false,
+  "uptime": {
+    "secs": 32733,
+    "nanos": 879210254
+  }
+}

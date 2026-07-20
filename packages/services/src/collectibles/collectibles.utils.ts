@@ -8,20 +8,24 @@ export function sortByBlockHeight(a: { blockHeight: number }, b: { blockHeight: 
 }
 
 /* HACK -- Cat21: ord-shape → Cat21Asset translator per ADR-12. cat21-ord's
- * on-the-wire field names (snake_case `content_type`, `genesis_height`) map
- * into the camelCase Cat21Asset shape the collectibles UI consumes. */
+ * on-the-wire field names (snake_case `content_type`, `height`) map into the
+ * camelCase Cat21Asset shape the collectibles UI consumes. `content_type` is
+ * null for every cat (no envelope, no content bytes), and blockHash + fee +
+ * weight are carried through because they are what renders the cat locally. */
 export function mapOrdCat21ToCat21Asset(cat: OrdCat21): Cat21Asset {
   return createCat21Asset({
     id: cat.id,
     number: cat.number,
     contentSrc: '',
-    mimeType: cat.content_type,
+    mimeType: cat.content_type ?? undefined,
     ownerAddress: cat.address ?? '',
     satPoint: cat.satpoint,
-    genesisBlockHash: '',
+    genesisBlockHash: cat.block_hash ?? '',
     genesisTimestamp: cat.timestamp,
-    genesisBlockHeight: cat.genesis_height,
-    outputValue: '0',
+    genesisBlockHeight: cat.height,
+    fee: cat.fee,
+    weight: cat.weight,
+    outputValue: cat.value?.toString() ?? '0',
   });
 }
 
@@ -29,7 +33,7 @@ export function mapOrdCat21ToCat21Asset(cat: OrdCat21): Cat21Asset {
 // HACK -- Cat21: removed `export` keyword (cat21 collectibles util pre-wired; restore on consumer wire-up). HARD RULE #5 — restore on wire-up.
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion: file kept for revival, ESLint can't see the future consumer.
 function sortOrdCat21ByBlockHeight(a: OrdCat21, b: OrdCat21) {
-  return b.genesis_height - a.genesis_height;
+  return b.height - a.height;
 }
 
 const lpTokenPatterns = [

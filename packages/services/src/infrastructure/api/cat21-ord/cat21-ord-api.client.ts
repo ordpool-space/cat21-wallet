@@ -167,8 +167,10 @@ export { z };
  * than a per-address scan: it tolerates address-reuse, multi-cat outputs,
  * and not-yet-indexed receive addresses correctly.
  *
- * The `out.inscriptions` field check uses ord's wire-level field name —
- * a non-empty array means the output holds a cat.
+ * The `out.cats` check reads the wire field as cat21-ord actually emits it:
+ * its response-rewriting middleware renames ord's `inscriptions` to `cats` in
+ * JSON, so the upstream name never arrives. A non-empty array means the output
+ * holds a cat.
  *
  * Failure mode: if cat21-ord cannot be reached or the per-UTXO probe throws,
  * the safe answer is "treat the UTXO as cat-bearing" — i.e. the BTC send
@@ -186,7 +188,7 @@ export async function fetchCatBearingUtxoIds(
     utxos.map(async utxo => {
       try {
         const out = await client.fetchOutput(`${utxo.txid}:${utxo.vout}`, options);
-        return { utxo, hasCat: out.inscriptions.length > 0 };
+        return { utxo, hasCat: out.cats.length > 0 };
       } catch {
         return { utxo, hasCat: true };
       }

@@ -40,7 +40,11 @@
     ".claude/**",
     "apps/extension/src/app/store/active/active.actions.ts",
     "packages/services/src/infrastructure/api/leather/leather-api.types.ts",
-    "packages/services/src/infrastructure/api/bitflow/bitflow-bff-api.types.ts"
+    "packages/services/src/infrastructure/api/bitflow/bitflow-bff-api.types.ts",
+    // HACK -- Cat21: vendored, generated bundle. Its export surface is the
+    // upstream module's, not ours; we import one symbol and knip would flag
+    // the rest forever. Regenerate it, never hand-edit it.
+    "packages/utils/src/assets/vendor/**"
   ],
   "workspaces": {
     "apps/extension": {
