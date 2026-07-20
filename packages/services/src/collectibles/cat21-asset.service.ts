@@ -4,7 +4,7 @@ import type { Cat21Asset } from '@leather.io/models';
 
 import { Cat21OrdApiClient } from '../infrastructure/api/cat21-ord/cat21-ord-api.client';
 import { AccountRequest } from '../types';
-import { mapOrdCat21ToCat21Asset } from './collectibles.utils';
+import { mapOrdCat21ToCat21Asset, sortOrdCat21ByBlockHeight } from './collectibles.utils';
 
 /**
  * Returns the cats held by the addresses bound to the given account.
@@ -53,7 +53,7 @@ export class Cat21AssetService {
         catIds.map(id => this.cat21OrdClient.fetchCat21(id, { signal }))
       );
 
-      return cats.map(mapOrdCat21ToCat21Asset);
+      return cats.sort(sortOrdCat21ByBlockHeight).map(mapOrdCat21ToCat21Asset);
     } catch {
       return [];
     }

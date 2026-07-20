@@ -17,7 +17,11 @@ export function mapOrdCat21ToCat21Asset(cat: OrdCat21): Cat21Asset {
     id: cat.id,
     number: cat.number,
     contentSrc: '',
-    mimeType: cat.content_type ?? undefined,
+    /* ord reports content_type: null for every cat, because nothing was ever
+     * inscribed. The asset still has content — the SVG drawn from the mint
+     * txid — so it is declared as what it actually is. Left undefined, the
+     * upstream `!mimeType` guard fires for every cat and returns src: ''. */
+    mimeType: cat.content_type ?? 'image/svg+xml',
     ownerAddress: cat.address ?? '',
     satPoint: cat.satpoint,
     genesisBlockHash: cat.block_hash ?? '',
@@ -29,10 +33,14 @@ export function mapOrdCat21ToCat21Asset(cat: OrdCat21): Cat21Asset {
   });
 }
 
-/* HACK -- Cat21: block-height sort per ADR-12, ord field name. */
-// HACK -- Cat21: removed `export` keyword (cat21 collectibles util pre-wired; restore on consumer wire-up). HARD RULE #5 — restore on wire-up.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion: file kept for revival, ESLint can't see the future consumer.
-function sortOrdCat21ByBlockHeight(a: OrdCat21, b: OrdCat21) {
+/* HACK -- Cat21: block-height sort per ADR-12, ord field name. Newest first,
+ * matching the order upstream presented inscriptions in.
+ *
+ * Upstream's version returned `b.last_transfer ?? (b.genesis - (a.last_transfer
+ * ?? a.genesis))`, so whenever `b.last_transfer` was set it returned a raw
+ * block height as the comparator instead of a difference. ord gives one height
+ * per cat, so the subtraction is all this needs. */
+export function sortOrdCat21ByBlockHeight(a: OrdCat21, b: OrdCat21) {
   return b.height - a.height;
 }
 

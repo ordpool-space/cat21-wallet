@@ -81,6 +81,23 @@ describe(Cat21AssetService.name, () => {
     expect(fetchCat21.mock.calls).toHaveLength(0);
   });
 
+  it('returns cats newest first', async () => {
+    const older = { ...cat0, id: `${'b'.repeat(64)}i0`, number: 1, height: 800000 };
+    const newer = { ...cat0, id: `${'c'.repeat(64)}i0`, number: 2, height: 900000 };
+    const service = makeService({
+      // One address, so ordering comes from the sort and not the address walk.
+      fetchAddressCat21s: vi
+        .fn()
+        .mockResolvedValueOnce({ cats: [older.id, newer.id] })
+        .mockResolvedValue({ cats: [] }),
+      fetchCat21: vi.fn(id => Promise.resolve(id === older.id ? older : newer)),
+    });
+
+    const assets = await service.getAccountCat21Assets(makeRequest());
+
+    expect(assets.map(a => a.genesisBlockHeight)).toEqual([900000, 800000]);
+  });
+
   it('walks both payer addresses', async () => {
     const fetchAddressCat21s = vi.fn().mockResolvedValue({ cats: [] });
     const service = makeService({ fetchAddressCat21s, fetchCat21: vi.fn() });

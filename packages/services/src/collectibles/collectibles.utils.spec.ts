@@ -1,4 +1,9 @@
-import { isLpToken } from './collectibles.utils';
+import cat0 from '../infrastructure/api/cat21-ord/__fixtures__/cat-0.json';
+import {
+  isLpToken,
+  mapOrdCat21ToCat21Asset,
+  sortOrdCat21ByBlockHeight,
+} from './collectibles.utils';
 
 describe(isLpToken.name, () => {
   it('returns true for pool-token-id pattern', () => {
@@ -41,5 +46,34 @@ describe(isLpToken.name, () => {
     expect(isLpToken('SP123.VELAR::POOL-TOKEN-ID')).toBe(true);
     expect(isLpToken('sp123.velar::pool-token-id')).toBe(true);
     expect(isLpToken('Sp123.Velar::Pool-Token-Id')).toBe(true);
+  });
+});
+
+describe(mapOrdCat21ToCat21Asset.name, () => {
+  it('gives the asset a populated src, not an empty string', () => {
+    // ord sends content_type: null for every cat. Passed straight through it
+    // trips upstream's `!mimeType` guard, which returns src: '' — so the
+    // locally drawn cat never reaches anything reading `.src`.
+    const asset = mapOrdCat21ToCat21Asset(cat0 as never);
+
+    expect(asset.mimeType).toBe('svg');
+    expect(asset.src.startsWith('data:image/svg+xml')).toBe(true);
+    expect(asset.thumbnailSrc?.startsWith('data:image/svg+xml')).toBe(true);
+  });
+
+  it('maps the real output value rather than a hardcoded zero', () => {
+    const asset = mapOrdCat21ToCat21Asset(cat0 as never);
+
+    expect(asset.value).toBe(String(cat0.value));
+  });
+});
+
+describe(sortOrdCat21ByBlockHeight.name, () => {
+  it('orders newest first', () => {
+    const cats = [{ height: 100 }, { height: 300 }, { height: 200 }] as never[];
+
+    expect(cats.sort(sortOrdCat21ByBlockHeight).map(c => (c as { height: number }).height)).toEqual(
+      [300, 200, 100]
+    );
   });
 });
