@@ -69,22 +69,29 @@ export interface CreateCat21Data {
  * a missing picture, never a broken collectibles list.
  */
 function renderCat21Svg(data: CreateCat21Data): string {
-  const parsed = Cat21ParserService.parse({
-    txid: data.id.replace(/i\d+$/, ''),
-    locktime: CAT21_LOCK_TIME,
-    weight: data.weight,
-    fee: data.fee,
-    // Absent block hash is the unconfirmed case; the parser answers with the
-    // sleeping-cat placeholder and null traits rather than failing.
-    status: { block_hash: data.genesisBlockHash || undefined },
-  });
+  // parse() catches its own errors and returns null, but getImage() runs
+  // lazily and its SVG generation is outside that catch, so the whole render
+  // is wrapped to honour the no-throw contract for any input.
+  try {
+    const parsed = Cat21ParserService.parse({
+      txid: data.id.replace(/i\d+$/, ''),
+      locktime: CAT21_LOCK_TIME,
+      weight: data.weight,
+      fee: data.fee,
+      // Absent block hash is the unconfirmed case; the parser answers with the
+      // sleeping-cat placeholder and null traits rather than failing.
+      status: { block_hash: data.genesisBlockHash || undefined },
+    });
 
-  const svg = parsed?.getImage();
-  if (!svg) return '';
+    const svg = parsed?.getImage();
+    if (!svg) return '';
 
-  // encodeURIComponent, not base64: backgrounds embed non-ASCII text (the
-  // Cyberpunk variant renders the manifesto) and btoa throws on those.
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    // encodeURIComponent, not base64: backgrounds embed non-ASCII text (the
+    // Cyberpunk variant renders the manifesto) and btoa throws on those.
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  } catch {
+    return '';
+  }
 }
 
 export function createCat21Asset(data: CreateCat21Data): Cat21Asset {
