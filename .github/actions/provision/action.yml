@@ -59,7 +59,8 @@ runs:
     # throws with the exact unresolved path.
     - name: verify-ordpool-sdk-core
       shell: bash
-      run: node -e "require(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] })); console.log('ordpool-sdk/core OK — full require graph resolved')"
+      run: |
+        node -e "require(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] })); console.log('ordpool-sdk/core OK — full require graph resolved')"
 
     - name: build-panda
       shell: bash
