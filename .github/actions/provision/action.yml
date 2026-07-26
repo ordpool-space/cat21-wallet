@@ -24,15 +24,22 @@ runs:
 
     # ordpool-sdk is consumed via a SHA-pinned github tarball
     # (apps/extension/package.json → "ordpool-sdk":
-    # "github:ordpool-space/ordpool-sdk#<sha>"). The SDK ships
-    # pre-built dist-core/ in git, so `pnpm install` fetches the
-    # tarball with working bytes already inside. No clone, no
-    # build, no staleness guard. Reproducible per-commit.
+    # "github:ordpool-space/ordpool-sdk#<sha>"). Since SDK
+    # 2026-07-17, dist-core/ (the `ordpool-sdk/core` entry the
+    # extension imports) is NOT in git — the SDK's `prepare` script
+    # generates it at install time. Reproducible per-commit.
+    #
+    # No `--ignore-scripts` here: pnpm 10 default-denies install
+    # scripts for every dependency NOT in the root package.json's
+    # `pnpm.onlyBuiltDependencies` allowlist (currently
+    # better-sqlite3, ordpool-sdk, sqlite3). That per-package
+    # allowlist is a strictly tighter gate than the old blanket
+    # flag, and it lets the SDK's prepare hook run.
 
     - env:
         PROVISION_MOBILE: ${{ inputs.PROVISION_MOBILE }}
       shell: bash
-      run: pnpm install --ignore-scripts
+      run: pnpm install
 
     - name: build-panda
       shell: bash
