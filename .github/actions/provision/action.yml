@@ -47,6 +47,27 @@ runs:
     # allowlist is a strictly tighter gate than the old blanket
     # flag, and it lets the SDK's prepare hook run.
 
+    # Purge a restored-but-stale pnpm store when the salt changes.
+    # Cache-key tricks can't evict a poisoned store: setup-node falls
+    # back to prefix restore-keys, so an old cache (e.g. the one the
+    # d3cdfbcda run saved with a scripts-skipped, dist-core-less
+    # ordpool-sdk entry) keeps coming back under new keys, and pnpm
+    # reuses the existing store entry rather than re-preparing.
+    # Stamping the salt INSIDE the store and rm-rf'ing on mismatch is
+    # the only reliable eviction.
+    - name: pnpm-store-salt-guard
+      shell: bash
+      run: |
+        SALT=$(head -1 .github/pnpm-cache-salt)
+        STORE=$(pnpm store path)
+        STAMP="$STORE/.cache-salt"
+        if [ -d "$STORE" ] && [ "$(cat "$STAMP" 2>/dev/null || true)" != "$SALT" ]; then
+          echo "pnpm store salt mismatch (want $SALT) — purging restored store"
+          rm -rf "$STORE"
+        fi
+        mkdir -p "$STORE"
+        echo "$SALT" > "$STAMP"
+
     - env:
         PROVISION_MOBILE: ${{ inputs.PROVISION_MOBILE }}
       shell: bash
@@ -63,7 +84,9 @@ runs:
         if ! node -e "require(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] })); console.log('ordpool-sdk/core OK — full require graph resolved')"; then
           echo '--- diagnostic: node/npm versions'
           node --version; npm --version; pnpm --version
-          SDK_DIR=$(dirname "$(node -e "console.log(require.resolve('ordpool-sdk/package.json', { paths: ['apps/extension'] }))")")
+          # exports map blocks ./package.json — resolve the exported
+          # ./core entry (dist-core/core.js) and walk up one dir.
+          SDK_DIR=$(dirname "$(dirname "$(node -e "console.log(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] }))")")")
           echo "--- diagnostic: SDK dir = $SDK_DIR"
           echo '--- diagnostic: top-level entries'
           ls -la "$SDK_DIR"
