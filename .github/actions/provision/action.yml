@@ -60,7 +60,19 @@ runs:
     - name: verify-ordpool-sdk-core
       shell: bash
       run: |
-        node -e "require(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] })); console.log('ordpool-sdk/core OK — full require graph resolved')"
+        if ! node -e "require(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] })); console.log('ordpool-sdk/core OK — full require graph resolved')"; then
+          echo '--- diagnostic: node/npm versions'
+          node --version; npm --version; pnpm --version
+          SDK_DIR=$(dirname "$(node -e "console.log(require.resolve('ordpool-sdk/package.json', { paths: ['apps/extension'] }))")")
+          echo "--- diagnostic: SDK dir = $SDK_DIR"
+          echo '--- diagnostic: top-level entries'
+          ls -la "$SDK_DIR"
+          echo '--- diagnostic: dist-core recursive file list (sorted)'
+          find "$SDK_DIR/dist-core" -type f | sed "s|$SDK_DIR/||" | sort
+          echo '--- diagnostic: package.json files field'
+          node -e "console.log(JSON.stringify(require('$SDK_DIR/package.json').files))"
+          exit 1
+        fi
 
     - name: build-panda
       shell: bash
