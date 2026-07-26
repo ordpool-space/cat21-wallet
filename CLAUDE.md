@@ -29,8 +29,8 @@ so the field has no consensus meaning. It's pure protocol-marker bytes.
 | Building a mint tx | `lockTime = 21`. Hard runtime assert. | `ordpool-sdk/src/cat21-mint/cat21-mint.helper.ts → buildCat21MintPsbt` |
 | Building a transfer tx | `lockTime = 21`. Hard runtime assert. | `ordpool-sdk/src/cat21-transfer/cat21-transfer.helper.ts → buildCat21TransferPsbt` |
 | Building a buy-offer PSBT (buyer-initiated, our SDK) | `lockTime = 21`. Hard runtime assert. | `ordpool-sdk/src/cat21-offer/cat21-offer.helper.ts → buildCat21BuyOfferPsbt` |
-| Cat21wallet input sequence on any tx we build | `0xfffffffd` (RBF allowed; our own accelerate flow preserves `lockTime=21` through replacement). | `CAT21_MINT_INPUT_SEQUENCE` for `cat21wallet` in `ordpool-sdk/src/cat21-protocol/cat21-sequence.ts → resolveCat21InputSequence` |
-| Other-wallet mint input sequence | `0xfffffffe` (RBF disabled; locks third-party accelerate UIs out of touching the marker). | `ordpool-sdk/src/cat21-protocol/cat21-sequence.ts → resolveCat21InputSequence` |
+| Cat21wallet input sequence on any tx we build | `0xfffffffd` (RBF allowed; our own accelerate flow preserves `lockTime=21` through replacement). | `CAT21_WALLET_INPUT_SEQUENCE` in `ordpool-sdk/src/cat21-protocol/cat21-sequence.ts` |
+| Other-wallet MINT input sequence | `0xfffffffe` (RBF disabled; locks third-party accelerate UIs out of touching the marker). MINT-ONLY: transfers + offers are RBF-on (`0xfffffffd`) for every wallet since SDK `703f90b` — the cat is already on chain, worst RBF outcome is a missed bonus mint. | `CAT21_OTHER_WALLET_MINT_INPUT_SEQUENCE` via `ordpool-sdk/src/cat21-protocol/cat21-sequence.ts → resolveCat21MintInputSequence` (mint-only resolver) |
 | Replacing a CAT-21 tx via RBF (our accelerate path) | Replacement MUST keep `lockTime = 21`. Hard runtime assert. | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` |
 | Cat-bearing UTXO in plain BTC send | Refused; UTXO lives in `protected` bucket. | `packages/services/src/utxos/utxos.service.ts` |
 | Accepting an inbound buy-offer PSBT (we sign, we don't build) | Sign as-is regardless of lockTime. Buyer's choice; missing `21` is their missed bonus mint, not a cat loss. The popup displays the inbound lockTime so a human seller sees what they're signing. | `apps/extension/src/background/cat21/builders/accept-offer-validator.ts` (wallet wrapper delegating to `ordpool-sdk/src/cat21-offer/cat21-offer.helper.ts → validateCat21BuyOfferPsbt`), `apps/extension/src/background/cat21/cat21-rpc.service.ts → acceptOffer` |
@@ -66,10 +66,14 @@ mint, not the original cat.
 Builder code lives in **`ordpool-sdk/src/cat21-*`** (the SDK owns PSBT
 construction; see HARD RULE #10). The wallet only orchestrates via
 `Cat21RpcService.{mint,transfer,createOffer,acceptOffer}`. The
-historic `apps/extension/src/background/cat21/builders/` directory
-was deleted in iter 4–5; the architecture spec
-`HARD RULE — mint logic lives in the SDK, not inline in the wallet`
-positively asserts that file is gone.
+historic PSBT builders (`mint-builder.ts`, `transfer-builder.ts`)
+under `apps/extension/src/background/cat21/builders/` were deleted
+in iter 4–5; the architecture spec `HARD RULE — mint logic lives in
+the SDK, not inline in the wallet` positively asserts those files
+are gone. What REMAINS in `builders/` builds no PSBTs:
+`accept-offer-validator.ts` (thin wrapper delegating to the SDK's
+`validateCat21BuyOfferPsbt`) and `listing-builder.ts` (assembles
+the `cat21_create_offer` listing payload — data, not bytes).
 
 1. Modify the builder in the SDK (`ordpool-sdk/src/cat21-*-helper.ts`).
 2. Rebuild the SDK from the wallet: `pnpm sdk:build` (the staleness
@@ -85,9 +89,11 @@ positively asserts that file is gone.
    goes red.
 5. Cat-flow builders in the SDK share one shape:
    `lockTime: CAT21_LOCK_TIME = 21` on the Transaction constructor,
-   `sequence: CAT21_WALLET_MINT_INPUT_SEQUENCE = 0xfffffffd` on
-   cat21wallet inputs (other wallets: `0xfffffffe`), post-build
-   asserts on lockTime + sequence + SIGHASH_ALL.
+   `sequence: CAT21_WALLET_INPUT_SEQUENCE = 0xfffffffd` on every
+   input — except third-party-wallet MINT inputs, which get
+   `CAT21_OTHER_WALLET_MINT_INPUT_SEQUENCE = 0xfffffffe` via the
+   mint-only resolver `resolveCat21MintInputSequence` — plus
+   post-build asserts on lockTime + sequence + SIGHASH_ALL.
 
 ---
 
@@ -356,11 +362,17 @@ other ordpool consumer (`ordpool/frontend`,
 "ordpool-sdk": "github:ordpool-space/ordpool-sdk#<sha>"
 ```
 
-pnpm fetches the github tarball at that SHA. The tarball ships
-pre-built `dist-core/` (Angular-free CommonJS), so installation
-needs no postinstall build step — `ignore-scripts=true` doesn't
-break us, and the prepare-hook-in-node_modules ng-packagr failure
-mode doesn't apply.
+pnpm fetches the github tarball at that SHA. Since SDK 2026-07-17,
+`dist-core/` (Angular-free CommonJS) is **no longer checked in** —
+the SDK's `prepare` script generates it at install time via
+`npm run build:core` (plain tsc; the ng-packagr-in-node_modules
+bug only affects `build:angular`, which stays pre-built in git as
+`dist/`). Install scripts must be enabled for this to work — they
+are: `/Work/ordpool/.npmrc` sets `ignore-scripts=false`
+workspace-wide (the old global `ignore-scripts=true` posture was
+retired the same day). If `ordpool-sdk/core` imports fail to
+resolve after an install, the prepare script didn't run — check
+`npm config get ignore-scripts` from the wallet's directory.
 
 Resolution lands on the `exports` map in
 `ordpool-sdk/package.json`:
@@ -391,9 +403,10 @@ problems the user surfaced:
 2. **Mismatch with other consumers.** `ordpool/frontend` and
    `cat21-indexer/frontend` pin SHAs; cat21-wallet didn't.
 
-The fix: the SDK now ships pre-built `dist/` + `dist-core/` in
-git, so the wallet can adopt the same SHA-pin pattern as everyone
-else. No more `link:`. No more staleness guards. CI deterministic.
+The fix: the SDK ships pre-built `dist/` in git and generates
+`dist-core/` via its `prepare` hook at install time, so the wallet
+can adopt the same SHA-pin pattern as everyone else. No more
+`link:`. No more staleness guards. CI deterministic.
 
 ### Dev workflow
 

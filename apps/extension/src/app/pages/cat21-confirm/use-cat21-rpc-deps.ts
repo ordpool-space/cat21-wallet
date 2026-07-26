@@ -8,6 +8,7 @@ import {
   CAT21_POSTAGE_SATS,
   broadcastCat21,
   pickLargestFundingUtxoThatCovers,
+  toPaymentAddress,
   validateCat21BuyOfferPsbt,
 } from 'ordpool-sdk/core';
 
@@ -136,14 +137,19 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         );
       },
       // Pure SDK call. The deps interface mirrors the SDK arg shape
-      // exactly; we just translate the wallet's 'mainnet'|'testnet'
-      // string into the SDK's Network enum.
+      // exactly; we translate the wallet's 'mainnet'|'testnet' string
+      // into the SDK's Network enum and brand the seller payment
+      // address at this ingress. Branding is legitimate here per the
+      // SDK's toPaymentAddress contract: the value is the wallet's
+      // OWN payment address from the account context
+      // (cat21-rpc.service.ts passes accountCtx.paymentAddress), not
+      // an on-chain owner lookup.
       validateBuyOfferPsbt: args =>
         validateCat21BuyOfferPsbt({
           psbt: args.psbt,
           expectedSellerUtxo: args.expectedSellerUtxo,
           floorPriceSats: args.floorPriceSats,
-          expectedSellerPaymentAddress: args.expectedSellerPaymentAddress,
+          expectedSellerPaymentAddress: toPaymentAddress(args.expectedSellerPaymentAddress),
           network: walletNetworkToSdkNetwork(args.network),
         }),
       // Wallet-routed broadcast via Leather's existing

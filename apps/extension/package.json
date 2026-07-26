@@ -120,7 +120,7 @@
     "lodash.uniqby": "4.7.0",
     "lottie-react": "2.4.1",
     "mixpanel-browser": "2.71.1",
-    "ordpool-sdk": "github:ordpool-space/ordpool-sdk#35d473da7720bfd5702129c2ed9b5d2ec16c71ff",
+    "ordpool-sdk": "github:ordpool-space/ordpool-sdk#178449d55749839506c4132696560ed5b1cb443b",
     "os-browserify": "0.3.0",
     "pino": "8.19.0",
     "postcss-preset-env": "10.0.5",
