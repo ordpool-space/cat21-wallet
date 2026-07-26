@@ -21,6 +21,17 @@ runs:
         node-version: ${{ inputs.NODE_VERSION }}
         registry-url: 'https://registry.npmjs.org/'
         cache: 'pnpm'
+        # The salt file lets us evict a poisoned pnpm store without
+        # touching the lockfile. Incident: the d3cdfbcda run packed
+        # ordpool-sdk into the store WITHOUT its prepare-built
+        # dist-core/ (the provision still passed --ignore-scripts at
+        # that commit); every same-lockfile run after restored that
+        # half-baked entry and failed webpack with "Can't resolve
+        # 'ordpool-sdk/core'…/wallet/signers". Bump the salt to force
+        # a fresh store.
+        cache-dependency-path: |
+          pnpm-lock.yaml
+          .github/pnpm-cache-salt
 
     # ordpool-sdk is consumed via a SHA-pinned github tarball
     # (apps/extension/package.json → "ordpool-sdk":
@@ -40,6 +51,15 @@ runs:
         PROVISION_MOBILE: ${{ inputs.PROVISION_MOBILE }}
       shell: bash
       run: pnpm install
+
+    # Fail HERE — not 30 minutes later inside webpack — if the SDK's
+    # prepare hook didn't produce a complete dist-core/. Requiring
+    # the module walks the full CommonJS graph, so any missing file
+    # (e.g. wallet/signers/index.js from a half-prepared store entry)
+    # throws with the exact unresolved path.
+    - name: verify-ordpool-sdk-core
+      shell: bash
+      run: node -e "require(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] })); console.log('ordpool-sdk/core OK — full require graph resolved')"
 
     - name: build-panda
       shell: bash
