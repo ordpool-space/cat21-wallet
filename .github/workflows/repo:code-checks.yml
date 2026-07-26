@@ -161,5 +161,14 @@ jobs:
       # from upstream — the quarterly sync is the proper place to take fresh
       # patches. Until then, `critical`-only gating keeps CI honest about
       # show-stoppers without flooding red on inherited noise.
+      #
+      # pnpm pinned to 11.17.0: the registry's bulk-advisory endpoint
+      # started serving responses that 11.0.0-rc.1 (and 10.x) fail to
+      # parse ("returned invalid JSON: Unexpected token …" on gzip
+      # bytes) — red since 2026-07-20. 11.17.0 parses it and still
+      # honors package.json's pnpm.auditConfig.ignoreGhsas (verified:
+      # "2 critical (2 ignored)", exit 0). The ignore list is ALSO
+      # mirrored in pnpm-workspace.yaml, the settings home 11.x warns
+      # it is migrating to.
       - name: audit
-        run: pnpm dlx pnpm@11.0.0-rc.1 audit --prod --audit-level critical --config.manage-package-manager-versions=false
+        run: pnpm dlx pnpm@11.17.0 audit --prod --audit-level critical --config.manage-package-manager-versions=false
