@@ -106,8 +106,8 @@ function createOfferCopy(intent: Cat21CreateOfferIntent): Cat21ConfirmationCopy 
   return {
     title: 'List your CAT-21 cat for sale',
     paragraphs: [
-      'This publishes a listing — no transaction is broadcast yet. A buyer must submit a buy-offer PSBT before anything moves on-chain.',
-      'Until a buyer fills the listing, you can still use, transfer, or unlist the cat.',
+      'This publishes your ask to the CAT-21 Bazaar. Nothing moves on-chain yet — a buyer must submit a buy-offer PSBT before the cat changes hands.',
+      'You sign once to prove you own the cat, then it appears on the orderbook. You can re-price by listing again, or take it down any time.',
     ],
     rows: [
       { label: 'Cat', value: formatCatId(intent.catId) },

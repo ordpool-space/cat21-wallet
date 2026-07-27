@@ -124,6 +124,38 @@ describe('HARD RULE #6 — browser surface is Leather, cat21_* is internal-only'
       );
     }
   });
+
+  // The in-wallet Bazaar client (Path 2 sell-from-UI) is popup-only.
+  // Neither the background service worker, the content scripts, the
+  // inpage provider, nor the provider package may import it: publishing
+  // a listing is a user-facing UI action gated by the sell form, not a
+  // background/dapp capability. Path 3 (MCP agents) forwards the listing
+  // payload itself via cat21_create_offer — it never touches this client.
+  const NON_UI_ROOTS = [
+    join(EXTENSION_ROOT, 'src/background'),
+    join(EXTENSION_ROOT, 'src/inpage'),
+    join(EXTENSION_ROOT, 'src/content-scripts'),
+    join(REPO_ROOT, 'packages/provider/src'),
+  ];
+
+  it('non-UI code does not import the Bazaar client or session helpers', () => {
+    const files = findFiles(NON_UI_ROOTS, SOURCE_EXTS);
+    for (const file of files) {
+      const src = read(file);
+      const hit = src.includes('cat21-bazaar') || src.includes('cat21-session');
+      expect({ file: relative(REPO_ROOT, file), importsBazaar: hit }).toEqual({
+        file: relative(REPO_ROOT, file),
+        importsBazaar: false,
+      });
+    }
+  });
+
+  it('the Bazaar POST targets backend2.cat21.space and that host is in the manifest', () => {
+    const client = read(join(EXTENSION_ROOT, 'src/app/common/cat21-bazaar/cat21-bazaar.types.ts'));
+    expect(client).toContain("'https://backend2.cat21.space'");
+    const manifest = read(join(EXTENSION_ROOT, 'scripts/generate-manifest.js'));
+    expect(manifest).toContain("'https://backend2.cat21.space/*'");
+  });
 });
 
 describe('HARD RULE #1 — nLockTime=21 cannot be silently dropped', () => {

@@ -91,14 +91,14 @@ describe('makeCat21ConfirmationCopy', () => {
       });
     });
 
-    it('emphasises that no broadcast happens yet', () => {
+    it('emphasises that nothing moves on-chain yet', () => {
       const copy = makeCat21ConfirmationCopy({
         catId: 'aaai0',
         priceSats: 21_000,
         paymentAddress: 'bc1qpayment',
         mode: 'manual',
       });
-      expect(copy.paragraphs[0]).toMatch(/no transaction is broadcast yet/);
+      expect(copy.paragraphs[0]).toMatch(/[Nn]othing moves on-chain yet/);
     });
   });
 

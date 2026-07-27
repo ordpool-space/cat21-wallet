@@ -17,6 +17,7 @@ import {
   DEFAULT_CREATE_OFFER_FORM_VALUES,
   validateAndCoerceCreateOfferForm,
 } from './cat21-create-offer-form.helper';
+import { useCat21ListingFor } from './use-cat21-listing';
 
 /**
  * Manual Create-Offer form (iter 13e). Standalone form-only page;
@@ -40,6 +41,13 @@ export function Cat21CreateOfferPage() {
       prefilledPaymentAddress?: string;
     } | null) ?? {};
   const [globalError, setGlobalError] = useState<string | null>(null);
+
+  // Deep-linked from the cat list ("List for sale" on a specific cat)
+  // → prefilledCatId. Look up any existing Bazaar listing for it so we
+  // can show "already listed for X" + an Unlist button, driven off the
+  // stable prefill (not the live form field, which would re-query per
+  // keystroke and pull a hook into Formik's render prop).
+  const listing = useCat21ListingFor(state.prefilledCatId ?? '');
 
   const initialValues: Cat21CreateOfferFormValues = {
     ...DEFAULT_CREATE_OFFER_FORM_VALUES,
@@ -70,9 +78,43 @@ export function Cat21CreateOfferPage() {
             <Flex direction="column" gap="space.05" px="space.05">
               <styled.h1 textStyle="heading.03">List a CAT-21 for sale</styled.h1>
               <styled.p textStyle="body.02">
-                Publish a structured listing for a cat you own. The next screen shows the listing
-                bytes; you publish them to a marketplace yourself.
+                Set an asking price and publish this cat to the CAT-21 Bazaar. Buyers browse the
+                orderbook and can purchase it at your price. You can change the price by listing
+                again, or take it down any time.
               </styled.p>
+              {listing.view.step === 'listed' ? (
+                <Flex
+                  direction="column"
+                  gap="space.02"
+                  p="space.04"
+                  bg="ink.background-secondary"
+                  borderRadius="sm"
+                  data-testid="cat21-already-listed"
+                >
+                  <styled.p textStyle="label.02">
+                    Currently listed for {listing.view.askSats.toLocaleString()} sats
+                  </styled.p>
+                  <Button
+                    variant="outline"
+                    fullWidth
+                    type="button"
+                    onClick={() => listing.unlist()}
+                    data-testid="cat21-unlist"
+                  >
+                    Unlist
+                  </Button>
+                </Flex>
+              ) : null}
+              {listing.view.step === 'unlisting' ? (
+                <styled.p textStyle="body.02" color="ink.text-subdued">
+                  Taking the listing down…
+                </styled.p>
+              ) : null}
+              {listing.view.step === 'unlisted' ? (
+                <styled.p textStyle="body.02" data-testid="cat21-unlisted">
+                  Listing removed.
+                </styled.p>
+              ) : null}
               <Form data-testid="cat21-create-offer-form">
                 <Flex direction="column" gap="space.04">
                   <Cat21FormField

@@ -11,13 +11,54 @@
  * never raw HTTP statuses. On 401 the caller is expected to
  * `clearCat21Session` + optionally retry once with a fresh token.
  */
+import axios, { isAxiosError } from 'axios';
+
 import {
+  CAT21_BAZAAR_BASE_URL,
   Cat21BazaarCreateListingRequest,
   Cat21BazaarError,
+  Cat21BazaarErrorCode,
   Cat21SessionHeaders,
 } from './cat21-bazaar.types';
 
-export type Cat21BazaarResult<T> = { ok: true; value: T } | { ok: false; error: Cat21BazaarError };
+type Cat21BazaarResult<T> = { ok: true; value: T } | { ok: false; error: Cat21BazaarError };
+
+/**
+ * Backend rejection codes we surface verbatim; anything else maps
+ * to the generic 'rejected' with the raw code in `detail`.
+ */
+const PASSTHROUGH_CODES: readonly Cat21BazaarErrorCode[] = [
+  'not-current-owner',
+  'cats-bundle-drift',
+  'outpoint-mismatch',
+  'cat-not-found',
+  'network-mismatch',
+];
+
+function isPassthroughCode(code: string): code is Cat21BazaarErrorCode {
+  return (PASSTHROUGH_CODES as readonly string[]).includes(code);
+}
+
+function mapHttpError(err: unknown): Cat21BazaarError {
+  if (!isAxiosError(err) || !err.response) {
+    return { code: 'network-error', detail: err instanceof Error ? err.message : String(err) };
+  }
+  const { status, data } = err.response;
+  if (status === 401) return { code: 'session-rejected' };
+  if (status === 429) return { code: 'rate-limited' };
+  // NestJS error bodies carry the rejection code on `message` (string
+  // or string[]) or a custom `code` field, depending on the layer that
+  // threw. Probe both, verbatim-map the known ownership codes.
+  const raw = (data ?? {}) as { message?: string | string[]; code?: string };
+  const candidates = [
+    ...(typeof raw.code === 'string' ? [raw.code] : []),
+    ...(typeof raw.message === 'string' ? [raw.message] : []),
+    ...(Array.isArray(raw.message) ? raw.message : []),
+  ];
+  const known = candidates.find(isPassthroughCode);
+  if (known) return { code: known };
+  return { code: 'rejected', detail: candidates[0] ?? `http-${status}` };
+}
 
 /**
  * POST /api/v1/listings — create or overwrite the listing for
@@ -29,7 +70,15 @@ export async function publishCat21Listing(args: {
   headers: Cat21SessionHeaders;
   baseUrl?: string;
 }): Promise<Cat21BazaarResult<void>> {
-  throw new Error('not implemented — shapes-only commit');
+  const baseUrl = args.baseUrl ?? CAT21_BAZAAR_BASE_URL;
+  try {
+    await axios.post(`${baseUrl}/api/v1/listings`, args.request, {
+      headers: { 'Content-Type': 'application/json', ...args.headers },
+    });
+    return { ok: true, value: undefined };
+  } catch (err) {
+    return { ok: false, error: mapHttpError(err) };
+  }
 }
 
 /**
@@ -42,7 +91,15 @@ export async function unlistCat21(args: {
   headers: Cat21SessionHeaders;
   baseUrl?: string;
 }): Promise<Cat21BazaarResult<void>> {
-  throw new Error('not implemented — shapes-only commit');
+  const baseUrl = args.baseUrl ?? CAT21_BAZAAR_BASE_URL;
+  try {
+    await axios.delete(`${baseUrl}/api/v1/listings/cat/${args.catNumber}`, {
+      headers: { ...args.headers },
+    });
+    return { ok: true, value: undefined };
+  } catch (err) {
+    return { ok: false, error: mapHttpError(err) };
+  }
 }
 
 /**
@@ -54,5 +111,16 @@ export async function fetchCat21ListingForCat(args: {
   catNumber: number;
   baseUrl?: string;
 }): Promise<Cat21BazaarResult<{ askSats: number; payTo: string } | null>> {
-  throw new Error('not implemented — shapes-only commit');
+  const baseUrl = args.baseUrl ?? CAT21_BAZAAR_BASE_URL;
+  try {
+    const res = await axios.get<{ askSats: number; payTo: string }>(
+      `${baseUrl}/api/v1/listings/cat/${args.catNumber}`
+    );
+    return { ok: true, value: { askSats: res.data.askSats, payTo: res.data.payTo } };
+  } catch (err) {
+    if (isAxiosError(err) && err.response?.status === 404) {
+      return { ok: true, value: null };
+    }
+    return { ok: false, error: mapHttpError(err) };
+  }
 }

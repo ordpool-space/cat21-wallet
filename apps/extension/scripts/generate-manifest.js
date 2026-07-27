@@ -107,6 +107,11 @@ const manifest = {
     // Cat-data backbone (our infrastructure).
     'https://ord.cat21.space/*',
     'https://*.ordpool.space/*',
+    // CAT-21 Bazaar (cat orderbook). The in-wallet sell flow POSTs
+    // listings here with session-token auth. This host permission is
+    // what lets the extension bypass the backend's browser-origin
+    // CORS allowlist (which only names cat21.space / ordpool.space).
+    'https://backend2.cat21.space/*',
     // ord proxy + content (cat content bytes; recursive inscriptions).
     'https://ord.io/*',
     'https://ordinals.com/*',

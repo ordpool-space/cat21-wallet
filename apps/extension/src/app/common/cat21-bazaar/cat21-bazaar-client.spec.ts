@@ -1,40 +1,130 @@
-/**
- * Spec stubs — shapes-only commit. axios mocked at the module
- * boundary (the client is the SUT; HTTP is its collaborator).
- */
-import { describe, it } from 'vitest';
+import axios from 'axios';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { CAT21_BAZAAR_BASE_URL, Cat21SessionHeaders } from './cat21-bazaar.types';
+import {
+  fetchCat21ListingForCat,
+  publishCat21Listing,
+  unlistCat21,
+} from './cat21-bazaar-client';
+
+vi.mock('axios');
+
+const HEADERS: Cat21SessionHeaders = {
+  'X-Cat21-Session-Address': 'bc1pordinals',
+  'X-Cat21-Session-Valid-Until': '2026-08-01T00:00:00.000Z',
+  'X-Cat21-Session-Signature': 'SIG',
+};
+
+const REQUEST = {
+  catNumber: 42,
+  cats: [42, 100],
+  network: 'mainnet',
+  askSats: 21_000,
+  payTo: 'bc1qpayment',
+  catTxid: 'ab49227cce490e2137872f7d08924187ee4f4bc7e8b3bda7ac63d7bba1d897df',
+  catVout: 0,
+  ordinalsAddress: 'bc1pordinals',
+};
+
+/** Build an axios-shaped error the isAxiosError guard accepts. */
+function axiosError(status: number, data?: unknown) {
+  return { isAxiosError: true, response: { status, data }, message: `http-${status}` };
+}
+
+afterEach(() => vi.clearAllMocks());
 
 describe('publishCat21Listing', () => {
-  it.todo('POSTs to <base>/api/v1/listings with the request as JSON body and all three X-Cat21-Session-* headers (pinned values)');
-  it.todo('201 → { ok: true }');
-  it.todo('401 → { ok: false, code: session-rejected }');
-  it.todo('422 with backend code not-current-owner → mapped verbatim');
-  it.todo('422 with backend code cats-bundle-drift → mapped verbatim');
-  it.todo('422 with an unknown backend code → { code: rejected, detail: <the code> }');
-  it.todo('429 → { code: rate-limited }');
-  it.todo('network failure (no response) → { code: network-error }');
+  it('POSTs to <base>/api/v1/listings with the request body and all three session headers', async () => {
+    vi.mocked(axios.post).mockResolvedValueOnce({ status: 201 });
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+
+    expect(res).toEqual({ ok: true, value: undefined });
+    expect(axios.post).toHaveBeenCalledWith(
+      `${CAT21_BAZAAR_BASE_URL}/api/v1/listings`,
+      REQUEST,
+      { headers: { 'Content-Type': 'application/json', ...HEADERS } }
+    );
+  });
+
+  it('401 → session-rejected', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(401));
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+    expect(res).toEqual({ ok: false, error: { code: 'session-rejected' } });
+  });
+
+  it('422 not-current-owner → mapped verbatim', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(422, { message: 'not-current-owner' }));
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+    expect(res).toEqual({ ok: false, error: { code: 'not-current-owner' } });
+  });
+
+  it('422 cats-bundle-drift → mapped verbatim', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(422, { code: 'cats-bundle-drift' }));
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+    expect(res).toEqual({ ok: false, error: { code: 'cats-bundle-drift' } });
+  });
+
+  it('422 with an unknown backend code → rejected with the code in detail', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(422, { message: 'some-new-code' }));
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+    expect(res).toEqual({ ok: false, error: { code: 'rejected', detail: 'some-new-code' } });
+  });
+
+  it('429 → rate-limited', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(429));
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+    expect(res).toEqual({ ok: false, error: { code: 'rate-limited' } });
+  });
+
+  it('no response (network failure) → network-error', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(false);
+    vi.mocked(axios.post).mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('network-error');
+  });
 });
 
 describe('unlistCat21', () => {
-  it.todo('DELETEs <base>/api/v1/listings/cat/<catNumber> with the session headers');
-  it.todo('204 → { ok: true }');
-  it.todo('401 → { ok: false, code: session-rejected }');
+  it('DELETEs <base>/api/v1/listings/cat/<catNumber> with the session headers', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.delete).mockResolvedValueOnce({ status: 204 });
+    const res = await unlistCat21({ catNumber: 42, headers: HEADERS });
+    expect(res).toEqual({ ok: true, value: undefined });
+    expect(axios.delete).toHaveBeenCalledWith(
+      `${CAT21_BAZAAR_BASE_URL}/api/v1/listings/cat/42`,
+      { headers: { ...HEADERS } }
+    );
+  });
+
+  it('401 → session-rejected', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.delete).mockRejectedValueOnce(axiosError(401));
+    const res = await unlistCat21({ catNumber: 42, headers: HEADERS });
+    expect(res).toEqual({ ok: false, error: { code: 'session-rejected' } });
+  });
 });
 
 describe('fetchCat21ListingForCat', () => {
-  it.todo('GET without auth headers; 200 → { ok: true, value: { askSats, payTo } }');
-  it.todo('404 → { ok: true, value: null } (no listing is not an error)');
-});
+  it('200 → { askSats, payTo }', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.get).mockResolvedValueOnce({ data: { askSats: 21_000, payTo: 'bc1qpayment' } });
+    const res = await fetchCat21ListingForCat({ catNumber: 42 });
+    expect(res).toEqual({ ok: true, value: { askSats: 21_000, payTo: 'bc1qpayment' } });
+  });
 
-describe('buildCreateListingRequest', () => {
-  it.todo('assembles the full DTO with network pinned to mainnet');
-  it.todo('dedupes + ascending-sorts bundleCatNumbers');
-  it.todo('throws when catNumber is not in the bundle');
-  it.todo('throws on non-positive askSats');
-  it.todo('accepts catNumber 0 (Genesis Cat is listable — workspace HARD RULE)');
-});
-
-describe('satpointToOutpoint', () => {
-  it.todo('parses <txid>:<vout>:<offset> into { txid, vout }');
-  it.todo('throws on malformed satpoint');
+  it('404 → value null (no listing is not an error)', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.get).mockRejectedValueOnce(axiosError(404));
+    const res = await fetchCat21ListingForCat({ catNumber: 42 });
+    expect(res).toEqual({ ok: true, value: null });
+  });
 });

@@ -14,7 +14,7 @@
  */
 import { Cat21BazaarCreateListingRequest } from './cat21-bazaar.types';
 
-export interface BuildCreateListingRequestArgs {
+interface BuildCreateListingRequestArgs {
   /** Headline cat (the one the user clicked "sell" on). */
   catNumber: number;
   /** Every cat number on the UTXO — any order; deduped + sorted here. */
@@ -34,17 +34,48 @@ export interface BuildCreateListingRequestArgs {
  * non-positive ask, malformed txid) — these are programmer errors
  * at the call site, not user-input errors (the form validates ask
  * before this runs). Network is pinned 'mainnet' per ADR-7.
+ *
+ * catNumber 0 is valid — the Genesis Cat is a real, owned UTXO and
+ * per the workspace HARD RULE its one canonical listing must be
+ * signable.
  */
 export function buildCreateListingRequest(
   args: BuildCreateListingRequestArgs
 ): Cat21BazaarCreateListingRequest {
-  throw new Error('not implemented — shapes-only commit');
-}
+  if (!Number.isInteger(args.catNumber) || args.catNumber < 0) {
+    throw new Error(`catNumber must be a non-negative integer; got ${args.catNumber}`);
+  }
+  if (!Number.isInteger(args.askSats) || args.askSats <= 0) {
+    throw new Error(`askSats must be a positive integer; got ${args.askSats}`);
+  }
+  if (!/^[0-9a-f]{64}$/.test(args.catTxid)) {
+    throw new Error(`catTxid must be 64-char lowercase hex; got ${JSON.stringify(args.catTxid)}`);
+  }
+  if (!Number.isInteger(args.catVout) || args.catVout < 0) {
+    throw new Error(`catVout must be a non-negative integer; got ${args.catVout}`);
+  }
+  if (!args.paymentAddress) throw new Error('paymentAddress must be a non-empty string');
+  if (!args.ordinalsAddress) throw new Error('ordinalsAddress must be a non-empty string');
 
-/**
- * Parse a cat21-ord satpoint (`<txid>:<vout>:<offset>`) into the
- * outpoint parts the listing pins. Throws on malformed input.
- */
-export function satpointToOutpoint(satpoint: string): { txid: string; vout: number } {
-  throw new Error('not implemented — shapes-only commit');
+  const cats = Array.from(new Set(args.bundleCatNumbers)).sort((a, b) => a - b);
+  if (cats.length === 0) throw new Error('bundleCatNumbers must not be empty');
+  if (cats.some(n => !Number.isInteger(n) || n < 0)) {
+    throw new Error(`bundleCatNumbers must be non-negative integers; got ${JSON.stringify(cats)}`);
+  }
+  if (!cats.includes(args.catNumber)) {
+    throw new Error(
+      `headline catNumber ${args.catNumber} is not in the bundle ${JSON.stringify(cats)}`
+    );
+  }
+
+  return {
+    catNumber: args.catNumber,
+    cats,
+    network: 'mainnet',
+    askSats: args.askSats,
+    payTo: args.paymentAddress,
+    catTxid: args.catTxid,
+    catVout: args.catVout,
+    ordinalsAddress: args.ordinalsAddress,
+  };
 }

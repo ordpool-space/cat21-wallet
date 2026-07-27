@@ -10,6 +10,8 @@ import type { Cat21Transport } from '@background/cat21/mode-resolver';
 import { clearCat21Request } from '@background/cat21/popup-bridge';
 import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 
+import { usePublishToBazaar } from '../cat21-create-offer/use-publish-to-bazaar';
+import { Cat21BazaarPublishStatus } from './cat21-bazaar-publish-status';
 import { extractCatIdHint } from './extract-cat-id-hint';
 import { useCat21RequestFromUrl } from './use-cat21-request-from-url';
 import { useCat21RpcDeps } from './use-cat21-rpc-deps';
@@ -80,6 +82,7 @@ export function Cat21ConfirmRoute() {
   // mint has none. The hook treats `undefined` as "no cat to look up".
   const catIdHint = extractCatIdHint(intent);
   const deps = useCat21RpcDeps(catIdHint);
+  const bazaar = usePublishToBazaar();
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
@@ -115,6 +118,12 @@ export function Cat21ConfirmRoute() {
   // via the `isSubmitting` setter: a second click while submitting
   // is a noop. For Path 3 the `useEffect` below calls this exactly
   // once via `autoConfirmedRef`.
+  //
+  // Path 2 createOffer success does NOT navigate away: instead the
+  // just-validated listing is published to the Bazaar and the popup
+  // renders the publish state machine (resolving → signing-session →
+  // posting → success | error). Path 3 keeps the return-the-payload
+  // contract — the agent forwards the listing itself.
   function confirm(actionIntent: Cat21Intent) {
     setIsSubmitting(true);
     setError(null);
@@ -125,6 +134,16 @@ export function Cat21ConfirmRoute() {
         await finalisePath3(urlRequest.requestId, result);
       }
       if (result.ok) {
+        if (transport === 'popup' && result.value.kind === 'listing' && 'priceSats' in actionIntent) {
+          const { listing } = result.value;
+          bazaar.publish({
+            catId: listing.catId,
+            askSats: listing.priceSats,
+            paymentAddress: listing.paymentAddress,
+            sellerUtxo: listing.sellerUtxo,
+          });
+          return;
+        }
         void navigate(-1);
         return;
       }
@@ -196,6 +215,12 @@ export function Cat21ConfirmRoute() {
         Missing intent. Re-open from the wallet UI.
       </div>
     );
+  }
+
+  // Bazaar publish in flight or settled — replaces the confirmation
+  // dialog once the createOffer gate has succeeded (Path 2 only).
+  if (bazaar.state.step !== 'idle') {
+    return <Cat21BazaarPublishStatus state={bazaar.state} onClose={() => void navigate(-1)} />;
   }
 
   const copy = makeCat21ConfirmationCopy(intent);

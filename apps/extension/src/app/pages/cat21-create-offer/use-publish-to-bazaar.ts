@@ -5,9 +5,11 @@
  * wallet's own gate already verified ownership via cat21-ord and the
  * user clicked through the sell form. This hook then:
  *
- *   1. `resolving`        — fetchCat21(catId) → satpoint → outpoint;
- *                           fetchOutput(outpoint) → bundle ids;
- *                           fetchCat21(each id) → cat numbers.
+ *   1. `resolving`        — fetchCat21(catId) → cat number; the
+ *                           outpoint comes from the RPC result's
+ *                           `sellerUtxo` (already ownership-checked);
+ *                           fetchOutput(outpoint) → bundle ids →
+ *                           fetchCat21(each) → cat numbers.
  *   2. `signing-session`  — getOrCreateCat21Session (BIP-322 via the
  *                           wallet's own taproot keychain; cached 24 h,
  *                           so usually a no-op after the first sale).
@@ -22,22 +24,100 @@
  * spec pins that no background / content-script code imports the
  * bazaar client.
  */
-import { Cat21BazaarPublishState } from '@app/common/cat21-bazaar/cat21-bazaar.types';
+import { useRef, useState } from 'react';
 
-export interface PublishToBazaarArgs {
+import { getCat21OrdApiClient } from '@leather.io/services';
+
+import { buildCreateListingRequest } from '@app/common/cat21-bazaar/build-create-listing-request';
+import { publishCat21Listing } from '@app/common/cat21-bazaar/cat21-bazaar-client';
+import { Cat21BazaarPublishState } from '@app/common/cat21-bazaar/cat21-bazaar.types';
+import { clearCat21Session, getOrCreateCat21Session } from '@app/common/cat21-bazaar/cat21-session';
+import { useCat21SessionSigner } from '@app/common/cat21-bazaar/use-cat21-session-signer';
+
+interface PublishToBazaarArgs {
   /** Inscription id of the headline cat (from the confirmed intent). */
   catId: string;
   askSats: number;
+  /** Seller's chosen payout address (from the confirmed intent). */
   paymentAddress: string;
-  ordinalsAddress: string;
+  /** Cat UTXO — ownership-checked by the RPC gate that just ran. */
+  sellerUtxo: { txid: string; vout: number };
 }
 
-export interface UsePublishToBazaarResult {
+interface UsePublishToBazaarResult {
   state: Cat21BazaarPublishState;
   /** Kick off the publish pipeline. No-op while already running. */
   publish(args: PublishToBazaarArgs): void;
 }
 
 export function usePublishToBazaar(): UsePublishToBazaarResult {
-  throw new Error('not implemented — shapes-only commit');
+  const [state, setState] = useState<Cat21BazaarPublishState>({ step: 'idle' });
+  const runningRef = useRef(false);
+
+  const { ordinalsAddress, signBip322 } = useCat21SessionSigner();
+
+  function publish(args: PublishToBazaarArgs) {
+    if (runningRef.current) return;
+    runningRef.current = true;
+
+    void (async () => {
+      try {
+        // ─── resolve: headline number + live bundle numbers ───
+        setState({ step: 'resolving' });
+        const ord = getCat21OrdApiClient();
+        const headline = await ord.fetchCat21(args.catId);
+        const outpoint = `${args.sellerUtxo.txid}:${args.sellerUtxo.vout}`;
+        const output = await ord.fetchOutput(outpoint, { skipCache: true });
+        const bundleCatNumbers = await Promise.all(
+          output.cats.map(async id =>
+            id === args.catId ? headline.number : (await ord.fetchCat21(id)).number
+          )
+        );
+
+        const request = buildCreateListingRequest({
+          catNumber: headline.number,
+          bundleCatNumbers,
+          askSats: args.askSats,
+          paymentAddress: args.paymentAddress,
+          ordinalsAddress,
+          catTxid: args.sellerUtxo.txid,
+          catVout: args.sellerUtxo.vout,
+        });
+
+        // ─── session token (cached 24 h; signs on first sale only) ───
+        setState({ step: 'signing-session' });
+        const address = request.ordinalsAddress;
+        let headers = await getOrCreateCat21Session({ address, signBip322 });
+
+        // ─── POST; on 401 re-sign once ───
+        setState({ step: 'posting' });
+        let result = await publishCat21Listing({ request, headers });
+        if (!result.ok && result.error.code === 'session-rejected') {
+          clearCat21Session(address);
+          setState({ step: 'signing-session' });
+          headers = await getOrCreateCat21Session({ address, signBip322 });
+          setState({ step: 'posting' });
+          result = await publishCat21Listing({ request, headers });
+        }
+
+        if (result.ok) {
+          setState({ step: 'success', catNumber: request.catNumber });
+        } else {
+          setState({ step: 'error', error: result.error });
+        }
+      } catch (err) {
+        setState({
+          step: 'error',
+          error: {
+            code: 'network-error',
+            detail: err instanceof Error ? err.message : String(err),
+          },
+        });
+      } finally {
+        runningRef.current = false;
+      }
+    })();
+  }
+
+  return { state, publish };
 }
