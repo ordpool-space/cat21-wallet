@@ -100,7 +100,7 @@ describe('HARD RULE #6 — browser surface is Leather, cat21_* is internal-only'
     const files = findFiles(BROWSER_SURFACE_ROOTS, SOURCE_EXTS);
     for (const file of files) {
       const src = read(file);
-      const hits = src.match(/cat21_(mint|transfer|create_offer|accept_offer)/g);
+      const hits = src.match(/cat21_(mint|transfer|create_offer|accept_offer|buy)/g);
       expect({ file: relative(REPO_ROOT, file), hits }).toEqual({
         file: relative(REPO_ROOT, file),
         hits: null,
@@ -346,9 +346,14 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
 
   interface Cat21RpcMethodBinding {
     /** Wire-level method name (matches MCP tool name + chrome.runtime message type). */
-    methodName: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer';
+    methodName:
+      | 'cat21_mint'
+      | 'cat21_transfer'
+      | 'cat21_create_offer'
+      | 'cat21_accept_offer'
+      | 'cat21_buy';
     /** Cat21RpcService method that handles it. */
-    serviceMethod: 'mint' | 'transfer' | 'createOffer' | 'acceptOffer';
+    serviceMethod: 'mint' | 'transfer' | 'createOffer' | 'acceptOffer' | 'buy';
     /**
      * Either an SDK symbol the service imports from `ordpool-sdk/core`,
      * OR a path to a wallet-local builder file. SDK is preferred per the
@@ -400,12 +405,22 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
         depName: 'validateBuyOfferPsbt',
       },
     },
+    {
+      methodName: 'cat21_buy',
+      serviceMethod: 'buy',
+      // buy is the BUYER side: the wallet builds a buy-offer PSBT with
+      // the SDK's buildCat21BuyOfferPsbt, funds + buyer-signs it, and
+      // POSTs it to the Bazaar as a bid (via the postBid dep-callback).
+      // The SDK builder is the load-bearing binding.
+      handlerBinding: { kind: 'sdk-symbol', symbol: 'buildCat21BuyOfferPsbt' },
+    },
   ];
 
-  it('the table covers all four wallet RPC methods (no more, no less)', () => {
+  it('the table covers all five wallet RPC methods (no more, no less)', () => {
     const names = KNOWN_CAT21_RPC_METHODS.map(m => m.methodName).sort();
     expect(names).toEqual([
       'cat21_accept_offer',
+      'cat21_buy',
       'cat21_create_offer',
       'cat21_mint',
       'cat21_transfer',

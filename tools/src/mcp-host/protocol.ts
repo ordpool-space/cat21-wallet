@@ -20,6 +20,7 @@
  *   - `cat21_transfer`     : transfer an owned cat to a recipient address.
  *   - `cat21_create_offer` : publish a structured sell-listing.
  *   - `cat21_accept_offer` : sign + broadcast an inbound buy-offer PSBT.
+ *   - `cat21_buy`          : bid on a listed cat (build + sign a buy-offer, post it).
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -192,6 +193,30 @@ export const CAT21_MCP_TOOLS = [
       },
     },
   },
+  {
+    name: 'cat21_buy',
+    description:
+      'Bid on a listed cat (BUYER side of the Bazaar). The wallet builds a ' +
+      'buy-offer PSBT, funds it from the buyer wallet, signs only the buyer ' +
+      'inputs (1..N), and POSTs the half-signed PSBT to the Bazaar as a bid. ' +
+      'Does NOT broadcast — the seller accepts + broadcasts. Returns ' +
+      '{ catNumber, bidSats, catTxid, catVout, psbtBase64 } on success.',
+    inputSchema: {
+      type: 'object',
+      required: ['catId', 'catNumber', 'bidSats', 'sellerPaymentAddress', 'feeRate'],
+      properties: {
+        catId: { type: 'string', description: 'Cat id in <txid>i<index> form.' },
+        catNumber: { type: 'number', description: 'Headline cat number.' },
+        bidSats: { type: 'number', description: 'Net sats offered to the seller.' },
+        sellerPaymentAddress: {
+          type: 'string',
+          description: "Seller's payout address, from the listing / ask link.",
+        },
+        feeRate: { type: 'number', description: 'Sat/vB.' },
+        mode: { type: 'string', enum: ['manual', 'autonomous'] },
+      },
+    },
+  },
 ] as const;
 
 /**
@@ -204,6 +229,7 @@ export const CAT21_MUTATING_TOOLS = [
   'cat21_transfer',
   'cat21_create_offer',
   'cat21_accept_offer',
+  'cat21_buy',
 ] as const;
 
 export type Cat21MutatingTool = (typeof CAT21_MUTATING_TOOLS)[number];

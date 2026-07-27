@@ -5,7 +5,7 @@ import type { Cat21Intent } from '@background/cat21/types';
  * pre-fetch (`useCat21RpcDeps`'s `catIdHint`). The three intent
  * shapes that carry one each spell it differently:
  *
- *   - `Cat21TransferIntent` / `Cat21CreateOfferIntent` → `catId`
+ *   - `Cat21TransferIntent` / `Cat21CreateOfferIntent` / `Cat21BuyIntent` → `catId`
  *   - `Cat21AcceptOfferIntent`                        → `expectedCatId`
  *   - `Cat21MintIntent`                               → none (returns undefined)
  *

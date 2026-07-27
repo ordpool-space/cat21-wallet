@@ -179,7 +179,8 @@ to do CAT-21 things call `signPsbt` with PSBT bytes that cat21.space
 (or any other SDK consumer) built and validated.
 
 **The wallet does NOT expose `cat21_mint`, `cat21_transfer`,
-`cat21_create_offer`, or `cat21_accept_offer` to dapps.** Exposing
+`cat21_create_offer`, `cat21_accept_offer`, or `cat21_buy` to
+dapps.** Exposing
 typed cat-flow methods through the browser provider would create a
 second mutating attack surface that we'd have to defend forever, for
 no UX benefit — cat21.space already owns the in-browser Cat21 UI.
@@ -187,12 +188,14 @@ no UX benefit — cat21.space already owns the in-browser Cat21 UI.
 ### Internal surface (Cat21RpcService) — typed cat21_* actions
 
 Inside the wallet, a `Cat21RpcService` (background-side) exposes the
-four typed actions:
+typed cat-flow actions:
 
 - `cat21_mint`
 - `cat21_transfer`
 - `cat21_create_offer`
 - `cat21_accept_offer`
+- `cat21_buy` (the BUYER side of the Bazaar — build + buyer-sign a
+  buy-offer PSBT, POST it as a bid; does NOT broadcast)
 
 The caller passes the intent as structured parameters; the service
 enforces unbypassable invariants, builds the PSBT via ordpool-sdk,
@@ -500,8 +503,8 @@ squash when each step was independently audited.
 ## What this repo is — scope
 
 Bitcoin-L1-only browser-extension wallet that serves **three user
-paths** for the four CAT-21 actions (mint, transfer, create offer,
-accept offer):
+paths** for the CAT-21 cat-flow actions (mint, transfer, create offer,
+accept offer, buy):
 
 **Path 1 — third-party-wallet users (Xverse / Leather / Unisat / …).**
 
@@ -537,9 +540,9 @@ touching tx the wallet builds — mint, transfer, offer, and any RBF
 replacement (HARD RULE #1).
 
 The MCP host (`tools/src/mcp-host/`) is the agent's interface for
-Path 3: it exposes the four mutating actions
+Path 3: it exposes the mutating cat-flow actions
 (`cat21_mint`, `cat21_transfer`, `cat21_create_offer`,
-`cat21_accept_offer`) plus three read-only probes
+`cat21_accept_offer`, `cat21_buy`) plus three read-only probes
 (`list_cats`, `wallet_status`, `cat21_ord_status`). The same
 `Cat21RpcService` handler also serves Path 2 via Chrome's internal
 `chrome.runtime` channel from the wallet popup UI. **Neither path
@@ -597,7 +600,7 @@ section justifying it.
 
 ### Methods (typed, intent-declared)
 
-The same four methods are exposed through two **internal** transports
+The same methods are exposed through two **internal** transports
 — never the browser provider. Path 2 reaches them via the wallet's
 popup UI sending an internal `chrome.runtime` message. Path 3 reaches
 them via MCP tool calls from a bot, translated by the NMH host into
@@ -610,6 +613,7 @@ handler.
 | `cat21_transfer` | `{ catId, recipient, feeRate, mode? }` |
 | `cat21_create_offer` | `{ catId, priceSats, paymentAddress, mode? }` |
 | `cat21_accept_offer` | `{ offerPsbt, expectedCatId, expectedPriceSats, expectedSellerUtxo, mode? }` |
+| `cat21_buy` | `{ catId, catNumber, bidSats, sellerPaymentAddress, feeRate, mode? }` |
 
 `mode` defaults to `'manual'` when omitted. `'autonomous'` is honored
 only when all four mode-resolution guards pass.
@@ -690,12 +694,13 @@ Any new outbound endpoint added to the wallet is a HARD RULE
 question: does it live on infrastructure we control, or does the
 operator depend on a third party's goodwill?
 
-8. **MCP host exposes the four mutating actions plus three read-only probes**:
+8. **MCP host exposes the mutating cat-flow actions plus three read-only probes**:
 
    - `cat21_mint`
    - `cat21_transfer`
    - `cat21_create_offer`
    - `cat21_accept_offer`
+   - `cat21_buy`
    - `list_cats`, `wallet_status`, `cat21_ord_status`
 
    The agent speaks MCP because that's the protocol it's designed

@@ -14,6 +14,7 @@ import {
 } from './cat21-rpc.service';
 import type {
   Cat21AcceptOfferIntent,
+  Cat21BuyIntent,
   Cat21CreateOfferIntent,
   Cat21Intent,
   Cat21MintIntent,
@@ -36,9 +37,14 @@ const accountKey = hex.decode('0300000000000000000000000000000000000000000000000
 const p2wpkhAccount = btc.p2wpkh(accountKey, btc.NETWORK);
 const ACCOUNT_PAYMENT_ADDR = p2wpkhAccount.address!;
 
+// Taproot ordinals (receive) address for the buy flow — where a bought
+// cat lands. x-only key derived from the dummy keypair's 33-byte pubkey.
+const ACCOUNT_ORDINALS_ADDR = btc.p2tr(dummyPublicKey.slice(1), undefined, btc.NETWORK).address!;
+
 function defaultAccountCtx(): Cat21AccountContext {
   return {
     paymentAddress: ACCOUNT_PAYMENT_ADDR,
+    ordinalsAddress: ACCOUNT_ORDINALS_ADDR,
     network: 'mainnet',
   };
 }
@@ -80,6 +86,18 @@ function makeIntent(overrides: Partial<Cat21MintIntent> = {}): Cat21MintIntent {
   };
 }
 
+function makeBuyIntent(overrides: Partial<Cat21BuyIntent> = {}): Cat21BuyIntent {
+  return {
+    catId: VALID_CAT_ID,
+    catNumber: 42,
+    bidSats: 21_000,
+    // A valid mainnet address distinct from the buyer's own addresses.
+    sellerPaymentAddress: p2wpkhMainnet.address!,
+    feeRate: 5,
+    ...overrides,
+  };
+}
+
 interface SpyDeps extends Cat21RpcDeps {
   getAccountContext: ReturnType<typeof vi.fn> & Cat21RpcDeps['getAccountContext'];
   evaluateAgentPolicy: ReturnType<typeof vi.fn> & Cat21RpcDeps['evaluateAgentPolicy'];
@@ -89,6 +107,8 @@ interface SpyDeps extends Cat21RpcDeps {
   validateBuyOfferPsbt: ReturnType<typeof vi.fn> & Cat21RpcDeps['validateBuyOfferPsbt'];
   signWithConfirmation: ReturnType<typeof vi.fn> & Cat21RpcDeps['signWithConfirmation'];
   signSilently: ReturnType<typeof vi.fn> & Cat21RpcDeps['signSilently'];
+  signBuyOfferInputs: ReturnType<typeof vi.fn> & Cat21RpcDeps['signBuyOfferInputs'];
+  postBid: ReturnType<typeof vi.fn> & Cat21RpcDeps['postBid'];
   broadcast: ReturnType<typeof vi.fn> & Cat21RpcDeps['broadcast'];
   recordSpend: ReturnType<typeof vi.fn> & Cat21RpcDeps['recordSpend'];
 }
@@ -108,6 +128,11 @@ function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
     ),
     signWithConfirmation: vi.fn(() => Promise.resolve(signedTx)),
     signSilently: vi.fn(() => Promise.resolve(signedTx)),
+    // Buy-offer signer default: echo a small non-empty PSBT byte array
+    // (the service only base64-encodes it, never re-parses). Distinct
+    // sentinel bytes so a positive-equality assert catches leaks.
+    signBuyOfferInputs: vi.fn(() => Promise.resolve(new Uint8Array([1, 2, 3, 4]))),
+    postBid: vi.fn(() => Promise.resolve()),
     broadcast: vi.fn(() => Promise.resolve(broadcastResult)),
     recordSpend: vi.fn(),
     ...overrides,
@@ -1000,6 +1025,174 @@ describe('Cat21RpcService.acceptOffer', () => {
       await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
       expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('Cat21RpcService.buy', () => {
+  let deps: SpyDeps;
+  let service: Cat21RpcService;
+
+  beforeEach(() => {
+    deps = makeDeps();
+    service = new Cat21RpcService(deps);
+  });
+
+  describe('happy paths', () => {
+    it('builds + buyer-signs + posts a bid, returns { kind: "bid" }', async () => {
+      const result = await service.buy(makeBuyIntent(), 'popup');
+      expect(result.ok).toBe(true);
+      if (!result.ok || result.value.kind !== 'bid') throw new Error('expected bid success');
+      expect(result.value.catNumber).toBe(42);
+      expect(result.value.bidSats).toBe(21_000);
+      // The seller cat UTXO the service pinned (from resolveCatUtxo).
+      expect(result.value.catTxid).toBe(defaultCatUtxo().txid);
+      expect(result.value.catVout).toBe(0);
+      // base64 of the sentinel bytes [1,2,3,4] the signer returned.
+      expect(result.value.psbtBase64).toBe('AQIDBA==');
+      // Buyer inputs are 1..N — one funding UTXO ⇒ index [1]. Input 0
+      // (the seller's cat) is NEVER signed by the buyer.
+      const signArgs = deps.signBuyOfferInputs.mock.calls[0];
+      expect(signArgs[1]).toEqual([1]);
+      // Bid is broadcast to the Bazaar, not the chain.
+      expect(deps.postBid).toHaveBeenCalledTimes(1);
+      expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+
+    it('posts the bid with the buyer/seller addresses + single-cat bundle', async () => {
+      await service.buy(makeBuyIntent(), 'popup');
+      const postArgs = deps.postBid.mock.calls[0][0];
+      expect(postArgs).toMatchObject({
+        network: 'mainnet',
+        catTxid: defaultCatUtxo().txid,
+        catVout: 0,
+        cats: [42],
+        headlineCatNumber: 42,
+        bidSats: 21_000,
+        buyerOrdinalsAddress: ACCOUNT_ORDINALS_ADDR,
+        buyerPaymentAddress: ACCOUNT_PAYMENT_ADDR,
+        sellerPaymentAddress: p2wpkhMainnet.address,
+        psbtBase64: 'AQIDBA==',
+      });
+    });
+
+    it('records the spend (bid + fee) on success', async () => {
+      await service.buy(makeBuyIntent({ bidSats: 21_000 }), 'popup');
+      expect(deps.recordSpend).toHaveBeenCalledTimes(1);
+      // bidSats + a positive simulated fee.
+      const recorded = deps.recordSpend.mock.calls[0][0];
+      expect(recorded).toBeGreaterThan(21_000);
+    });
+
+    it('works in autonomous mode via the same no-finalize signer', async () => {
+      const result = await service.buy(makeBuyIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      expect(result.ok).toBe(true);
+      expect(deps.signBuyOfferInputs).toHaveBeenCalledTimes(1);
+      expect(deps.postBid).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('intent-invariant violations bubble up as typed denials', () => {
+    it('denies when the account has no ordinals (taproot) address', async () => {
+      deps = makeDeps({
+        getAccountContext: vi.fn(() => ({
+          paymentAddress: ACCOUNT_PAYMENT_ADDR,
+          network: 'mainnet' as const,
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected denial');
+      expect(result.value.reason).toBe('intent-invariant-violated');
+      expect(result.value.detail).toContain('no-ordinals-address');
+      expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
+    });
+
+    it('denies when the cat UTXO cannot be resolved on-chain', async () => {
+      deps = makeDeps({
+        resolveCatUtxo: vi.fn(() => {
+          throw new Error('cat21-ord 404');
+        }),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup');
+      expect(result).toMatchObject({
+        ok: false,
+        value: { reason: 'intent-invariant-violated' },
+      });
+      if (result.ok) throw new Error('expected denial');
+      expect(result.value.detail).toContain('cat-utxo-resolve-failed');
+      expect(deps.postBid).not.toHaveBeenCalled();
+    });
+
+    it('denies a malformed catId at the SDK gate (never signs)', async () => {
+      const result = await service.buy(makeBuyIntent({ catId: 'not-a-cat' }), 'popup');
+      expect(result).toMatchObject({
+        ok: false,
+        value: { reason: 'intent-invariant-violated' },
+      });
+      expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
+    });
+
+    it('denies when allowedOperations excludes buy', async () => {
+      deps = makeDeps({
+        getAccountContext: vi.fn(() => ({
+          paymentAddress: ACCOUNT_PAYMENT_ADDR,
+          ordinalsAddress: ACCOUNT_ORDINALS_ADDR,
+          network: 'mainnet' as const,
+          allowedOperations: ['mint'] as const,
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup');
+      expect(result).toMatchObject({
+        ok: false,
+        value: { reason: 'intent-invariant-violated' },
+      });
+      if (result.ok) throw new Error('expected denial');
+      expect(result.value.detail).toContain('operation-kind-not-allowed');
+      expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('signer / bid-post failures surface as broadcast-failed', () => {
+    it('maps a signer rejection to broadcast-failed (sign-failed)', async () => {
+      deps = makeDeps({
+        signBuyOfferInputs: vi.fn(() => Promise.reject(new Error('user cancelled'))),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup');
+      expect(result).toMatchObject({ ok: false, value: { reason: 'broadcast-failed' } });
+      if (result.ok) throw new Error('expected denial');
+      expect(result.value.detail).toContain('sign-failed');
+      expect(deps.postBid).not.toHaveBeenCalled();
+      expect(deps.recordSpend).not.toHaveBeenCalled();
+    });
+
+    it('maps a bid-post rejection to broadcast-failed (bid-post-failed)', async () => {
+      deps = makeDeps({
+        postBid: vi.fn(() => Promise.reject(new Error('rate-limited'))),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup');
+      expect(result).toMatchObject({ ok: false, value: { reason: 'broadcast-failed' } });
+      if (result.ok) throw new Error('expected denial');
+      expect(result.value.detail).toContain('bid-post-failed');
+      // The signer ran, but the spend is NOT recorded on a failed post.
+      expect(deps.signBuyOfferInputs).toHaveBeenCalledTimes(1);
+      expect(deps.recordSpend).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
+    it('refuses autonomous buy when agent mode is disabled', async () => {
+      deps = makeDeps({ agentMode: { enabled: false } });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      expect(result.ok).toBe(false);
+      expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
+      expect(deps.postBid).not.toHaveBeenCalled();
     });
   });
 });

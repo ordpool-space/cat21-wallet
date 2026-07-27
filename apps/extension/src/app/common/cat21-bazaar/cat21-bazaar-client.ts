@@ -15,6 +15,9 @@ import axios, { isAxiosError } from 'axios';
 
 import {
   CAT21_BAZAAR_BASE_URL,
+  Cat21BazaarBidError,
+  Cat21BazaarBidErrorCode,
+  Cat21BazaarCreateBidRequest,
   Cat21BazaarCreateListingRequest,
   Cat21BazaarError,
   Cat21BazaarErrorCode,
@@ -58,6 +61,69 @@ function mapHttpError(err: unknown): Cat21BazaarError {
   const known = candidates.find(isPassthroughCode);
   if (known) return { code: known };
   return { code: 'rejected', detail: candidates[0] ?? `http-${status}` };
+}
+
+/**
+ * Backend bid-rejection codes we surface verbatim; anything else maps
+ * to the generic 'rejected' with the raw code in `detail`.
+ */
+const BID_PASSTHROUGH_CODES: readonly Cat21BazaarBidErrorCode[] = [
+  'network-mismatch',
+  'headline-not-in-bundle',
+  'bid-below-marketplace-floor',
+  'psbt-malformed',
+  'psbt-shape-invalid',
+  'psbt-input0-mismatch',
+  'psbt-output0-mismatch',
+  'psbt-output1-mismatch',
+  'psbt-output2-mismatch',
+  'psbt-price-mismatch',
+  'ord-lookup-failed',
+  'cat-not-found',
+  'cats-bundle-drift',
+];
+
+function isBidPassthroughCode(code: string): code is Cat21BazaarBidErrorCode {
+  return (BID_PASSTHROUGH_CODES as readonly string[]).includes(code);
+}
+
+function mapBidHttpError(err: unknown): Cat21BazaarBidError {
+  if (!isAxiosError(err) || !err.response) {
+    return { code: 'network-error', detail: err instanceof Error ? err.message : String(err) };
+  }
+  const { status, data } = err.response;
+  if (status === 429) return { code: 'rate-limited' };
+  const raw = (data ?? {}) as { message?: string | string[]; code?: string };
+  const candidates = [
+    ...(typeof raw.code === 'string' ? [raw.code] : []),
+    ...(typeof raw.message === 'string' ? [raw.message] : []),
+    ...(Array.isArray(raw.message) ? raw.message : []),
+  ];
+  const known = candidates.find(isBidPassthroughCode);
+  if (known) return { code: known };
+  return { code: 'rejected', detail: candidates[0] ?? `http-${status}` };
+}
+
+/**
+ * POST /api/v1/bids — publish (or overwrite) a buyer's bid on a cat
+ * UTXO. UNAUTHENTICATED: the half-signed PSBT's SIGHASH_ALL signatures
+ * ARE the auth, so no session headers. Re-bidding at a new price from
+ * the same buyer ordinals address overwrites the previous bid (backend
+ * upserts on `(network, cat_txid, cat_vout, buyer_ordinals_address)`).
+ */
+export async function postBidToCat21Bazaar(args: {
+  request: Cat21BazaarCreateBidRequest;
+  baseUrl?: string;
+}): Promise<{ ok: true } | { ok: false; error: Cat21BazaarBidError }> {
+  const baseUrl = args.baseUrl ?? CAT21_BAZAAR_BASE_URL;
+  try {
+    await axios.post(`${baseUrl}/api/v1/bids`, args.request, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: mapBidHttpError(err) };
+  }
 }
 
 /**

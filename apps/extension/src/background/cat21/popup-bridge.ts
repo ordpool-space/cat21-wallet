@@ -175,7 +175,12 @@ export async function clearCat21Request(
  * crash here rather than silently navigating to the wrong popup.
  */
 export function routeForCat21IntentType(
-  intentType: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer'
+  intentType:
+    | 'cat21_mint'
+    | 'cat21_transfer'
+    | 'cat21_create_offer'
+    | 'cat21_accept_offer'
+    | 'cat21_buy'
 ): RouteUrls {
   switch (intentType) {
     case 'cat21_mint':
@@ -186,6 +191,8 @@ export function routeForCat21IntentType(
       return RouteUrls.Cat21CreateOfferConfirm;
     case 'cat21_accept_offer':
       return RouteUrls.Cat21AcceptOfferConfirm;
+    case 'cat21_buy':
+      return RouteUrls.Cat21BuyConfirm;
     default: {
       const exhaustive: never = intentType;
       throw new Error(`routeForCat21IntentType: unknown type ${String(exhaustive)}`);

@@ -52,6 +52,73 @@ export interface Cat21BazaarCreateListingRequest {
 }
 
 /**
+ * POST /api/v1/bids request body — field-for-field mirror of the
+ * backend's CreateBidDto. UNAUTHENTICATED: the buyer's SIGHASH_ALL
+ * signatures on the PSBT's inputs 1..N ARE the auth, so no session
+ * token. The backend re-parses the PSBT and cross-checks every claim
+ * (outpoint, output addresses, price, cats bundle vs ord) — a
+ * dishonest body is rejected, never trusted.
+ *
+ * Mirrors: cat21-indexer backend/src/modules/bids/dto/create-bid.dto.ts.
+ */
+export interface Cat21BazaarCreateBidRequest {
+  /** Bitcoin network the bid targets. Must match the backend deployment. */
+  network: 'mainnet' | 'testnet3' | 'testnet4' | 'signet' | 'regtest';
+  /** Cat UTXO txid the PSBT input 0 targets. Lowercase 64-hex. */
+  catTxid: string;
+  /** vout of the cat UTXO. */
+  catVout: number;
+  /** Cats on the UTXO (buyer-observed snapshot). 546-sat UTXO ⇒ one cat. */
+  cats: number[];
+  /** Headline cat number for display; member of `cats`. */
+  headlineCatNumber: number;
+  /** Bid price in sats (what the seller receives). 1 .. MAX_ASK_SATS. */
+  bidSats: number;
+  /** Buyer's ordinals address — the cat lands here (output 0). Buyer identity. */
+  buyerOrdinalsAddress: string;
+  /** Buyer's payment address — the change output (output 2). */
+  buyerPaymentAddress: string;
+  /** Seller's payout address (output 1); baked into the signed PSBT. */
+  sellerPaymentAddress: string;
+  /** Buyer's half-signed buy-offer PSBT, base64. Input 0 unsigned (seller signs). */
+  psbtBase64: string;
+}
+
+/**
+ * Bid-mutation error taxonomy. Bid POST is unauthenticated so there's
+ * no `session-rejected` on the POST path (DELETE, session-guarded,
+ * reuses the listing session codes). Superset of the backend's bid
+ * rejection codes plus transport failures. UI copy maps from these.
+ */
+export type Cat21BazaarBidErrorCode =
+  /** Backend PSBT / bundle / price cross-check failures (400-class codes). */
+  | 'network-mismatch'
+  | 'headline-not-in-bundle'
+  | 'bid-below-marketplace-floor'
+  | 'psbt-malformed'
+  | 'psbt-shape-invalid'
+  | 'psbt-input0-mismatch'
+  | 'psbt-output0-mismatch'
+  | 'psbt-output1-mismatch'
+  | 'psbt-output2-mismatch'
+  | 'psbt-price-mismatch'
+  | 'ord-lookup-failed'
+  | 'cat-not-found'
+  | 'cats-bundle-drift'
+  /** 429 — rate limited (5 bid posts/min/IP). */
+  | 'rate-limited'
+  /** Anything else the backend rejected (bad DTO, unknown code). */
+  | 'rejected'
+  /** Fetch failed / backend unreachable. */
+  | 'network-error';
+
+export interface Cat21BazaarBidError {
+  code: Cat21BazaarBidErrorCode;
+  /** Human-readable detail for logs; UI renders from `code`. */
+  detail?: string;
+}
+
+/**
  * The three session-token headers the Cat21SessionGuard requires on
  * every mutation (POST + DELETE). Values come from
  * `getOrCreateCat21Session`.

@@ -1,5 +1,6 @@
 import type {
   Cat21AcceptOfferIntent,
+  Cat21BuyIntent,
   Cat21CreateOfferIntent,
   Cat21Intent,
   Cat21MintIntent,
@@ -44,10 +45,12 @@ export interface Cat21ConfirmationCopy {
 /**
  * Produce the confirmation copy for a Cat21 intent. The intent's
  * variant is detected structurally (same pattern as
- * `cat21IntentToAgentContext`): `priceSats` → create-offer,
- * `offerPsbt` → accept-offer, `catId` → transfer, else mint.
+ * `cat21IntentToAgentContext`): `bidSats` → buy, `priceSats` →
+ * create-offer, `offerPsbt` → accept-offer, `catId` → transfer,
+ * else mint. `bidSats` is checked first because the buy intent also
+ * carries `catId`.
  *
- * The four variants below are intentionally distinct in voice:
+ * The five variants below are intentionally distinct in voice:
  *   - mint: celebratory ("Mint a CAT-21 cat!") — minting is the most
  *     common cat-flow and the one users tend to do impulsively
  *   - transfer: neutral ("Send your cat to ...") — most likely a
@@ -56,8 +59,11 @@ export interface Cat21ConfirmationCopy {
  *     this just emits a listing; nothing on-chain happens yet
  *   - accept-offer: careful ("Sell Cat #N to a buyer") — buyer-supplied
  *     PSBT bytes need to be reviewed; voice should make the user pause
+ *   - buy: committing ("Bid on Cat #N") — the buyer commits funds via a
+ *     signed offer; make clear it's a bid the seller must accept
  */
 export function makeCat21ConfirmationCopy(intent: Cat21Intent): Cat21ConfirmationCopy {
+  if ('bidSats' in intent) return buyCopy(intent);
   if ('priceSats' in intent) return createOfferCopy(intent);
   if ('offerPsbt' in intent) return acceptOfferCopy(intent);
   if ('catId' in intent) return transferCopy(intent);
@@ -132,6 +138,24 @@ function acceptOfferCopy(intent: Cat21AcceptOfferIntent): Cat21ConfirmationCopy 
     ],
     approveButtonLabel: 'Sell cat',
     rejectButtonLabel: 'Reject offer',
+  };
+}
+
+function buyCopy(intent: Cat21BuyIntent): Cat21ConfirmationCopy {
+  return {
+    title: `Bid on Cat #${intent.catNumber}`,
+    paragraphs: [
+      `Sign a buy-offer that pays the seller ${intent.bidSats.toLocaleString()} sats and lands Cat #${intent.catNumber} in your wallet. You commit your funds now; nothing moves until the seller accepts.`,
+      'Your bid is posted to the CAT-21 Bazaar. The seller (or their bot) can accept it any time — or another buyer can outbid you.',
+    ],
+    rows: [
+      { label: 'Cat', value: `#${intent.catNumber}` },
+      { label: 'Your bid', value: `${intent.bidSats.toLocaleString()} sats` },
+      { label: 'Pays seller', value: formatAddress(intent.sellerPaymentAddress) },
+      { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
+    ],
+    approveButtonLabel: 'Place bid',
+    rejectButtonLabel: 'Cancel',
   };
 }
 

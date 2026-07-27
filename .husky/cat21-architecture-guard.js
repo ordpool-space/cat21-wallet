@@ -26,7 +26,7 @@ const SOURCE_EXTS = ['.ts', '.tsx', '.js', '.jsx'];
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.cache', 'RESCUE', '.husky']);
 
 const FORBIDDEN_NAMES = [
-  /cat21_(mint|transfer|create_offer|accept_offer)/,
+  /cat21_(mint|transfer|create_offer|accept_offer|buy)/,
   /Cat21RpcService/,
   /cat21-rpc\.service/,
 ];

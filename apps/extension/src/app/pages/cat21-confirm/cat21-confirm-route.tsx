@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
+import { Flex, styled } from 'leather-styles/jsx';
+
+import { Button } from '@leather.io/ui';
+
+import { Content } from '@app/components/layout';
 import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat21-confirmation-copy';
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
 import { useHasActiveInMemoryWalletSecretKey } from '@app/store/in-memory-key/in-memory-key.selectors';
@@ -8,7 +13,7 @@ import { postCat21Result } from '@background/cat21/cat21-result-bus';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
 import type { Cat21Transport } from '@background/cat21/mode-resolver';
 import { clearCat21Request } from '@background/cat21/popup-bridge';
-import type { Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
+import type { Cat21RpcBidSuccess, Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
 
 import { usePublishToBazaar } from '../cat21-create-offer/use-publish-to-bazaar';
 import { Cat21BazaarPublishStatus } from './cat21-bazaar-publish-status';
@@ -53,6 +58,10 @@ export function Cat21ConfirmRoute() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Set on a successful `cat21_buy` (Path 2). The service already POSTed
+  // the bid to the Bazaar; this renders the "bid posted" acknowledgement
+  // instead of silently navigating away.
+  const [bidPosted, setBidPosted] = useState<Cat21RpcBidSuccess | null>(null);
   // Guard against `useEffect` firing the auto-confirm twice in
   // React strict mode (dev) and against re-mounts during the async
   // service call. A ref is stable across renders and survives the
@@ -86,6 +95,9 @@ export function Cat21ConfirmRoute() {
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
+    // `bidSats` is unique to the buy intent — check it before `catId`
+    // (buy also carries `catId`, so the transfer branch would swallow it).
+    if ('bidSats' in actionIntent) return service.buy(actionIntent, transport);
     if ('priceSats' in actionIntent) return service.createOffer(actionIntent, transport);
     if ('offerPsbt' in actionIntent) return service.acceptOffer(actionIntent, transport);
     if ('catId' in actionIntent) return service.transfer(actionIntent, transport);
@@ -146,6 +158,14 @@ export function Cat21ConfirmRoute() {
             paymentAddress: listing.paymentAddress,
             sellerUtxo: listing.sellerUtxo,
           });
+          return;
+        }
+        // Path 2 buy: the service already POSTed the bid; show the
+        // acknowledgement rather than navigating straight back. Path 3
+        // keeps the return-the-payload contract (the agent gets the
+        // `{ kind: 'bid', psbtBase64, ... }` result over the port).
+        if (transport === 'popup' && result.value.kind === 'bid') {
+          setBidPosted(result.value);
           return;
         }
         void navigate(-1);
@@ -225,6 +245,31 @@ export function Cat21ConfirmRoute() {
   // dialog once the createOffer gate has succeeded (Path 2 only).
   if (bazaar.state.step !== 'idle') {
     return <Cat21BazaarPublishStatus state={bazaar.state} onClose={() => void navigate(-1)} />;
+  }
+
+  // Bid posted (Path 2 buy success) — the service already published the
+  // bid to the Bazaar. Acknowledge and let the buyer close.
+  if (bidPosted) {
+    return (
+      <Content>
+        <Flex direction="column" gap="space.05" px="space.05" data-testid="cat21-bid-posted">
+          <styled.h1 textStyle="heading.03">Bid posted</styled.h1>
+          <styled.p textStyle="body.02">
+            You bid {bidPosted.bidSats.toLocaleString()} sats for Cat #{bidPosted.catNumber}. The
+            seller can now accept it — you'll pay only if they do.
+          </styled.p>
+          <Button
+            variant="solid"
+            fullWidth
+            type="button"
+            onClick={() => void navigate(-1)}
+            data-testid="cat21-bid-posted-done"
+          >
+            Done
+          </Button>
+        </Flex>
+      </Content>
+    );
   }
 
   const copy = makeCat21ConfirmationCopy(intent);

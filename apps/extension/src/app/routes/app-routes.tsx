@@ -29,6 +29,7 @@ import { RouterErrorBoundary } from '@app/features/errors/app-error-boundary';
 import { useFlags } from '@app/features/feature-flags';
 import { TokenDetails } from '@app/features/token/token-details';
 import { Cat21AgentPolicyWizard } from '@app/pages/cat21-agent-policy-wizard/cat21-agent-policy-wizard';
+import { Cat21BuyPage } from '@app/pages/cat21-buy/cat21-buy-page';
 import { Cat21ConfirmRoute } from '@app/pages/cat21-confirm/cat21-confirm-route';
 import { Cat21CreateOfferPage } from '@app/pages/cat21-create-offer/cat21-create-offer-page';
 import { Cat21ListPage } from '@app/pages/cat21-list/cat21-list-page';
@@ -306,6 +307,18 @@ function useAppRoutes() {
             }
           />
 
+          {/* Cat21 manual-flow Buy form — the BUYER side of the Bazaar.
+              Discover a cat by pasted ask-link or by number, set a bid,
+              land on Cat21BuyConfirm with the intent in location.state. */}
+          <Route
+            path={RouteUrls.Cat21Buy}
+            element={
+              <AccountGate>
+                <Cat21BuyPage />
+              </AccountGate>
+            }
+          />
+
           {/* Cat21 my-cats list — iter 13f. Queries cat21-ord for the
               active account's cats and surfaces per-row Transfer /
               Sell action buttons that deep-link the forms with
@@ -348,6 +361,14 @@ function useAppRoutes() {
           />
           <Route
             path={RouteUrls.Cat21AcceptOfferConfirm}
+            element={
+              <AccountGate>
+                <Cat21ConfirmRoute />
+              </AccountGate>
+            }
+          />
+          <Route
+            path={RouteUrls.Cat21BuyConfirm}
             element={
               <AccountGate>
                 <Cat21ConfirmRoute />

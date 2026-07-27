@@ -22,6 +22,7 @@
  */
 import type {
   Cat21AcceptOfferIntent as SdkCat21AcceptOfferIntent,
+  Cat21BuyIntent as SdkCat21BuyIntent,
   Cat21CreateOfferIntent as SdkCat21CreateOfferIntent,
   Cat21MintIntent as SdkCat21MintIntent,
   Cat21TransferIntent as SdkCat21TransferIntent,
@@ -40,11 +41,26 @@ export type Cat21TransferIntent = SdkCat21TransferIntent & WalletModeTag;
 export type Cat21CreateOfferIntent = SdkCat21CreateOfferIntent & WalletModeTag;
 export type Cat21AcceptOfferIntent = SdkCat21AcceptOfferIntent & WalletModeTag;
 
+/**
+ * Wallet buy intent = the SDK's `Cat21BuyIntent` (catId, bidSats,
+ * sellerPaymentAddress, feeRate — the fields the SDK gate validates)
+ * plus two wallet-only fields:
+ *   - `mode` — transport-routing hint (manual vs autonomous).
+ *   - `catNumber` — the headline cat number, known from the ask-link /
+ *     by-number lookup on the buy page. The SDK intent carries only the
+ *     inscription id (`catId`); the Bazaar bid DTO needs the cat number
+ *     for display + the buyer-observed `cats` bundle (a 546-sat cat UTXO
+ *     holds exactly one cat, so the bundle is `[catNumber]`). The SDK
+ *     gate ignores this extra field.
+ */
+export type Cat21BuyIntent = SdkCat21BuyIntent & WalletModeTag & { catNumber: number };
+
 export type Cat21Intent =
   | Cat21MintIntent
   | Cat21TransferIntent
   | Cat21CreateOfferIntent
-  | Cat21AcceptOfferIntent;
+  | Cat21AcceptOfferIntent
+  | Cat21BuyIntent;
 
 /* ----------------------------- Result types ---------------------------- */
 
@@ -54,15 +70,39 @@ export type Cat21Intent =
  * `listing` outcome — it does NOT broadcast, it emits a structured listing
  * the agent can publish to a marketplace. Buyers later send back a
  * buy-offer PSBT, which the seller signs+broadcasts via cat21_accept_offer.
+ * `cat21_buy` returns a `bid` outcome — the wallet built + buyer-signed a
+ * buy-offer PSBT and POSTed it to the Bazaar as a bid. No chain broadcast;
+ * the seller accepts + broadcasts.
  */
 // HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
-type Cat21RpcSuccess = Cat21RpcBroadcastSuccess | Cat21RpcListingSuccess;
+type Cat21RpcSuccess = Cat21RpcBroadcastSuccess | Cat21RpcListingSuccess | Cat21RpcBidSuccess;
 
 // HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
 interface Cat21RpcBroadcastSuccess {
   kind: 'broadcast';
   txid: string;
   channel: 'mempool' | 'slipstream';
+}
+
+/**
+ * `cat21_buy` outcome. The wallet built a buy-offer PSBT (input 0 = the
+ * seller's cat, unsigned; inputs 1..N = buyer-funded, SIGHASH_ALL-signed),
+ * signed the buyer's inputs, and POSTed it to the Bazaar as a bid. The
+ * seller later accepts + broadcasts it. Not a chain tx — there is no txid
+ * yet; the `psbtBase64` is the artifact the seller signs, and doubles as a
+ * shareable accept-link (offers are public — SDK/HQ HARD RULE).
+ */
+export interface Cat21RpcBidSuccess {
+  kind: 'bid';
+  /** Headline cat number the bid targets. */
+  catNumber: number;
+  /** Net sats offered to the seller. */
+  bidSats: number;
+  /** Cat UTXO the bid pins (PSBT input 0). */
+  catTxid: string;
+  catVout: number;
+  /** The buyer-signed buy-offer PSBT, base64. */
+  psbtBase64: string;
 }
 
 export interface Cat21RpcListingSuccess {

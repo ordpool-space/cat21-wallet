@@ -167,6 +167,12 @@ export function makeWiringPendingDeps(): Cat21RpcDeps {
     signSilently() {
       return Promise.reject(new Error('signSilently: wiring pending'));
     },
+    signBuyOfferInputs() {
+      return Promise.reject(new Error('signBuyOfferInputs: wiring pending'));
+    },
+    postBid() {
+      return Promise.reject(new Error('postBid: wiring pending'));
+    },
     broadcast() {
       return Promise.reject(new Error('broadcast: wiring pending'));
     },

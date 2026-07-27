@@ -16,6 +16,7 @@ import { incrementSpentToday } from '@app/store/agent-policy/agent-policy.slice'
 
 import type {
   Cat21AcceptOfferIntent,
+  Cat21BuyIntent,
   Cat21CreateOfferIntent,
   Cat21Intent,
   Cat21MintIntent,
@@ -90,6 +91,8 @@ interface AgentPolicyDeps {
  * SDK kind mapping in one place.
  */
 function detectIntentKind(intent: Cat21Intent): AgentActionKind {
+  // `bidSats` is unique to buy — checked before `catId` (buy carries it too).
+  if ('bidSats' in intent) return 'cat21_buy';
   if ('priceSats' in intent) return 'cat21_create_offer';
   if ('offerPsbt' in intent) return 'cat21_accept_offer';
   if ('catId' in intent) return 'cat21_transfer';
@@ -163,6 +166,20 @@ function cat21IntentToAgentContext(
         receivePriceSats: 0,
         // The buyer address lives in the PSBT; not available here.
         counterpartyAddress: acceptIntent.expectedCatId ? undefined : undefined,
+      };
+    }
+    case 'cat21_buy': {
+      // buy commits bidSats (+ fee) to the seller. bidSats is the
+      // dominant, known term — use it as spendSats so the per-action +
+      // daily caps gate on the real outflow (the exact fee is added
+      // post-simulation and tracked via recordSpend). The counterparty
+      // is the seller we pay.
+      const buyIntent = intent as Cat21BuyIntent;
+      return {
+        ...base,
+        spendSats: buyIntent.bidSats,
+        feeRateSatPerVbyte: buyIntent.feeRate,
+        counterpartyAddress: buyIntent.sellerPaymentAddress,
       };
     }
     default: {

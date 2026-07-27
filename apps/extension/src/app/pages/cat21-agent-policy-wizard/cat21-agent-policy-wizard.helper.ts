@@ -1,9 +1,9 @@
 import type { AgentActionKind, AgentPolicy } from 'ordpool-sdk/core';
 
 /**
- * The four operation kinds the wizard's allowlist UI offers. Order
- * is fixed so the rendered checkboxes match the mental model of the
- * pipeline (mint → transfer → list → accept). Matches the SDK's
+ * The operation kinds the wizard's allowlist UI offers. Order is fixed
+ * so the rendered checkboxes match the mental model of the pipeline
+ * (mint → transfer → list → accept → buy). Matches the SDK's
  * `AgentActionKind` union verbatim.
  */
 export const AGENT_OPERATION_KINDS: readonly AgentActionKind[] = [
@@ -11,6 +11,7 @@ export const AGENT_OPERATION_KINDS: readonly AgentActionKind[] = [
   'cat21_transfer',
   'cat21_create_offer',
   'cat21_accept_offer',
+  'cat21_buy',
 ];
 
 /**
@@ -65,6 +66,7 @@ export const DEFAULT_WIZARD_VALUES: AgentPolicyWizardValues = {
     cat21_transfer: true,
     cat21_create_offer: true,
     cat21_accept_offer: true,
+    cat21_buy: true,
   },
 };
 

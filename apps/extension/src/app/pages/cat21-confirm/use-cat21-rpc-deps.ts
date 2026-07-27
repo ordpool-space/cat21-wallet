@@ -14,12 +14,14 @@ import {
 
 import { getCat21OrdApiClient } from '@leather.io/services';
 
+import { postBidToCat21Bazaar } from '@app/common/cat21-bazaar/cat21-bazaar-client';
 import { useBitcoinClient } from '@app/query/bitcoin/clients/bitcoin-client';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { type RootState, useAppDispatch } from '@app/store';
 import { useCurrentAccountId } from '@app/store/accounts/account';
 import { useSignBitcoinTx } from '@app/store/accounts/blockchain/bitcoin/bitcoin.hooks';
 import { useNativeSegwitAccountIndexAddressIndexZero } from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
+import { useCurrentAccountTaprootPayer } from '@app/store/accounts/blockchain/bitcoin/taproot-account.hooks';
 import { accountIdToSliceKey } from '@app/store/agent-policy/agent-policy.hooks';
 import { selectAgentPolicyForAccount } from '@app/store/agent-policy/agent-policy.selectors';
 import { incrementSpentToday } from '@app/store/agent-policy/agent-policy.slice';
@@ -82,6 +84,13 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   const dispatch = useAppDispatch();
   const currentAccount = useCurrentAccountId();
   const paymentAddress = useNativeSegwitAccountIndexAddressIndexZero(currentAccount);
+  // Ordinals (taproot) address — where a bought cat lands (buy flow).
+  // Resolved render-safe (no throw): a missing taproot payer leaves it
+  // empty, and `Cat21RpcService.buy` fails closed with a typed reason.
+  // mint / transfer / offer never read it.
+  const createTaprootPayer = useCurrentAccountTaprootPayer();
+  const ordinalsAddress =
+    createTaprootPayer?.({ addressIndex: 0, changeIndex: 0 })?.payment.address ?? '';
   const network = useCurrentNetwork();
   const networkLabel: 'mainnet' | 'testnet' =
     network.chain.bitcoin.mode === 'mainnet' ? 'mainnet' : 'testnet';
@@ -121,6 +130,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         const policy = selectAgentPolicyForAccount(store.getState(), accountKey);
         return {
           paymentAddress: paymentAddress ?? '',
+          ordinalsAddress,
           network: networkLabel,
           allowedOperations: stripCat21Prefix(policy?.allowedOperations),
         };
@@ -280,6 +290,42 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         signedTx.finalize();
         return { hex: signedTx.hex, weight: signedTx.weight };
       },
+      // Buy-offer signer: signs ONLY the buyer's funding inputs
+      // (`inputIndexes` = 1..N) and returns the half-signed PSBT bytes
+      // WITHOUT finalizing — input 0 (the seller's cat) stays unsigned
+      // for the seller to sign at accept time. `toPSBT()` serialises the
+      // buyer's partial signatures; the seller loads it, signs input 0,
+      // finalises, broadcasts.
+      signBuyOfferInputs: async (psbt, inputIndexes) => {
+        const signedTx = await signBitcoinTx(psbt, inputIndexes);
+        return signedTx.toPSBT();
+      },
+      // Unauthenticated bid POST to the Bazaar (the SIGHASH_ALL sigs are
+      // the auth). Translates the wallet's coarse 'mainnet'|'testnet'
+      // network to the bid DTO's enum (testnet ⇒ 'testnet3', matching
+      // walletNetworkToSdkNetwork). Throws on rejection so the service's
+      // try/catch maps it to a typed 'broadcast-failed' denial.
+      postBid: async postArgs => {
+        const result = await postBidToCat21Bazaar({
+          request: {
+            network: postArgs.network === 'mainnet' ? 'mainnet' : 'testnet3',
+            catTxid: postArgs.catTxid,
+            catVout: postArgs.catVout,
+            cats: postArgs.cats,
+            headlineCatNumber: postArgs.headlineCatNumber,
+            bidSats: postArgs.bidSats,
+            buyerOrdinalsAddress: postArgs.buyerOrdinalsAddress,
+            buyerPaymentAddress: postArgs.buyerPaymentAddress,
+            sellerPaymentAddress: postArgs.sellerPaymentAddress,
+            psbtBase64: postArgs.psbtBase64,
+          },
+        });
+        if (!result.ok) {
+          throw new Error(
+            result.error.detail ? `${result.error.code}: ${result.error.detail}` : result.error.code
+          );
+        }
+      },
     };
     // tanstack-query returns a fresh result object on every render even
     // when the data didn't change. Depend on the load-bearing fields
@@ -289,6 +335,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     store,
     dispatch,
     paymentAddress,
+    ordinalsAddress,
     networkLabel,
     accountKey,
     bitcoinClient,

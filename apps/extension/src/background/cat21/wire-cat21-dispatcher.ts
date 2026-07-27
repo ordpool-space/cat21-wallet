@@ -66,6 +66,8 @@ export function wireCat21Dispatcher(args: WireCat21DispatcherArgs): Cat21Dispatc
     validateBuyOfferPsbt: wiringPending.validateBuyOfferPsbt,
     signWithConfirmation: wiringPending.signWithConfirmation,
     signSilently: wiringPending.signSilently,
+    signBuyOfferInputs: wiringPending.signBuyOfferInputs,
+    postBid: wiringPending.postBid,
     broadcast: wiringPending.broadcast,
   };
 

@@ -1,11 +1,15 @@
 import {
+  CAT21_POSTAGE_SATS,
   Cat21GateResources,
+  Cat21OfferBuyerInput,
+  Cat21OfferDestinations,
+  Cat21OfferSellerInput,
   Cat21OfferValidation,
-  Cat21Operation,
   Cat21OperationGateConfig,
   Cat21TransferCatInput,
   KnownOrdinalWalletType,
   Network,
+  buildCat21BuyOfferPsbt,
   buildCat21MintPsbt,
   buildCat21TransferPsbt,
   validateCat21Operation,
@@ -13,7 +17,7 @@ import {
 
 import { validateAcceptOffer } from './builders/accept-offer-validator';
 import { buildListing } from './builders/listing-builder';
-import { simulateMintFee, simulateTransferFee } from './cat21-fee-simulation';
+import { simulateBuyOfferFee, simulateMintFee, simulateTransferFee } from './cat21-fee-simulation';
 import {
   AgentModeFlag,
   Cat21Transport,
@@ -22,6 +26,7 @@ import {
 } from './mode-resolver';
 import type {
   Cat21AcceptOfferIntent,
+  Cat21BuyIntent,
   Cat21CreateOfferIntent,
   Cat21Intent,
   Cat21MintIntent,
@@ -60,8 +65,16 @@ export interface Cat21FundingUtxo {
  * pure-functional in its dependencies.
  */
 export interface Cat21AccountContext {
-  /** Sender's own address. Change returns here. */
+  /** Sender's own payment address. Change (and buyer change) returns here. */
   paymentAddress: string;
+  /**
+   * The account's ordinals (taproot) address. On `cat21_buy` the cat
+   * lands here (buy-offer output 0) per ordinal theory, and it's the
+   * buyer identity the Bazaar keys the bid on. Optional because mint /
+   * transfer / offer flows never need it; `buy` fails closed with a
+   * typed reason when it's absent.
+   */
+  ordinalsAddress?: string;
   /** Network the account is operating on. */
   network: 'mainnet' | 'testnet';
   /**
@@ -72,7 +85,7 @@ export interface Cat21AccountContext {
    * operation kind with `operation-kind-not-allowed`. Empty or
    * unset = permissive (default).
    */
-  allowedOperations?: readonly ('mint' | 'transfer' | 'create_offer' | 'accept_offer')[];
+  allowedOperations?: readonly ('mint' | 'transfer' | 'create_offer' | 'accept_offer' | 'buy')[];
 }
 
 /**
@@ -162,10 +175,54 @@ export interface Cat21RpcDeps {
    * accept-offer where the PSBT was buyer-built.
    */
   signSilently(psbt: Uint8Array, inputIndexes: 'all' | number[]): Promise<SignedTx>;
+  /**
+   * Buy-offer signer. Signs ONLY the buyer's funding inputs
+   * (`inputIndexes` = 1..N) with SIGHASH_ALL and returns the
+   * HALF-signed PSBT bytes. Does NOT finalize — input 0 (the seller's
+   * cat) stays unsigned for the seller to sign at accept time. Never
+   * broadcasts; the artifact is a bid, not a chain tx.
+   *
+   * Distinct from `signWithConfirmation` / `signSilently`, which
+   * finalize + return a broadcastable `{ hex, weight }`. A buy-offer
+   * PSBT can't be finalized (input 0 is unsigned), so buy needs its
+   * own no-finalize signer. Both Path 2 (popup consent) and Path 3
+   * (autonomous) use this same dep; the mode gate already ran in the
+   * pipeline.
+   */
+  signBuyOfferInputs(psbt: Uint8Array, inputIndexes: number[]): Promise<Uint8Array>;
   /** Broadcast dispatcher (mempool / Slipstream per weight). */
   broadcast(signedTx: SignedTx): Promise<BroadcastResult>;
+  /**
+   * Posts a buyer-signed buy-offer PSBT to the CAT-21 Bazaar as a bid.
+   * Unauthenticated — the buyer's SIGHASH_ALL signatures on inputs
+   * 1..N ARE the auth (no session token). Wired to the Bazaar client;
+   * tests stub it. Throws on rejection (mapped Bazaar error).
+   */
+  postBid(args: Cat21PostBidArgs): Promise<void>;
   /** Per-account daily-spend tracker (updated on every accepted action). */
   recordSpend(sats: number): void;
+}
+
+/**
+ * Arguments the service hands `postBid`. Field-for-field the Bazaar
+ * bid DTO minus the network-string ↔ enum translation the client does.
+ */
+export interface Cat21PostBidArgs {
+  network: 'mainnet' | 'testnet';
+  catTxid: string;
+  catVout: number;
+  /** Cat numbers on the UTXO (buyer-observed). 546-sat UTXO ⇒ one cat. */
+  cats: number[];
+  headlineCatNumber: number;
+  bidSats: number;
+  /** Where the cat lands (buy-offer output 0) — the buyer's ordinals address. */
+  buyerOrdinalsAddress: string;
+  /** Where buyer change lands (output 2) — the buyer's payment address. */
+  buyerPaymentAddress: string;
+  /** Where the sale proceeds land (output 1) — from the listing/permalink. */
+  sellerPaymentAddress: string;
+  /** The buyer-signed buy-offer PSBT, base64. */
+  psbtBase64: string;
 }
 
 /**
@@ -454,6 +511,165 @@ export class Cat21RpcService {
   }
 
   /**
+   * `cat21_buy` — the BUYER side of the Bazaar. The wallet builds a
+   * buy-offer PSBT for a listed cat, funds it from the buyer's own
+   * UTXOs, signs ONLY the buyer inputs (1..N — input 0 is the seller's
+   * cat, left unsigned), and POSTs the half-signed PSBT to the Bazaar
+   * as a bid. It does NOT broadcast; the seller accepts + broadcasts.
+   *
+   *   1. validateCat21Operation({ kind: 'buy', intent })
+   *   2. resolveSigningMode(...)
+   *   3. resolveCatUtxo(catId) — the seller's cat UTXO on-chain (546,
+   *      scriptPubKey); cross-checked against the gate's parsed outpoint
+   *   4. pick funding UTXO → two-pass fee sim (input 0 non-signable)
+   *      → re-pick if the fee grew the obligation past the picked UTXO
+   *   5. buildCat21BuyOfferPsbt (cat → buyer ordinals, payment → seller,
+   *      change → buyer payment)
+   *   6. signBuyOfferInputs(psbt, [1..N]) — buyer inputs only, no finalize
+   *   7. postBid(...) — unauthenticated; the SIGHASH_ALL sigs are the auth
+   *   8. Return `{ kind: 'bid', ... }`.
+   */
+  async buy(intent: Cat21BuyIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
+    const opened = this.openPipeline({ kind: 'buy', intent }, transport);
+    if ('result' in opened) return opened.result;
+    // Mode isn't branched on here: buy uses one no-finalize signer for
+    // both manual (popup consent) and autonomous (mode gate already ran
+    // in openPipeline). Unlike mint/transfer, there's no broadcast tail.
+    // `resources` (parsed catId → mint txid) is unused: a moved cat's
+    // current UTXO differs from its inscription-id txid, so the seller
+    // input comes from the on-chain resolver, not the parsed catId.
+    const { accountCtx } = opened;
+
+    // The cat lands at the buyer's ordinals (taproot) address. Fail
+    // closed if the account has none — never route a cat to a payment
+    // address (would contaminate ordinal-safety accounting).
+    const buyerReceiveAddress = accountCtx.ordinalsAddress;
+    if (!buyerReceiveAddress) {
+      return denied(
+        'intent-invariant-violated',
+        'no-ordinals-address: active account has no taproot receive address for the cat'
+      );
+    }
+
+    // The seller's cat UTXO, resolved on-chain by cat21-ord (current
+    // location + the seller's scriptPubKey — this is NOT our own cat).
+    // That resolver is authoritative for where the cat lives right now,
+    // so there's no separate "expected outpoint" to cross-check against
+    // (unlike acceptOffer, where the seller declares expectedSellerUtxo).
+    let sellerCatUtxo: TransferUtxo;
+    try {
+      sellerCatUtxo = this.deps.resolveCatUtxo(intent.catId);
+    } catch (err) {
+      return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
+    }
+
+    const sdkNetwork = walletNetworkToSdkNetwork(accountCtx.network);
+    const sellerInput: Cat21OfferSellerInput = {
+      txid: sellerCatUtxo.txid,
+      vout: sellerCatUtxo.vout,
+      value: sellerCatUtxo.value,
+      scriptPubKey: sellerCatUtxo.scriptPubKey,
+    };
+    const destinations: Cat21OfferDestinations = {
+      buyerReceiveAddress,
+      sellerPaymentAddress: intent.sellerPaymentAddress,
+      buyerChangeAddress: accountCtx.paymentAddress,
+    };
+
+    // Buyer obligation = priceSats + postage + fee (the builder's
+    // priceSats + 2*postage - sellerInput.value(546) + fee reduces to
+    // this because the seller's 546-sat input covers one postage).
+    const placeholderFee = 1_000;
+    const baseObligation = intent.bidSats + CAT21_POSTAGE_SATS;
+    let fundingUtxo: Cat21FundingUtxo;
+    try {
+      fundingUtxo = this.deps.pickFundingUtxo(baseObligation + placeholderFee);
+    } catch (err) {
+      return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+    }
+
+    let estimatedFee: number;
+    try {
+      ({ finalFeeSats: estimatedFee } = simulateBuyOfferFee({
+        network: sdkNetwork,
+        sellerInput,
+        buyerInputs: toBuyerInputs(fundingUtxo),
+        destinations,
+        priceSats: intent.bidSats,
+        feeRatePerVbyte: intent.feeRate,
+      }));
+    } catch (err) {
+      return denied('intent-invariant-violated', `fee-simulation-failed: ${errorDetail(err)}`);
+    }
+
+    if (fundingUtxo.value < baseObligation + estimatedFee) {
+      try {
+        fundingUtxo = this.deps.pickFundingUtxo(baseObligation + estimatedFee);
+      } catch (err) {
+        return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+      }
+    }
+
+    const buyerInputs = toBuyerInputs(fundingUtxo);
+    let built;
+    try {
+      built = buildCat21BuyOfferPsbt({
+        walletType: KnownOrdinalWalletType.cat21wallet,
+        network: sdkNetwork,
+        sellerInput,
+        buyerInputs,
+        destinations,
+        priceSats: intent.bidSats,
+        feeSats: estimatedFee,
+      });
+    } catch (err) {
+      return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
+    }
+
+    // Sign ONLY the buyer inputs (1..N). Input 0 is the seller's cat —
+    // untouched, left for the seller to sign at accept time.
+    const buyerInputIndexes = buyerInputs.map((_input, i) => i + 1);
+    let signedPsbt: Uint8Array;
+    try {
+      signedPsbt = await this.deps.signBuyOfferInputs(built.psbt, buyerInputIndexes);
+    } catch (err) {
+      return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
+    }
+    const psbtBase64 = Buffer.from(signedPsbt).toString('base64');
+
+    try {
+      await this.deps.postBid({
+        network: accountCtx.network,
+        catTxid: sellerCatUtxo.txid,
+        catVout: sellerCatUtxo.vout,
+        cats: [intent.catNumber],
+        headlineCatNumber: intent.catNumber,
+        bidSats: intent.bidSats,
+        buyerOrdinalsAddress: buyerReceiveAddress,
+        buyerPaymentAddress: accountCtx.paymentAddress,
+        sellerPaymentAddress: intent.sellerPaymentAddress,
+        psbtBase64,
+      });
+    } catch (err) {
+      return denied('broadcast-failed', `bid-post-failed: ${errorDetail(err)}`);
+    }
+
+    // Daily-cap accounting: the buyer commits bidSats + fee on this bid.
+    this.deps.recordSpend(intent.bidSats + estimatedFee);
+    return {
+      ok: true,
+      value: {
+        kind: 'bid',
+        catNumber: intent.catNumber,
+        bidSats: intent.bidSats,
+        catTxid: sellerCatUtxo.txid,
+        catVout: sellerCatUtxo.vout,
+        psbtBase64,
+      },
+    };
+  }
+
+  /**
    * Pipeline preamble: run the SDK gate, then resolve the signing
    * mode. Returns either the early-return result (rejection) or the
    * resolved `{ mode, accountCtx, resources }` for the per-method body
@@ -551,8 +767,48 @@ function errorDetail(err: unknown): string {
   return String(err);
 }
 
-type Cat21OperationKind = Cat21Operation['kind'];
-type Cat21OperationOfKind<K extends Cat21OperationKind> = Extract<Cat21Operation, { kind: K }>;
+/**
+ * Map a picked funding UTXO to the SDK's buy-offer buyer-input shape.
+ * Native-segwit (P2WPKH) inputs need only `scriptPubKey` + `value` for
+ * a witnessUtxo; taproot inputs carry `tapInternalKey` through when the
+ * picker provided it. Returned as a single-element array — the wallet's
+ * `pickFundingUtxo` selects one covering UTXO (same single-input model
+ * as mint / transfer).
+ */
+function toBuyerInputs(utxo: Cat21FundingUtxo): Cat21OfferBuyerInput[] {
+  return [
+    {
+      txid: utxo.txid,
+      vout: utxo.vout,
+      value: utxo.value,
+      scriptPubKey: utxo.scriptPubKey,
+      ...(utxo.tapInternalKey ? { tapInternalKey: utxo.tapInternalKey } : {}),
+    },
+  ];
+}
+
+/**
+ * Wallet-side operation union. Same discriminants as the SDK's
+ * `Cat21Operation`, but each `intent` is the WALLET type (SDK intent +
+ * the `mode` tag, and — for buy — the wallet-only `catNumber`). The
+ * pipeline is typed on this so `operation.intent` narrows to the wallet
+ * intent (which `resolveSigningMode` consumes). Every wallet intent is
+ * a structural superset of its SDK counterpart, so a wallet operation
+ * is assignable to the SDK `Cat21Operation` that `validateCat21Operation`
+ * expects.
+ */
+type WalletCat21Operation =
+  | { kind: 'mint'; intent: Cat21MintIntent }
+  | { kind: 'transfer'; intent: Cat21TransferIntent }
+  | { kind: 'create_offer'; intent: Cat21CreateOfferIntent }
+  | { kind: 'accept_offer'; intent: Cat21AcceptOfferIntent }
+  | { kind: 'buy'; intent: Cat21BuyIntent };
+
+type Cat21OperationKind = WalletCat21Operation['kind'];
+type Cat21OperationOfKind<K extends Cat21OperationKind> = Extract<
+  WalletCat21Operation,
+  { kind: K }
+>;
 type Cat21GateResourcesOfKind<K extends Cat21OperationKind> = Extract<
   Cat21GateResources,
   { kind: K }

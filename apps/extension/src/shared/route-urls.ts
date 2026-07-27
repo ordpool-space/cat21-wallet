@@ -60,6 +60,11 @@ export enum RouteUrls {
   // as the Transfer form.
   Cat21CreateOffer = '/cat21-create-offer',
 
+  // Cat21 manual-flow Buy form — the BUYER side of the Bazaar.
+  // Discover a cat by pasted ask-link or by number, set a bid, land
+  // on Cat21BuyConfirm with the intent in location.state.
+  Cat21Buy = '/cat21-buy',
+
   // Cat21 my-cats list page — iter 13f. Lists the active account's
   // cats from cat21-ord; each row surfaces Transfer / List-for-sale
   // buttons that deep-link the iter-13d/e form pages with the catId
@@ -72,6 +77,7 @@ export enum RouteUrls {
   Cat21TransferConfirm = '/cat21-transfer-confirm',
   Cat21CreateOfferConfirm = '/cat21-create-offer-confirm',
   Cat21AcceptOfferConfirm = '/cat21-accept-offer-confirm',
+  Cat21BuyConfirm = '/cat21-buy-confirm',
 
   // nested routes must have relative paths
   Activity = '/activity',

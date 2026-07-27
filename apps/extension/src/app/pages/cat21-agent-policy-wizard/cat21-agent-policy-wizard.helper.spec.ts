@@ -156,13 +156,14 @@ describe('validateAndCoerceWizardValues', () => {
 });
 
 describe('coerceAllowedOperations', () => {
-  it('returns undefined when ALL four kinds are checked (= permissive)', () => {
+  it('returns undefined when ALL kinds are checked (= permissive)', () => {
     expect(
       coerceAllowedOperations({
         cat21_mint: true,
         cat21_transfer: true,
         cat21_create_offer: true,
         cat21_accept_offer: true,
+        cat21_buy: true,
       })
     ).toBeUndefined();
   });
@@ -174,6 +175,7 @@ describe('coerceAllowedOperations', () => {
         cat21_transfer: false,
         cat21_create_offer: false,
         cat21_accept_offer: false,
+        cat21_buy: false,
       })
     ).toBeUndefined();
   });
@@ -185,6 +187,7 @@ describe('coerceAllowedOperations', () => {
         cat21_transfer: false,
         cat21_create_offer: false,
         cat21_accept_offer: false,
+        cat21_buy: false,
       })
     ).toEqual(['cat21_mint']);
   });
@@ -196,8 +199,21 @@ describe('coerceAllowedOperations', () => {
         cat21_mint: true,
         cat21_create_offer: false,
         cat21_transfer: true,
+        cat21_buy: false,
       })
     ).toEqual(['cat21_mint', 'cat21_transfer', 'cat21_accept_offer']);
+  });
+
+  it('includes cat21_buy in the allowlist when it is the partial pick', () => {
+    expect(
+      coerceAllowedOperations({
+        cat21_mint: false,
+        cat21_transfer: false,
+        cat21_create_offer: false,
+        cat21_accept_offer: false,
+        cat21_buy: true,
+      })
+    ).toEqual(['cat21_buy']);
   });
 });
 
@@ -218,6 +234,7 @@ describe('validateAndCoerceWizardValues — allowedOperations', () => {
         cat21_transfer: true,
         cat21_create_offer: false,
         cat21_accept_offer: false,
+        cat21_buy: false,
       },
     });
     expect(result.ok).toBe(true);

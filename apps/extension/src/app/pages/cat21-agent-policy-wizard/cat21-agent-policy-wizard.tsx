@@ -31,6 +31,7 @@ const OPERATION_LABELS: Record<AgentActionKind, string> = {
   cat21_transfer: 'Transfer',
   cat21_create_offer: 'List for sale',
   cat21_accept_offer: 'Accept offers',
+  cat21_buy: 'Buy (bid)',
 };
 
 /**
