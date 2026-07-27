@@ -33,9 +33,9 @@ describe('buildCreateListingRequest', () => {
   });
 
   it('throws when catNumber is not in the bundle', () => {
-    expect(() => buildCreateListingRequest({ ...BASE, catNumber: 7, bundleCatNumbers: [42, 100] })).toThrow(
-      /not in the bundle/
-    );
+    expect(() =>
+      buildCreateListingRequest({ ...BASE, catNumber: 7, bundleCatNumbers: [42, 100] })
+    ).toThrow(/not in the bundle/);
   });
 
   it('throws on non-positive askSats', () => {

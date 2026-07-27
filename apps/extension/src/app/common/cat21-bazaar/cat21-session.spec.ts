@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-
 import { buildCat21SessionMessage } from 'ordpool-sdk/core';
+import { describe, expect, it, vi } from 'vitest';
 
 import { clearCat21Session, getOrCreateCat21Session } from './cat21-session';
 
@@ -9,7 +8,9 @@ const ADDR_B = 'bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
 /** In-memory Storage stand-in — only the 3 methods the module touches. */
-function makeStorage(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> & { map: Map<string, string> } {
+function makeStorage(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> & {
+  map: Map<string, string>;
+} {
   const map = new Map<string, string>();
   return {
     map,
@@ -97,7 +98,12 @@ describe('getOrCreateCat21Session', () => {
     const signBip322 = vi.fn(async () => 'SIG_BASE64');
 
     await getOrCreateCat21Session({ address: ADDR, signBip322, nowMs: signAt, storage });
-    await getOrCreateCat21Session({ address: ADDR, signBip322, nowMs: signAt + DAY_MS + 1, storage });
+    await getOrCreateCat21Session({
+      address: ADDR,
+      signBip322,
+      nowMs: signAt + DAY_MS + 1,
+      storage,
+    });
 
     expect(signBip322).toHaveBeenCalledTimes(2);
   });
@@ -143,7 +149,12 @@ describe('clearCat21Session', () => {
       nowMs,
       storage,
     });
-    await getOrCreateCat21Session({ address: ADDR, signBip322: async () => 'SIG_A', nowMs, storage });
+    await getOrCreateCat21Session({
+      address: ADDR,
+      signBip322: async () => 'SIG_A',
+      nowMs,
+      storage,
+    });
 
     clearCat21Session(ADDR, storage);
 

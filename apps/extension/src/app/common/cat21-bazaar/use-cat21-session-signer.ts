@@ -34,15 +34,27 @@ export function useCat21SessionSigner(): Cat21SessionSigner {
   const createTaprootPayer = useCurrentAccountTaprootPayer();
   const signTx = useSignBitcoinTx();
 
-  if (!createTaprootPayer) throw new Error('No taproot signer for current account');
-  const {
-    payment: { tapInternalKey, address },
-  } = createTaprootPayer({ addressIndex: 0, changeIndex: 0 });
-  const ordinalsAddress = address ?? '';
+  // Render-safe: this hook runs unconditionally in the shared
+  // Cat21ConfirmRoute (via usePublishToBazaar), which serves all four
+  // cat21 actions — mint/transfer/accept never publish a listing and
+  // must not crash if an account somehow lacks a taproot payer. So we
+  // resolve the payer WITHOUT throwing here; the error (if any) is
+  // deferred to the moment a listing action actually needs to sign,
+  // where the publish/unlist pipeline's try/catch turns it into a
+  // typed error state.
+  const payer = createTaprootPayer ? createTaprootPayer({ addressIndex: 0, changeIndex: 0 }) : null;
+  const ordinalsAddress = payer?.payment.address ?? '';
 
   async function signBip322(message: string): Promise<string> {
+    if (!payer || !ordinalsAddress) {
+      throw new Error('No taproot signer for the current account — cannot sign a Bazaar session');
+    }
+    // Destructure from the guarded payer so tapInternalKey keeps its
+    // non-optional type inside the signPsbt closure (a narrowed
+    // optional const does not survive into a nested function).
+    const { tapInternalKey } = payer.payment;
     async function signPsbt(psbt: bitcoin.Psbt) {
-      psbt.data.inputs.forEach(input => (input.tapInternalKey = Buffer.from(tapInternalKey!)));
+      psbt.data.inputs.forEach(input => (input.tapInternalKey = Buffer.from(tapInternalKey)));
       return signTx(psbt.toBuffer());
     }
     const { signature } = await signBip322MessageSimple({

@@ -18,7 +18,11 @@
  *
  * Mirrors cat21-indexer frontend/src/app/shared/cat21-session.service.ts.
  */
-import { CAT21_SESSION_VALIDITY_MS, buildCat21SessionMessage, checkSessionValidity } from 'ordpool-sdk/core';
+import {
+  CAT21_SESSION_VALIDITY_MS,
+  buildCat21SessionMessage,
+  checkSessionValidity,
+} from 'ordpool-sdk/core';
 
 import { CachedCat21Session, Cat21SessionHeaders } from './cat21-bazaar.types';
 

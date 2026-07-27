@@ -1,12 +1,8 @@
 import axios from 'axios';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { fetchCat21ListingForCat, publishCat21Listing, unlistCat21 } from './cat21-bazaar-client';
 import { CAT21_BAZAAR_BASE_URL, Cat21SessionHeaders } from './cat21-bazaar.types';
-import {
-  fetchCat21ListingForCat,
-  publishCat21Listing,
-  unlistCat21,
-} from './cat21-bazaar-client';
 
 vi.mock('axios');
 
@@ -42,11 +38,9 @@ describe('publishCat21Listing', () => {
     const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
 
     expect(res).toEqual({ ok: true, value: undefined });
-    expect(axios.post).toHaveBeenCalledWith(
-      `${CAT21_BAZAAR_BASE_URL}/api/v1/listings`,
-      REQUEST,
-      { headers: { 'Content-Type': 'application/json', ...HEADERS } }
-    );
+    expect(axios.post).toHaveBeenCalledWith(`${CAT21_BAZAAR_BASE_URL}/api/v1/listings`, REQUEST, {
+      headers: { 'Content-Type': 'application/json', ...HEADERS },
+    });
   });
 
   it('401 → session-rejected', async () => {
@@ -99,10 +93,9 @@ describe('unlistCat21', () => {
     vi.mocked(axios.delete).mockResolvedValueOnce({ status: 204 });
     const res = await unlistCat21({ catNumber: 42, headers: HEADERS });
     expect(res).toEqual({ ok: true, value: undefined });
-    expect(axios.delete).toHaveBeenCalledWith(
-      `${CAT21_BAZAAR_BASE_URL}/api/v1/listings/cat/42`,
-      { headers: { ...HEADERS } }
-    );
+    expect(axios.delete).toHaveBeenCalledWith(`${CAT21_BAZAAR_BASE_URL}/api/v1/listings/cat/42`, {
+      headers: { ...HEADERS },
+    });
   });
 
   it('401 → session-rejected', async () => {

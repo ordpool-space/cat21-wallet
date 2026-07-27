@@ -2,10 +2,12 @@ import { Flex, styled } from 'leather-styles/jsx';
 
 import { Button } from '@leather.io/ui';
 
+import {
+  Cat21BazaarError,
+  Cat21BazaarPublishState,
+} from '@app/common/cat21-bazaar/cat21-bazaar.types';
 import { ErrorLabel } from '@app/components/error-label';
 import { Content } from '@app/components/layout';
-
-import { Cat21BazaarError, Cat21BazaarPublishState } from '@app/common/cat21-bazaar/cat21-bazaar.types';
 
 interface Cat21BazaarPublishStatusProps {
   state: Exclude<Cat21BazaarPublishState, { step: 'idle' }>;
@@ -85,7 +87,12 @@ export function Cat21BazaarPublishStatus({ state, onClose }: Cat21BazaarPublishS
 
   return (
     <Content>
-      <Flex flexDirection="column" gap="space.04" p="space.05" data-testid="bazaar-publish-progress">
+      <Flex
+        flexDirection="column"
+        gap="space.04"
+        p="space.05"
+        data-testid="bazaar-publish-progress"
+      >
         <styled.h1 textStyle="heading.03">Listing on the Bazaar</styled.h1>
         <styled.p textStyle="body.02" color="ink.text-subdued">
           {PROGRESS_COPY[state.step]}

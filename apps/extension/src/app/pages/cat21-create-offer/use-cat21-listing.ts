@@ -16,10 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { getCat21OrdApiClient } from '@leather.io/services';
 
-import {
-  fetchCat21ListingForCat,
-  unlistCat21,
-} from '@app/common/cat21-bazaar/cat21-bazaar-client';
+import { fetchCat21ListingForCat, unlistCat21 } from '@app/common/cat21-bazaar/cat21-bazaar-client';
 import { clearCat21Session, getOrCreateCat21Session } from '@app/common/cat21-bazaar/cat21-session';
 import { useCat21SessionSigner } from '@app/common/cat21-bazaar/use-cat21-session-signer';
 

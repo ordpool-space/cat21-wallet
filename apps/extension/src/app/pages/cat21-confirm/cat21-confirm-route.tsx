@@ -134,7 +134,11 @@ export function Cat21ConfirmRoute() {
         await finalisePath3(urlRequest.requestId, result);
       }
       if (result.ok) {
-        if (transport === 'popup' && result.value.kind === 'listing' && 'priceSats' in actionIntent) {
+        if (
+          transport === 'popup' &&
+          result.value.kind === 'listing' &&
+          'priceSats' in actionIntent
+        ) {
           const { listing } = result.value;
           bazaar.publish({
             catId: listing.catId,
