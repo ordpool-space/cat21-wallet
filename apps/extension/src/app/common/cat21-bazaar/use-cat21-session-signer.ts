@@ -53,9 +53,14 @@ export function useCat21SessionSigner(): Cat21SessionSigner {
     // non-optional type inside the signPsbt closure (a narrowed
     // optional const does not survive into a nested function).
     const { tapInternalKey } = payer.payment;
-    async function signPsbt(psbt: bitcoin.Psbt) {
+    // Non-async + Promise.resolve: signTx may return Tx OR Promise<Tx>;
+    // wrapping normalises to Promise<Tx> to satisfy
+    // signBip322MessageSimple's `signPsbt: (psbt) => Promise<Tx>`,
+    // without an `async` keyword that would trip
+    // @typescript-eslint/require-await (there is nothing to await).
+    function signPsbt(psbt: bitcoin.Psbt) {
       psbt.data.inputs.forEach(input => (input.tapInternalKey = Buffer.from(tapInternalKey)));
-      return signTx(psbt.toBuffer());
+      return Promise.resolve(signTx(psbt.toBuffer()));
     }
     const { signature } = await signBip322MessageSimple({
       message,

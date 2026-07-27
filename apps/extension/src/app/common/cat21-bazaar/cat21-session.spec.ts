@@ -24,7 +24,7 @@ describe('getOrCreateCat21Session', () => {
   it('first call signs the EXACT canonical session message from buildCat21SessionMessage', async () => {
     const storage = makeStorage();
     const nowMs = 1_700_000_000_000;
-    const signBip322 = vi.fn(async () => 'SIG_BASE64');
+    const signBip322 = vi.fn(() => Promise.resolve('SIG_BASE64'));
 
     await getOrCreateCat21Session({ address: ADDR, signBip322, nowMs, storage });
 
@@ -38,7 +38,7 @@ describe('getOrCreateCat21Session', () => {
     const nowMs = 1_700_000_000_000;
     const headers = await getOrCreateCat21Session({
       address: ADDR,
-      signBip322: async () => 'SIG_BASE64',
+      signBip322: () => Promise.resolve('SIG_BASE64'),
       nowMs,
       storage,
     });
@@ -54,7 +54,7 @@ describe('getOrCreateCat21Session', () => {
     const nowMs = 1_700_000_000_000;
     const headers = await getOrCreateCat21Session({
       address: ADDR,
-      signBip322: async () => 'SIG_BASE64',
+      signBip322: () => Promise.resolve('SIG_BASE64'),
       nowMs,
       storage,
     });
@@ -65,7 +65,7 @@ describe('getOrCreateCat21Session', () => {
   it('second call within validity returns the cached token — signer called exactly once', async () => {
     const storage = makeStorage();
     const nowMs = 1_700_000_000_000;
-    const signBip322 = vi.fn(async () => 'SIG_BASE64');
+    const signBip322 = vi.fn(() => Promise.resolve('SIG_BASE64'));
 
     const first = await getOrCreateCat21Session({ address: ADDR, signBip322, nowMs, storage });
     const second = await getOrCreateCat21Session({
@@ -82,7 +82,7 @@ describe('getOrCreateCat21Session', () => {
   it('cached token with < 60s validity left is discarded and re-signed (grace window)', async () => {
     const storage = makeStorage();
     const signAt = 1_700_000_000_000;
-    const signBip322 = vi.fn(async () => 'SIG_BASE64');
+    const signBip322 = vi.fn(() => Promise.resolve('SIG_BASE64'));
 
     await getOrCreateCat21Session({ address: ADDR, signBip322, nowMs: signAt, storage });
     // 30s before expiry — inside the 60s grace window → must re-sign.
@@ -95,7 +95,7 @@ describe('getOrCreateCat21Session', () => {
   it('expired cached token is discarded and re-signed', async () => {
     const storage = makeStorage();
     const signAt = 1_700_000_000_000;
-    const signBip322 = vi.fn(async () => 'SIG_BASE64');
+    const signBip322 = vi.fn(() => Promise.resolve('SIG_BASE64'));
 
     await getOrCreateCat21Session({ address: ADDR, signBip322, nowMs: signAt, storage });
     await getOrCreateCat21Session({
@@ -112,7 +112,7 @@ describe('getOrCreateCat21Session', () => {
     const storage = makeStorage();
     // Storage key is an internal detail; seed the raw slot directly.
     storage.setItem(`cat21-session-${ADDR}`, '{not json');
-    const signBip322 = vi.fn(async () => 'SIG_BASE64');
+    const signBip322 = vi.fn(() => Promise.resolve('SIG_BASE64'));
 
     const headers = await getOrCreateCat21Session({
       address: ADDR,
@@ -129,7 +129,7 @@ describe('clearCat21Session', () => {
   it('after clearing, the next getOrCreateCat21Session signs a fresh token', async () => {
     const storage = makeStorage();
     const nowMs = 1_700_000_000_000;
-    const signBip322 = vi.fn(async () => 'SIG_BASE64');
+    const signBip322 = vi.fn(() => Promise.resolve('SIG_BASE64'));
 
     await getOrCreateCat21Session({ address: ADDR, signBip322, nowMs, storage });
     clearCat21Session(ADDR, storage);
@@ -145,13 +145,13 @@ describe('clearCat21Session', () => {
     // Sign A + B with signatures we can tell apart.
     const bHeaders = await getOrCreateCat21Session({
       address: ADDR_B,
-      signBip322: async () => 'SIG_B',
+      signBip322: () => Promise.resolve('SIG_B'),
       nowMs,
       storage,
     });
     await getOrCreateCat21Session({
       address: ADDR,
-      signBip322: async () => 'SIG_A',
+      signBip322: () => Promise.resolve('SIG_A'),
       nowMs,
       storage,
     });
@@ -162,9 +162,8 @@ describe('clearCat21Session', () => {
     // throw if invoked returns B's ORIGINAL headers (cache hit).
     const bAfter = await getOrCreateCat21Session({
       address: ADDR_B,
-      signBip322: async () => {
-        throw new Error('B should have been served from cache — signer must not run');
-      },
+      signBip322: () =>
+        Promise.reject(new Error('B should have been served from cache — signer must not run')),
       nowMs,
       storage,
     });
@@ -174,7 +173,7 @@ describe('clearCat21Session', () => {
     // A was cleared: fetching it re-signs (fresh signature value).
     const aAfter = await getOrCreateCat21Session({
       address: ADDR,
-      signBip322: async () => 'SIG_A_FRESH',
+      signBip322: () => Promise.resolve('SIG_A_FRESH'),
       nowMs,
       storage,
     });
