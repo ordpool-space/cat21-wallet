@@ -23,7 +23,7 @@ import { fetchCat21ListingForCat } from '@app/common/cat21-bazaar/cat21-bazaar-c
 
 import type { ParsedBuyTarget } from './cat21-buy-form.helper';
 
-export type Cat21BuyTargetView =
+type Cat21BuyTargetView =
   | { step: 'idle' }
   | { step: 'loading' }
   | {

@@ -159,7 +159,9 @@ describe('postBidToCat21Bazaar', () => {
 
   it('400 psbt-price-mismatch → mapped verbatim', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
-    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(400, { message: 'psbt-price-mismatch' }));
+    vi.mocked(axios.post).mockRejectedValueOnce(
+      axiosError(400, { message: 'psbt-price-mismatch' })
+    );
     const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
     expect(res).toEqual({ ok: false, error: { code: 'psbt-price-mismatch' } });
   });

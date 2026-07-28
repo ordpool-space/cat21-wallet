@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  parseBuyTargetInput,
-  validateAndCoerceBuyForm,
-} from './cat21-buy-form.helper';
+import { parseBuyTargetInput, validateAndCoerceBuyForm } from './cat21-buy-form.helper';
 
 const VALID_CAT_ID = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefi0';
 const MAINNET_ADDR = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';

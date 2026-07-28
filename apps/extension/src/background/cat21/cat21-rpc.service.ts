@@ -206,8 +206,10 @@ export interface Cat21RpcDeps {
 /**
  * Arguments the service hands `postBid`. Field-for-field the Bazaar
  * bid DTO minus the network-string ↔ enum translation the client does.
+ * Internal to the `Cat21RpcDeps.postBid` signature — the popup wiring
+ * infers the shape from the interface, so it isn't exported.
  */
-export interface Cat21PostBidArgs {
+interface Cat21PostBidArgs {
   network: 'mainnet' | 'testnet';
   catTxid: string;
   catVout: number;

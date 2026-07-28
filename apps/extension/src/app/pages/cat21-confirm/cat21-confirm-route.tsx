@@ -13,7 +13,7 @@ import { postCat21Result } from '@background/cat21/cat21-result-bus';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
 import type { Cat21Transport } from '@background/cat21/mode-resolver';
 import { clearCat21Request } from '@background/cat21/popup-bridge';
-import type { Cat21RpcBidSuccess, Cat21Intent, Cat21RpcResult } from '@background/cat21/types';
+import type { Cat21Intent, Cat21RpcBidSuccess, Cat21RpcResult } from '@background/cat21/types';
 
 import { usePublishToBazaar } from '../cat21-create-offer/use-publish-to-bazaar';
 import { Cat21BazaarPublishStatus } from './cat21-bazaar-publish-status';
