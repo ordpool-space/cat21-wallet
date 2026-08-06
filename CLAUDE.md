@@ -942,6 +942,13 @@ Active on push/PR (safety net):
   `extension:integration-tests.yml`
 - `repo:code-checks.yml`, `repo:all-checks-pass.yml`,
   `repo:workflow-checks.yml`
+- `check-locktime-framing.yml` — greps tracked source/tests/docs for
+  the banned phrases that falsely claim a non-mint tx loses its cat
+  when it drops `nLockTime=21` (workspace HQ HARD RULE "nLockTime=21 is
+  PROTOCOL for MINT, CONVENTION for everything else"). Sibling of the
+  identical guards in cat21-indexer + ordpool-sdk. Runs
+  `scripts/check-locktime-framing.sh`; the phrase list lives in that
+  script.
 
 Tag-gated trusted build (the deliverable):
 
