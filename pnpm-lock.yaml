@@ -385,8 +385,8 @@ importers:
         specifier: 2.71.1
         version: 2.71.1
       ordpool-sdk:
-        specifier: github:ordpool-space/ordpool-sdk#b38f2bf
-        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/b38f2bf1a845b7e94afe8ae1c5777e43cd3629f6(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/base@1.2.4)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
+        specifier: github:ordpool-space/ordpool-sdk#81834bf
+        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/81834bfd7af88a69fa43e42e8b24ea481a5a16dd(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
       os-browserify:
         specifier: 0.3.0
         version: 0.3.0
@@ -6144,12 +6144,19 @@ packages:
   '@napi-rs/wasm-runtime@1.0.7':
     resolution: {integrity: sha512-SeDnOO0Tk7Okiq6DbXmmBODgOAb9dp9gjlphokTUxmt8U3liIP1ZsozBahH69j/RJv+Rfs6IwUKHTgQYJ/HBAw==}
 
+  '@noble/curves@1.4.2':
+    resolution: {integrity: sha512-TavHr8qycMChk8UwMld0ZDRvatedkzWfH8IiaeGCfymOP5i0hSCozz9vHOL0nkwk7HRMlFnAiKpS2jrUmSybcw==}
+
   '@noble/curves@1.8.2':
     resolution: {integrity: sha512-vnI7V6lFNe0tLAuJMu+2sX+FcL14TaCWy1qiczg1VwRmPrpQCdq5ESXQMqUc2tluRNf6irBXrWbl1mGN8uaU/g==}
     engines: {node: ^14.21.3 || >=16}
 
   '@noble/hashes@1.1.5':
     resolution: {integrity: sha512-LTMZiiLc+V4v1Yi16TD6aX2gmtKszNye0pQgbaLqkvhIqP7nVsSaJsWloGQjJfJ8offaoP5GtX3yY5swbcJxxQ==}
+
+  '@noble/hashes@1.4.0':
+    resolution: {integrity: sha512-V1JJ1WTRUqHHrOSh597hURcMqVKVGL/ea3kv0gSnEdsEZ0/+VyPghM1lMNGc00z7CIQorSvbKpuJkxvuHbvdbg==}
+    engines: {node: '>= 16'}
 
   '@noble/hashes@1.5.0':
     resolution: {integrity: sha512-1j6kQFb7QRru7eKN3ZDvRcP13rugwdxZqCjbiAVZfIJwgj2A65UmT4TgARXGlXgnRkORLTDTrO19ZErt7+QXgA==}
@@ -8623,6 +8630,9 @@ packages:
 
   '@scure/bip32@1.1.3':
     resolution: {integrity: sha512-dSH3+LCWONlSNQuF34xZrG6Xas7tp2jSSqHb/pMfXWM0vKE4JZOtK3uJfoWouUVW5IGlls75HkXmYLldZ8ySgQ==}
+
+  '@scure/bip32@1.4.0':
+    resolution: {integrity: sha512-sVUpc0Vq3tXCkDGYVWGIZTRfnvu8LoTDaev7vbwh0omSvVORONr960MQWdKqJDCReIEmTj3PAr73O3aoxz7OPg==}
 
   '@scure/bip32@1.6.2':
     resolution: {integrity: sha512-t96EPDMbtGgtb7onKKqxRLfE5g05k7uHnHRM2xdE6BP/ZmxaLtPek4J4KfVn/90IQNrU1IOAqMgiDtUdtbe3nw==}
@@ -16461,14 +16471,13 @@ packages:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
     engines: {node: '>=18'}
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/b38f2bf1a845b7e94afe8ae1c5777e43cd3629f6:
-    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/b38f2bf1a845b7e94afe8ae1c5777e43cd3629f6}
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/81834bfd7af88a69fa43e42e8b24ea481a5a16dd:
+    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/81834bfd7af88a69fa43e42e8b24ea481a5a16dd}
     version: 0.1.0
     peerDependencies:
       '@angular/common': '>=20'
       '@angular/core': '>=20'
       '@noble/curves': '>=1'
-      '@scure/base': '>=1'
       '@scure/btc-signer': 1.2.x
       rxjs: '>=7'
       sats-connect: '>=4'
@@ -25524,11 +25533,17 @@ snapshots:
       '@tybys/wasm-util': 0.10.1
     optional: true
 
+  '@noble/curves@1.4.2':
+    dependencies:
+      '@noble/hashes': 1.4.0
+
   '@noble/curves@1.8.2':
     dependencies:
       '@noble/hashes': 1.7.2
 
   '@noble/hashes@1.1.5': {}
+
+  '@noble/hashes@1.4.0': {}
 
   '@noble/hashes@1.5.0': {}
 
@@ -28922,6 +28937,12 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.1.5
       '@noble/secp256k1': 1.7.2
+      '@scure/base': 1.1.9
+
+  '@scure/bip32@1.4.0':
+    dependencies:
+      '@noble/curves': 1.4.2
+      '@noble/hashes': 1.4.0
       '@scure/base': 1.1.9
 
   '@scure/bip32@1.6.2':
@@ -38871,12 +38892,14 @@ snapshots:
       string-width: 7.2.0
       strip-ansi: 7.1.2
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/b38f2bf1a845b7e94afe8ae1c5777e43cd3629f6(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/base@1.2.4)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/81834bfd7af88a69fa43e42e8b24ea481a5a16dd(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
     dependencies:
       '@angular/common': 22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1)
       '@angular/core': 22.0.1(rxjs@7.8.1)
       '@noble/curves': 1.8.2
+      '@noble/hashes': 1.5.0
       '@scure/base': 1.2.4
+      '@scure/bip32': 1.4.0
       '@scure/btc-signer': 1.6.0
       rxjs: 7.8.1
       sats-connect: 4.2.1(typescript@5.9.3)

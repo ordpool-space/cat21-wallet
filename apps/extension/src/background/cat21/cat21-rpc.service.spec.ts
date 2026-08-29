@@ -665,10 +665,13 @@ describe('Cat21RpcService.createOffer', () => {
         expect(result.value.detail).toContain('payment-address-not-a-bitcoin-address');
     });
 
-    it('returns "intent-invariant-violated" on price below dust', async () => {
+    it('accepts a below-dust price (seller nets price + their cat UTXO, always >= dust)', async () => {
+      // The SDK dropped the price-below-postage-floor gate: a below-dust PRICE is
+      // legal because the seller is paid price + sellerInput.value, which always
+      // clears dust. Low-price protection is the per-account agent-policy floor,
+      // not a hard invariant.
       const result = await service.createOffer(makeCreateOfferIntent({ priceSats: 100 }), 'popup');
-      expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.value.detail).toContain('price-below-postage-floor');
+      expect(result.ok).toBe(true);
     });
 
     it('returns "intent-invariant-violated" when wallet does not own the cat', async () => {
