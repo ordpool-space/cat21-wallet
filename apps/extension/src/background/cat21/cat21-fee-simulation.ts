@@ -26,71 +26,17 @@
  * set by the buyer inside the PSBT; the seller just signs input 0 +
  * broadcasts, so it needs no simulation.
  */
-import * as btc from '@scure/btc-signer';
 import {
   type Cat21OfferBuyerInput,
   type Cat21OfferDestinations,
   type Cat21OfferSellerInput,
-  type Cat21TransferCatInput,
-  type Cat21TransferDestinations,
-  type Cat21TransferFundingInput,
   KnownOrdinalWalletType,
   type Network,
   buildCat21BuyOfferPsbt,
-  buildCat21TransferPsbt,
   computePsbtVsize,
-  getDummyKeypair,
   toScureNetwork,
   twoPassFeeSimulation,
 } from 'ordpool-sdk/core';
-
-const ALLOWED_DUMMY_SIGHASHES = [btc.SigHash.DEFAULT, btc.SigHash.ALL];
-
-interface SimulateTransferFeeArgs {
-  network: Network;
-  catUtxo: Cat21TransferCatInput;
-  fundingInputs: Cat21TransferFundingInput[];
-  destinations: Cat21TransferDestinations;
-  feeRatePerVbyte: number;
-}
-
-/**
- * Two-pass fee simulation for a CAT-21 transfer. Transfer has the
- * cat UTXO at input 0 plus 1+ funding inputs — dummy-sign every
- * input before reading vsize.
- *
- * Returns `finalFeeSats` for the caller to re-build the real PSBT
- * with.
- */
-export function simulateTransferFee(args: SimulateTransferFeeArgs): {
-  finalFeeSats: number;
-  vsize: number;
-} {
-  const dummy = getDummyKeypair(toScureNetwork(args.network)).dummyPrivateKey;
-  const { finalFeeSats, vsize } = twoPassFeeSimulation({
-    feeRatePerVbyte: args.feeRatePerVbyte,
-    simulate(feeSats) {
-      const sim = buildCat21TransferPsbt({
-        walletType: KnownOrdinalWalletType.cat21wallet,
-        network: args.network,
-        catUtxo: args.catUtxo,
-        fundingInputs: args.fundingInputs,
-        destinations: args.destinations,
-        feeSats,
-      });
-      // `BuildCat21TransferResult` exposes `psbt` bytes (not the
-      // scure Transaction). Re-parse here for the dummy-sign +
-      // finalise + vsize observation.
-      const tx = btc.Transaction.fromPSBT(sim.psbt);
-      for (let i = 0; i < tx.inputsLength; i++) {
-        tx.signIdx(dummy, i, ALLOWED_DUMMY_SIGHASHES);
-      }
-      tx.finalize();
-      return { vsize: tx.vsize };
-    },
-  });
-  return { finalFeeSats, vsize };
-}
 
 interface SimulateBuyOfferFeeArgs {
   network: Network;

@@ -423,13 +423,13 @@ describe('Cat21RpcService.transfer', () => {
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
-    it('always picks a separate funding UTXO (cat UTXO is always 546; fee comes from elsewhere)', async () => {
-      // The SDK's protocol HARD RULE pins every cat UTXO at exactly
-      // 546 sats. The transfer-fee is paid from a wallet-selected
-      // funding UTXO; the cat UTXO never self-funds (no surplus-
-      // value branch exists in the dispatcher by design).
+    it('funds the fee via content-checked core selection (spendableUtxos, not pickFundingUtxo)', async () => {
+      // The cat UTXO rides input 0 preserved; the fee comes from a
+      // funding coin the SDK core selects over the spendable bucket —
+      // the legacy size-heuristic pickFundingUtxo is off the transfer path.
       await service.transfer(makeTransferIntent(), 'popup');
-      expect(deps.pickFundingUtxo).toHaveBeenCalled();
+      expect(deps.spendableUtxos).toHaveBeenCalled();
+      expect(deps.pickFundingUtxo).not.toHaveBeenCalled();
     });
   });
 
@@ -505,12 +505,8 @@ describe('Cat21RpcService.transfer', () => {
       }
     });
 
-    it('returns "intent-invariant-violated" when funding picker throws', async () => {
-      deps = makeDeps({
-        pickFundingUtxo: vi.fn(() => {
-          throw new Error('no UTXO');
-        }),
-      });
+    it('returns "intent-invariant-violated: funding-pick-failed" when nothing covers the fee', async () => {
+      deps = makeDeps({ spendableUtxos: vi.fn(() => Promise.resolve([])) });
       service = new Cat21RpcService(deps);
       const result = await service.transfer(makeTransferIntent(), 'popup');
       expect(result.ok).toBe(false);

@@ -244,11 +244,14 @@ describe('HARD RULE — acceptOffer signs ONLY input 0 (the seller cat input)', 
     expect(mintMatch![1]).toMatch(/sign:\s*this\.signPort\(mode,\s*intent\)/);
   });
 
-  it("transfer declares inputIndexes: 'all' (self-built PSBT; every input is wallet-owned)", () => {
+  it('transfer hands executeTransfer the mode-aware SignPort (which signs all inputs in the SDK)', () => {
+    // Post-core-migration: transfer signs every wallet-owned input inside
+    // the SDK's executeTransfer (cat input 0 + funding 1..N). The wallet's
+    // guarantee is that it hands executeTransfer the mode-aware SignPort.
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const transferMatch = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(transferMatch).not.toBeNull();
-    expect(transferMatch![1]).toMatch(/inputIndexes:\s*'all'/);
+    expect(transferMatch![1]).toMatch(/sign:\s*this\.signPort\(mode,\s*intent\)/);
   });
 
   it('signAndBroadcast threads inputIndexes verbatim into both signers', () => {
@@ -292,16 +295,16 @@ describe('HARD RULE — transfer logic lives in the SDK, not inline in the walle
     ).toThrow();
   });
 
-  it('Cat21RpcService imports buildCat21TransferPsbt from ordpool-sdk/core', () => {
+  it('Cat21RpcService imports executeTransfer from ordpool-sdk/core', () => {
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
-    expect(src).toMatch(/buildCat21TransferPsbt[\s\S]{0,200}from\s+['"]ordpool-sdk\/core['"]/);
+    expect(src).toMatch(/executeTransfer[\s\S]{0,400}from\s+['"]ordpool-sdk\/core['"]/);
   });
 
-  it('Cat21RpcService.transfer body calls the SDK helper (not a local function)', () => {
+  it('Cat21RpcService.transfer body delegates to the SDK core executeTransfer', () => {
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const match = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(match).not.toBeNull();
-    expect(match![1]).toMatch(/buildCat21TransferPsbt\(/);
+    expect(match![1]).toMatch(/executeTransfer\(/);
   });
 
   it('Cat21RpcService.transfer passes walletType=KnownOrdinalWalletType.cat21wallet', () => {
@@ -385,7 +388,7 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
     {
       methodName: 'cat21_transfer',
       serviceMethod: 'transfer',
-      handlerBinding: { kind: 'sdk-symbol', symbol: 'buildCat21TransferPsbt' },
+      handlerBinding: { kind: 'sdk-symbol', symbol: 'executeTransfer' },
     },
     {
       methodName: 'cat21_create_offer',

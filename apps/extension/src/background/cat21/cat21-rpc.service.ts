@@ -18,14 +18,14 @@ import {
   type UtxoClassification,
   type UtxosPort,
   buildCat21BuyOfferPsbt,
-  buildCat21TransferPsbt,
   executeMint,
+  executeTransfer,
   validateCat21Operation,
 } from 'ordpool-sdk/core';
 
 import { validateAcceptOffer } from './builders/accept-offer-validator';
 import { buildListing } from './builders/listing-builder';
-import { simulateBuyOfferFee, simulateTransferFee } from './cat21-fee-simulation';
+import { simulateBuyOfferFee } from './cat21-fee-simulation';
 import {
   AgentModeFlag,
   Cat21Transport,
@@ -398,10 +398,27 @@ export class Cat21RpcService {
     return { ok: true, value: { kind: 'broadcast', txid: out.txid, channel: out.channel } };
   }
 
+  /**
+   * `cat21_transfer` — delegates the full select → fee → build → sign →
+   * broadcast sequence to the SDK core's `executeTransfer`. The cat UTXO
+   * rides input 0 (at the ordinals address) and is preserved whole; the
+   * fee comes from a content-checked funding coin at inputs 1..N. The
+   * core signs `'all'` (every input is wallet-owned).
+   */
   async transfer(intent: Cat21TransferIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'transfer', intent }, transport);
     if ('result' in opened) return opened.result;
     const { mode, accountCtx } = opened;
+
+    const paymentPublicKey = accountCtx.paymentPublicKey;
+    const ordinalsPublicKey = accountCtx.ordinalsPublicKey;
+    const ordinalsAddress = accountCtx.ordinalsAddress;
+    if (!paymentPublicKey) {
+      return denied('intent-invariant-violated', 'no-payment-public-key');
+    }
+    if (!ordinalsPublicKey || !ordinalsAddress) {
+      return denied('intent-invariant-violated', 'no-ordinals-key');
+    }
 
     let catUtxo: TransferUtxo;
     try {
@@ -410,69 +427,35 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
-    // SDK HARD RULE: every cat UTXO is exactly 546 sats (protocol
-    // postage). The fee always comes from a separate funding input —
-    // 546 < 546 + fee for any positive fee — so no surplus-self-fund
-    // branch exists by design.
-    const sdkNetwork = walletNetworkToSdkNetwork(accountCtx.network);
-    const transferDestinations = {
-      recipientAddress: intent.recipient,
-      senderChangeAddress: accountCtx.paymentAddress,
-    };
-    const placeholderFee = 1_000;
-    const fundingInputs: Cat21TransferCatInput[] = [];
-    let pickedFundingUtxo: Cat21FundingUtxo;
+    let out: BroadcastOutcome & { feeSats: number };
     try {
-      pickedFundingUtxo = this.deps.pickFundingUtxo(placeholderFee);
-      fundingInputs.push({ ...pickedFundingUtxo });
+      out = await executeTransfer(
+        {
+          walletType: KnownOrdinalWalletType.cat21wallet,
+          network: walletNetworkToSdkNetwork(accountCtx.network),
+          ordinalsPublicKey: hex.decode(ordinalsPublicKey),
+          ordinalsAddress,
+          paymentPublicKey: hex.decode(paymentPublicKey),
+          paymentAddress: accountCtx.paymentAddress,
+          catUtxo: { txid: catUtxo.txid, vout: catUtxo.vout, value: catUtxo.value },
+          recipientAddress: intent.recipient,
+          feeRatePerVbyte: intent.feeRate,
+        },
+        {
+          utxos: this.utxosPort(),
+          scan: this.contentScanPort(),
+          sign: this.signPort(mode, intent),
+          broadcast: this.broadcastPort(),
+        }
+      );
     } catch (err) {
-      return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+      return mapCoreError(err);
     }
 
-    let estimatedFee: number;
-    try {
-      ({ finalFeeSats: estimatedFee } = simulateTransferFee({
-        network: sdkNetwork,
-        catUtxo,
-        fundingInputs,
-        destinations: transferDestinations,
-        feeRatePerVbyte: intent.feeRate,
-      }));
-    } catch (err) {
-      return denied('intent-invariant-violated', `fee-simulation-failed: ${errorDetail(err)}`);
-    }
-
-    if (pickedFundingUtxo.value < estimatedFee) {
-      try {
-        pickedFundingUtxo = this.deps.pickFundingUtxo(estimatedFee);
-        fundingInputs.length = 0;
-        fundingInputs.push({ ...pickedFundingUtxo });
-      } catch (err) {
-        return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
-      }
-    }
-
-    let built;
-    try {
-      built = buildCat21TransferPsbt({
-        walletType: KnownOrdinalWalletType.cat21wallet,
-        network: sdkNetwork,
-        catUtxo,
-        fundingInputs,
-        destinations: transferDestinations,
-        feeSats: estimatedFee,
-      });
-    } catch (err) {
-      return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
-    }
-
-    return this.signAndBroadcast({
-      mode,
-      psbt: built.psbt,
-      intent,
-      inputIndexes: 'all',
-      spendSats: 546 + estimatedFee,
-    });
+    // The cat UTXO (typically 546) moves to the recipient; the wallet's
+    // outflow is that postage plus the realised miner fee.
+    this.deps.recordSpend(catUtxo.value + out.feeSats);
+    return { ok: true, value: { kind: 'broadcast', txid: out.txid, channel: out.channel } };
   }
 
   /**
