@@ -152,6 +152,14 @@ export function makeWiringPendingDeps(): Cat21RpcDeps {
     pickFundingUtxo() {
       return rejectFn('pickFundingUtxo');
     },
+    spendableUtxos() {
+      return Promise.reject(new Error('cat21-dispatcher: spendableUtxos not yet wired (iter 10)'));
+    },
+    classifyOutpoint() {
+      return Promise.reject(
+        new Error('cat21-dispatcher: classifyOutpoint not yet wired (iter 10)')
+      );
+    },
     resolveCatUtxo() {
       return rejectFn('resolveCatUtxo');
     },

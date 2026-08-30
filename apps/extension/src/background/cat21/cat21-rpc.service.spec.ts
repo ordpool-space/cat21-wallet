@@ -1,6 +1,6 @@
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
-import { getDummyKeypair } from 'ordpool-sdk/core';
+import { CAT21_POSTAGE_SATS, getDummyKeypair } from 'ordpool-sdk/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Cat21OfferValidation } from './builders/accept-offer-validator';
@@ -44,7 +44,11 @@ const ACCOUNT_ORDINALS_ADDR = btc.p2tr(dummyPublicKey.slice(1), undefined, btc.N
 function defaultAccountCtx(): Cat21AccountContext {
   return {
     paymentAddress: ACCOUNT_PAYMENT_ADDR,
+    // 33-byte compressed pubkey for ACCOUNT_PAYMENT_ADDR (p2wpkh of accountKey).
+    paymentPublicKey: hex.encode(accountKey),
     ordinalsAddress: ACCOUNT_ORDINALS_ADDR,
+    // dummy pubkey; the SDK x-only-strips it to match ACCOUNT_ORDINALS_ADDR.
+    ordinalsPublicKey: hex.encode(dummyPublicKey),
     network: 'mainnet',
   };
 }
@@ -102,6 +106,8 @@ interface SpyDeps extends Cat21RpcDeps {
   getAccountContext: ReturnType<typeof vi.fn> & Cat21RpcDeps['getAccountContext'];
   evaluateAgentPolicy: ReturnType<typeof vi.fn> & Cat21RpcDeps['evaluateAgentPolicy'];
   pickFundingUtxo: ReturnType<typeof vi.fn> & Cat21RpcDeps['pickFundingUtxo'];
+  spendableUtxos: ReturnType<typeof vi.fn> & Cat21RpcDeps['spendableUtxos'];
+  classifyOutpoint: ReturnType<typeof vi.fn> & Cat21RpcDeps['classifyOutpoint'];
   resolveCatUtxo: ReturnType<typeof vi.fn> & Cat21RpcDeps['resolveCatUtxo'];
   confirmListingPublication: ReturnType<typeof vi.fn> & Cat21RpcDeps['confirmListingPublication'];
   validateBuyOfferPsbt: ReturnType<typeof vi.fn> & Cat21RpcDeps['validateBuyOfferPsbt'];
@@ -121,6 +127,12 @@ function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
     agentMode: { enabled: true },
     evaluateAgentPolicy: vi.fn(() => ({ allowed: true as const })),
     pickFundingUtxo: vi.fn(() => defaultUtxo()),
+    // One clean funding coin covering postage + fee. The core does its
+    // own content-checked selection + two-pass fee over this list.
+    spendableUtxos: vi.fn(() =>
+      Promise.resolve([{ txid: defaultUtxo().txid, vout: 0, value: 50_000 }])
+    ),
+    classifyOutpoint: vi.fn(() => Promise.resolve('clean' as const)),
     resolveCatUtxo: vi.fn(() => defaultCatUtxo()),
     confirmListingPublication: vi.fn(() => Promise.resolve()),
     validateBuyOfferPsbt: vi.fn(
@@ -170,12 +182,21 @@ describe('Cat21RpcService.mint', () => {
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
-    it('records the spend (postage + tip + fee) on success', async () => {
+    it('records the spend (postage + tip + realised fee) on success', async () => {
       await service.mint(makeIntent({ feeRate: 5 }), 'popup');
-      // 546 postage + 0 tip + 705 fee (2-pass simulation: feeRate=5 ×
-      // vsize=141 for 1-input + 1-cat-output + 1-change-output P2WPKH).
-      // The static-estimate predecessor expected 1296 (vsize=150).
-      expect(deps.recordSpend).toHaveBeenCalledWith(1251);
+      // executeMint returns the realised fee; recordSpend = 546 postage +
+      // 0 tip + that fee, so it's strictly above the bare postage.
+      expect(deps.recordSpend).toHaveBeenCalledTimes(1);
+      expect(deps.recordSpend.mock.calls[0][0]).toBeGreaterThan(CAT21_POSTAGE_SATS);
+    });
+
+    it('mints via content-checked core selection (spendableUtxos + clean scan)', async () => {
+      const result = await service.mint(makeIntent(), 'popup');
+      expect(result.ok).toBe(true);
+      // The core selects over the wallet's spendable bucket; the legacy
+      // size-heuristic pickFundingUtxo is no longer on the mint path.
+      expect(deps.spendableUtxos).toHaveBeenCalled();
+      expect(deps.pickFundingUtxo).not.toHaveBeenCalled();
     });
   });
 
@@ -244,12 +265,8 @@ describe('Cat21RpcService.mint', () => {
       }
     });
 
-    it('returns "intent-invariant-violated" when funding picker throws', async () => {
-      deps = makeDeps({
-        pickFundingUtxo: vi.fn(() => {
-          throw new Error('no UTXO covers 1296 sats');
-        }),
-      });
+    it('returns "intent-invariant-violated: funding-pick-failed" when nothing covers', async () => {
+      deps = makeDeps({ spendableUtxos: vi.fn(() => Promise.resolve([])) });
       service = new Cat21RpcService(deps);
       const result = await service.mint(makeIntent(), 'popup');
       expect(result.ok).toBe(false);
@@ -257,6 +274,36 @@ describe('Cat21RpcService.mint', () => {
         expect(result.value.reason).toBe('intent-invariant-violated');
         expect(result.value.detail).toContain('funding-pick-failed');
       }
+    });
+
+    it('returns "funding-pick-failed" when only asset-carrying coins cover (content scan)', async () => {
+      // The one coin covers, but the content scan flags it as carrying an
+      // asset — the core refuses to auto-spend it (expert-required).
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve('has-assets' as const)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.detail).toContain('funding-pick-failed');
+      }
+    });
+
+    it('returns "intent-invariant-violated: no-payment-public-key" when the pubkey is absent', async () => {
+      deps = makeDeps({
+        getAccountContext: vi.fn(() => ({
+          paymentAddress: ACCOUNT_PAYMENT_ADDR,
+          network: 'mainnet' as const,
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.detail).toContain('no-payment-public-key');
+      }
+      expect(deps.spendableUtxos).not.toHaveBeenCalled();
     });
   });
 
@@ -304,10 +351,10 @@ describe('Cat21RpcService.mint', () => {
       expect(deps.evaluateAgentPolicy).not.toHaveBeenCalled();
     });
 
-    it('resolves mode BEFORE building the PSBT', async () => {
-      // Autonomous rejection on popup transport must skip the UTXO picker.
+    it('resolves mode BEFORE selecting funding', async () => {
+      // Autonomous rejection on popup transport must skip core selection.
       await service.mint(makeIntent({ mode: 'autonomous' }), 'popup');
-      expect(deps.pickFundingUtxo).not.toHaveBeenCalled();
+      expect(deps.spendableUtxos).not.toHaveBeenCalled();
     });
 
     it('signs BEFORE broadcasting (broadcast not called on signer failure)', async () => {

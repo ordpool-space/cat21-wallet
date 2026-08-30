@@ -1,4 +1,7 @@
+import { hex } from '@scure/base';
 import {
+  type BroadcastOutcome,
+  type BroadcastPort,
   CAT21_POSTAGE_SATS,
   Cat21GateResources,
   Cat21OfferBuyerInput,
@@ -7,17 +10,22 @@ import {
   Cat21OfferValidation,
   Cat21OperationGateConfig,
   Cat21TransferCatInput,
+  type ContentScanPort,
+  type CoreFundingUtxo,
   KnownOrdinalWalletType,
   Network,
+  type SignPort,
+  type UtxoClassification,
+  type UtxosPort,
   buildCat21BuyOfferPsbt,
-  buildCat21MintPsbt,
   buildCat21TransferPsbt,
+  executeMint,
   validateCat21Operation,
 } from 'ordpool-sdk/core';
 
 import { validateAcceptOffer } from './builders/accept-offer-validator';
 import { buildListing } from './builders/listing-builder';
-import { simulateBuyOfferFee, simulateMintFee, simulateTransferFee } from './cat21-fee-simulation';
+import { simulateBuyOfferFee, simulateTransferFee } from './cat21-fee-simulation';
 import {
   AgentModeFlag,
   Cat21Transport,
@@ -68,13 +76,28 @@ export interface Cat21AccountContext {
   /** Sender's own payment address. Change (and buyer change) returns here. */
   paymentAddress: string;
   /**
+   * The account's payment public key, hex (33-byte compressed). The SDK
+   * core's input adapter derives the funding input's PSBT shape from
+   * `paymentPublicKey + paymentAddress`. Optional so gate-only callers /
+   * legacy specs stay valid; the core flows fail closed with a typed
+   * reason when it's absent.
+   */
+  paymentPublicKey?: string;
+  /**
    * The account's ordinals (taproot) address. On `cat21_buy` the cat
    * lands here (buy-offer output 0) per ordinal theory, and it's the
    * buyer identity the Bazaar keys the bid on. Optional because mint /
-   * transfer / offer flows never need it; `buy` fails closed with a
-   * typed reason when it's absent.
+   * offer flows never need it; `buy`/`transfer` fail closed with a typed
+   * reason when it's absent.
    */
   ordinalsAddress?: string;
+  /**
+   * The account's ordinals public key, hex (33-byte compressed; the SDK
+   * x-only-normalises it for taproot). Needed for `transfer` (the cat
+   * input 0 lives at the ordinals address) and `accept_offer` (the
+   * seller signs input 0). Optional for the same reason as above.
+   */
+  ordinalsPublicKey?: string;
   /** Network the account is operating on. */
   network: 'mainnet' | 'testnet';
   /**
@@ -117,6 +140,21 @@ export interface Cat21RpcDeps {
   ): { allowed: true } | { allowed: false; reason: string; detail?: string };
   /** Picks one funding UTXO sufficient for `requiredSats`. Throws if none. */
   pickFundingUtxo(requiredSats: number): Cat21FundingUtxo;
+  /**
+   * The account's spendable funding UTXOs (the `available` bucket, not
+   * cat-bearing). The SDK core does its own content-checked selection +
+   * fee over this list — so the wallet no longer size-heuristic-picks.
+   * Backs the core's `UtxosPort`.
+   */
+  spendableUtxos(address: string): Promise<CoreFundingUtxo[]>;
+  /**
+   * Content-safety verdict for one outpoint (`<txid>:<vout>`). Cat-only
+   * for cat21-wallet (reuses the cat21-ord `/output` query): `has-assets`
+   * when the coin carries a cat, else `clean`. Rejects on a scan failure
+   * — the core treats a failed scan as not-auto (expert-mode), never as
+   * clean. Backs the core's `ContentScanPort`.
+   */
+  classifyOutpoint(outpoint: string): Promise<UtxoClassification>;
   /**
    * Looks up the wallet's UTXO that carries the given cat. Throws if the
    * active account does not own this cat (cat21-ord lookup mismatch).
@@ -190,8 +228,12 @@ export interface Cat21RpcDeps {
    * pipeline.
    */
   signBuyOfferInputs(psbt: Uint8Array, inputIndexes: number[]): Promise<Uint8Array>;
-  /** Broadcast dispatcher (mempool / Slipstream per weight). */
-  broadcast(signedTx: SignedTx): Promise<BroadcastResult>;
+  /**
+   * Broadcast dispatcher — one-to-one with the core's `BroadcastPort`
+   * (finalized-tx hex in, `{txid, channel}` out). The wiring re-derives
+   * the weight from the hex for the mempool-vs-Slipstream channel choice.
+   */
+  broadcast(signedTxHex: string): Promise<BroadcastResult>;
   /**
    * Posts a buyer-signed buy-offer PSBT to the CAT-21 Bazaar as a bid.
    * Unauthenticated — the buyer's SIGHASH_ALL signatures on inputs
@@ -254,73 +296,106 @@ interface Cat21PostBidArgs {
 export class Cat21RpcService {
   constructor(private readonly deps: Cat21RpcDeps) {}
 
+  /* ── SDK-core port adapters ─────────────────────────────────────────
+   * Each maps one `Cat21RpcDeps` callback onto the framework-agnostic
+   * core's injected port. The core owns the shared select → fee → build
+   * → sign → broadcast sequencing; these adapters own the wiring. */
+
+  /** Spendable-funding source for the core's content-checked selection. */
+  private utxosPort(): UtxosPort {
+    return { spendableUtxos: address => this.deps.spendableUtxos(address) };
+  }
+
+  /** Cat-only content scan (cat21-wallet's chosen scan depth). */
+  private contentScanPort(): ContentScanPort {
+    return { classify: outpoint => this.deps.classifyOutpoint(outpoint) };
+  }
+
+  /**
+   * Mode-aware signer. Built from the mode the pipeline already
+   * resolved (never re-resolved): manual → popup-confirm signer,
+   * autonomous → silent signer. Both finalize and return `{hex, weight}`.
+   * A signer failure is wrapped as `SignError` so `mapCoreError` maps it
+   * to `broadcast-failed` (not `funding-pick-failed`).
+   */
+  private signPort(mode: 'autonomous' | 'manual', intent: Cat21Intent): SignPort {
+    return {
+      sign: async (psbt, inputIndexes) => {
+        try {
+          return mode === 'manual'
+            ? await this.deps.signWithConfirmation(psbt, intent, inputIndexes)
+            : await this.deps.signSilently(psbt, inputIndexes);
+        } catch (err) {
+          throw new SignError(errorDetail(err));
+        }
+      },
+    };
+  }
+
+  /**
+   * Broadcast adapter — one-to-one with the core's `BroadcastPort`
+   * (hex in, `{txid, channel}` out). The mempool-vs-Slipstream weight
+   * re-derivation lives in the production `deps.broadcast` wiring, not
+   * here. A broadcast failure is wrapped as `BroadcastError`.
+   */
+  private broadcastPort(): BroadcastPort {
+    return {
+      broadcast: async signedTxHex => {
+        try {
+          return await this.deps.broadcast(signedTxHex);
+        } catch (err) {
+          throw new BroadcastError(errorDetail(err));
+        }
+      },
+    };
+  }
+
+  /**
+   * `cat21_mint` — delegates the full select → fee → build → sign →
+   * broadcast sequence to the SDK core's `executeMint`. The core does
+   * content-checked funding selection (refuses a coin carrying an
+   * inscription / rune / rare sat, not just cats) and returns the
+   * realised fee for the daily-cap accounting.
+   */
   async mint(intent: Cat21MintIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'mint', intent }, transport);
     if ('result' in opened) return opened.result;
     const { mode, accountCtx } = opened;
 
+    const paymentPublicKey = accountCtx.paymentPublicKey;
+    if (!paymentPublicKey) {
+      return denied('intent-invariant-violated', 'no-payment-public-key');
+    }
+
     const tipValue = intent.tip && intent.tip.value > 0 ? intent.tip.value : 0;
-    const sdkNetwork = walletNetworkToSdkNetwork(accountCtx.network);
-    const destinations = {
-      recipientAddress: intent.recipient,
-      senderChangeAddress: accountCtx.paymentAddress,
-      tip:
-        intent.tip && intent.tip.value > 0
-          ? { address: intent.tip.address, valueSats: intent.tip.value }
-          : undefined,
-    };
-
-    // `pickLargestFundingUtxoThatCovers` (the wallet's deps default)
-    // almost always returns a UTXO that still covers the final fee
-    // after simulation; the re-pick branch is the rare-case backstop.
-    const placeholderFee = 1_000;
-    let fundingUtxo: Cat21FundingUtxo;
+    let out: BroadcastOutcome & { feeSats: number };
     try {
-      fundingUtxo = this.deps.pickFundingUtxo(546 + tipValue + placeholderFee);
+      out = await executeMint(
+        {
+          walletType: KnownOrdinalWalletType.cat21wallet,
+          network: walletNetworkToSdkNetwork(accountCtx.network),
+          paymentPublicKey: hex.decode(paymentPublicKey),
+          paymentAddress: accountCtx.paymentAddress,
+          recipientAddress: intent.recipient,
+          feeRatePerVbyte: intent.feeRate,
+          tip:
+            intent.tip && intent.tip.value > 0
+              ? { address: intent.tip.address, valueSats: intent.tip.value }
+              : undefined,
+        },
+        {
+          utxos: this.utxosPort(),
+          scan: this.contentScanPort(),
+          sign: this.signPort(mode, intent),
+          broadcast: this.broadcastPort(),
+        }
+      );
     } catch (err) {
-      return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+      return mapCoreError(err);
     }
 
-    let estimatedFee: number;
-    try {
-      ({ finalFeeSats: estimatedFee } = simulateMintFee({
-        network: sdkNetwork,
-        fundingInput: { ...fundingUtxo },
-        destinations,
-        feeRatePerVbyte: intent.feeRate,
-      }));
-    } catch (err) {
-      return denied('intent-invariant-violated', `fee-simulation-failed: ${errorDetail(err)}`);
-    }
-
-    if (fundingUtxo.value < 546 + tipValue + estimatedFee) {
-      try {
-        fundingUtxo = this.deps.pickFundingUtxo(546 + tipValue + estimatedFee);
-      } catch (err) {
-        return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
-      }
-    }
-
-    let built;
-    try {
-      built = buildCat21MintPsbt({
-        walletType: KnownOrdinalWalletType.cat21wallet,
-        network: sdkNetwork,
-        fundingInput: { ...fundingUtxo },
-        destinations,
-        feeSats: estimatedFee,
-      });
-    } catch (err) {
-      return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
-    }
-
-    return this.signAndBroadcast({
-      mode,
-      psbt: built.psbt,
-      intent,
-      inputIndexes: 'all',
-      spendSats: 546 + tipValue + estimatedFee,
-    });
+    this.deps.recordSpend(CAT21_POSTAGE_SATS + tipValue + out.feeSats);
+    return { ok: true, value: { kind: 'broadcast', txid: out.txid, channel: out.channel } };
   }
 
   async transfer(intent: Cat21TransferIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
@@ -735,7 +810,7 @@ export class Cat21RpcService {
 
     let result: BroadcastResult;
     try {
-      result = await this.deps.broadcast(signed);
+      result = await this.deps.broadcast(signed.hex);
     } catch (err) {
       return denied('broadcast-failed', errorDetail(err));
     }
@@ -767,6 +842,35 @@ function modeResolverReasonToRpcReason(
 function errorDetail(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+/**
+ * Signer-port failure (user cancelled, keychain locked, …). Distinct
+ * class so `mapCoreError` routes it to `broadcast-failed`, never to a
+ * funding/selection reason.
+ */
+class SignError extends Error {}
+/** Broadcast-port failure (electrs / Slipstream rejected the tx). */
+class BroadcastError extends Error {}
+
+/**
+ * Map a thrown SDK-core error to a typed `Cat21RpcResult` denial.
+ *
+ *   - `SignError`      → `broadcast-failed: sign-failed`
+ *   - `BroadcastError` → `broadcast-failed`
+ *   - funding/selection throws (only asset coins cover, nothing covers,
+ *     insufficient funds, `Select a funding UTXO`) →
+ *     `intent-invariant-violated: funding-pick-failed`
+ *   - anything else → `intent-invariant-violated: build-failed`
+ */
+function mapCoreError(err: unknown): Cat21RpcResult {
+  if (err instanceof SignError) return denied('broadcast-failed', `sign-failed: ${err.message}`);
+  if (err instanceof BroadcastError) return denied('broadcast-failed', err.message);
+  const msg = errorDetail(err);
+  if (/Select a funding UTXO|Insufficient funds|only asset coins cover|nothing covers/.test(msg)) {
+    return denied('intent-invariant-violated', `funding-pick-failed: ${msg}`);
+  }
+  return denied('intent-invariant-violated', `build-failed: ${msg}`);
 }
 
 /**

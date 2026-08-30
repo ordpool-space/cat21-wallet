@@ -28,7 +28,6 @@
  */
 import * as btc from '@scure/btc-signer';
 import {
-  type Cat21MintFundingInput,
   type Cat21OfferBuyerInput,
   type Cat21OfferDestinations,
   type Cat21OfferSellerInput,
@@ -38,7 +37,6 @@ import {
   KnownOrdinalWalletType,
   type Network,
   buildCat21BuyOfferPsbt,
-  buildCat21MintPsbt,
   buildCat21TransferPsbt,
   computePsbtVsize,
   getDummyKeypair,
@@ -47,49 +45,6 @@ import {
 } from 'ordpool-sdk/core';
 
 const ALLOWED_DUMMY_SIGHASHES = [btc.SigHash.DEFAULT, btc.SigHash.ALL];
-
-interface SimulateMintFeeArgs {
-  network: Network;
-  fundingInput: Cat21MintFundingInput;
-  destinations: {
-    recipientAddress: string;
-    senderChangeAddress: string;
-    tip?: { address: string; valueSats: number };
-  };
-  /** sat/vB the user/agent asked for. */
-  feeRatePerVbyte: number;
-}
-
-/**
- * Run the two-pass fee simulation for a CAT-21 mint and return the
- * final fee in sats. The caller then re-builds the real PSBT with
- * `feeSats: finalFeeSats` for signing.
- *
- * Mint has exactly one input (the funding UTXO) so dummy-signing is
- * `signIdx(dummyPrivateKey, 0, …)`.
- */
-export function simulateMintFee(args: SimulateMintFeeArgs): {
-  finalFeeSats: number;
-  vsize: number;
-} {
-  const dummy = getDummyKeypair(toScureNetwork(args.network)).dummyPrivateKey;
-  const { finalFeeSats, vsize } = twoPassFeeSimulation({
-    feeRatePerVbyte: args.feeRatePerVbyte,
-    simulate(feeSats) {
-      const sim = buildCat21MintPsbt({
-        walletType: KnownOrdinalWalletType.cat21wallet,
-        network: args.network,
-        fundingInput: args.fundingInput,
-        destinations: args.destinations,
-        feeSats,
-      });
-      sim.tx.signIdx(dummy, 0, ALLOWED_DUMMY_SIGHASHES);
-      sim.tx.finalize();
-      return { vsize: sim.tx.vsize };
-    },
-  });
-  return { finalFeeSats, vsize };
-}
 
 interface SimulateTransferFeeArgs {
   network: Network;

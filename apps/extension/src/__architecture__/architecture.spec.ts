@@ -191,16 +191,16 @@ describe('HARD RULE — mint logic lives in the SDK, not inline in the wallet', 
     ).toThrow();
   });
 
-  it('Cat21RpcService imports buildCat21MintPsbt from ordpool-sdk/core', () => {
+  it('Cat21RpcService imports executeMint from ordpool-sdk/core', () => {
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
-    expect(src).toMatch(/buildCat21MintPsbt[\s\S]{0,300}from\s+['"]ordpool-sdk\/core['"]/);
+    expect(src).toMatch(/executeMint[\s\S]{0,400}from\s+['"]ordpool-sdk\/core['"]/);
   });
 
-  it('Cat21RpcService.mint body calls the SDK helper (not a local function)', () => {
+  it('Cat21RpcService.mint body delegates to the SDK core executeMint (not a local build)', () => {
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const match = src.match(/async mint\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(match).not.toBeNull();
-    expect(match![1]).toMatch(/buildCat21MintPsbt\(/);
+    expect(match![1]).toMatch(/executeMint\(/);
   });
 
   it('Cat21RpcService.mint passes walletType=KnownOrdinalWalletType.cat21wallet', () => {
@@ -234,13 +234,20 @@ describe('HARD RULE — acceptOffer signs ONLY input 0 (the seller cat input)', 
     expect(allOccurrences.length).toBe(0);
   });
 
-  it("mint and transfer declare inputIndexes: 'all' (self-built PSBTs; every input is wallet-owned)", () => {
+  it("mint hands executeMint the mode-aware SignPort (which signs 'all' inside the SDK)", () => {
+    // Post-core-migration: the 'all' input-index for mint lives inside
+    // the SDK's executeMint (it calls sign(psbt, 'all')). The wallet's
+    // guarantee is that it hands executeMint the mode-aware SignPort.
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
     const mintMatch = src.match(/async mint\([^)]*\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
-    const transferMatch = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(mintMatch).not.toBeNull();
+    expect(mintMatch![1]).toMatch(/sign:\s*this\.signPort\(mode,\s*intent\)/);
+  });
+
+  it("transfer declares inputIndexes: 'all' (self-built PSBT; every input is wallet-owned)", () => {
+    const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
+    const transferMatch = src.match(/async transfer\([\s\S]*?\)[^{]*\{([\s\S]*?)\n {2}\}\n/);
     expect(transferMatch).not.toBeNull();
-    expect(mintMatch![1]).toMatch(/inputIndexes:\s*'all'/);
     expect(transferMatch![1]).toMatch(/inputIndexes:\s*'all'/);
   });
 
@@ -373,7 +380,7 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
     {
       methodName: 'cat21_mint',
       serviceMethod: 'mint',
-      handlerBinding: { kind: 'sdk-symbol', symbol: 'buildCat21MintPsbt' },
+      handlerBinding: { kind: 'sdk-symbol', symbol: 'executeMint' },
     },
     {
       methodName: 'cat21_transfer',

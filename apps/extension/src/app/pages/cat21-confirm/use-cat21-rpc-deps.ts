@@ -1,11 +1,14 @@
 import { useMemo } from 'react';
 import { useStore } from 'react-redux';
 
+import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import { useQuery } from '@tanstack/react-query';
 import {
   type AgentActionKind,
   CAT21_POSTAGE_SATS,
+  type CoreFundingUtxo,
+  type UtxoClassification,
   broadcastCat21,
   pickLargestFundingUtxoThatCovers,
   toPaymentAddress,
@@ -20,7 +23,10 @@ import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hook
 import { type RootState, useAppDispatch } from '@app/store';
 import { useCurrentAccountId } from '@app/store/accounts/account';
 import { useSignBitcoinTx } from '@app/store/accounts/blockchain/bitcoin/bitcoin.hooks';
-import { useNativeSegwitAccountIndexAddressIndexZero } from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
+import {
+  useCurrentAccountNativeSegwitIndexZeroPayerNullable,
+  useNativeSegwitAccountIndexAddressIndexZero,
+} from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
 import { useCurrentAccountTaprootPayer } from '@app/store/accounts/blockchain/bitcoin/taproot-account.hooks';
 import { accountIdToSliceKey } from '@app/store/agent-policy/agent-policy.hooks';
 import { selectAgentPolicyForAccount } from '@app/store/agent-policy/agent-policy.selectors';
@@ -89,8 +95,13 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   // empty, and `Cat21RpcService.buy` fails closed with a typed reason.
   // mint / transfer / offer never read it.
   const createTaprootPayer = useCurrentAccountTaprootPayer();
-  const ordinalsAddress =
-    createTaprootPayer?.({ addressIndex: 0, changeIndex: 0 })?.payment.address ?? '';
+  const taprootPayer = createTaprootPayer?.({ addressIndex: 0, changeIndex: 0 });
+  const ordinalsAddress = taprootPayer?.payment.address ?? '';
+  // 33-byte compressed pubkeys (hex) the SDK core's input adapter needs.
+  // The core x-only-normalises the ordinals key for taproot inputs.
+  const ordinalsPublicKey = taprootPayer ? hex.encode(taprootPayer.publicKey) : '';
+  const nativeSegwitPayer = useCurrentAccountNativeSegwitIndexZeroPayerNullable();
+  const paymentPublicKey = nativeSegwitPayer ? hex.encode(nativeSegwitPayer.publicKey) : '';
   const network = useCurrentNetwork();
   const networkLabel: 'mainnet' | 'testnet' =
     network.chain.bitcoin.mode === 'mainnet' ? 'mainnet' : 'testnet';
@@ -130,7 +141,9 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         const policy = selectAgentPolicyForAccount(store.getState(), accountKey);
         return {
           paymentAddress: paymentAddress ?? '',
+          paymentPublicKey,
           ordinalsAddress,
+          ordinalsPublicKey,
           network: networkLabel,
           allowedOperations: stripCat21Prefix(policy?.allowedOperations),
         };
@@ -168,11 +181,14 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
       // per its current routing). Channel-decision delegated to the
       // SDK's `broadcastCat21` so oversize CAT-21 txs route to
       // Slipstream automatically.
-      broadcast: async signedTx => {
+      broadcast: async signedTxHex => {
+        // The core's BroadcastPort hands us hex only; re-derive the weight
+        // for broadcastCat21's mempool-vs-Slipstream channel choice.
+        const weight = btc.Transaction.fromRaw(hex.decode(signedTxHex)).weight;
         const result = await broadcastCat21(
-          { hex: signedTx.hex, weight: signedTx.weight },
-          async (hex: string) => {
-            const resp = await bitcoinClient.transactionsApi.broadcastTransaction(hex);
+          { hex: signedTxHex, weight },
+          async (rawHex: string) => {
+            const resp = await bitcoinClient.transactionsApi.broadcastTransaction(rawHex);
             if (!resp.ok) {
               throw new Error(`broadcast HTTP ${resp.status}: ${await resp.text()}`);
             }
@@ -211,6 +227,25 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
           value: picked.value,
           scriptPubKey,
         };
+      },
+      // The account's spendable (non-cat) native-segwit bucket as a plain
+      // list. The SDK core does its own content-checked selection + fee
+      // over this — the wallet no longer size-heuristic-picks. Native
+      // segwit needs no `transactionHex` (witnessUtxo suffices).
+      spendableUtxos: (_address: string): Promise<CoreFundingUtxo[]> => {
+        const available = utxoQuery.isLoading ? [] : utxoQuery.utxos.available;
+        return Promise.resolve(
+          available.map(u => ({ txid: u.txid, vout: u.vout, value: u.value }))
+        );
+      },
+      // Cat-only content scan (the maintainer's chosen depth): cat21-ord's
+      // `/output/<outpoint>` lists the cats on a UTXO. Non-empty ⇒
+      // `has-assets`; empty ⇒ `clean`. A fetch failure REJECTS — the core
+      // then treats the coin as not-auto (expert-mode), never clean, which
+      // matches utxos.service's conservative "unreachable ⇒ protected".
+      classifyOutpoint: async (outpoint: string): Promise<UtxoClassification> => {
+        const output = await cat21OrdClient.fetchOutput(outpoint);
+        return output.cats.length > 0 ? 'has-assets' : 'clean';
       },
       // Synchronous answer from the React-Query cache populated by the
       // hook above. Throws (caught one frame up as
@@ -335,7 +370,9 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     store,
     dispatch,
     paymentAddress,
+    paymentPublicKey,
     ordinalsAddress,
+    ordinalsPublicKey,
     networkLabel,
     accountKey,
     bitcoinClient,

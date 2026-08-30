@@ -61,6 +61,8 @@ export function wireCat21Dispatcher(args: WireCat21DispatcherArgs): Cat21Dispatc
     // Sign / broadcast / UTXO selection (wiring-pending, iter 11+):
     getAccountContext: wiringPending.getAccountContext,
     pickFundingUtxo: wiringPending.pickFundingUtxo,
+    spendableUtxos: wiringPending.spendableUtxos,
+    classifyOutpoint: wiringPending.classifyOutpoint,
     resolveCatUtxo: wiringPending.resolveCatUtxo,
     confirmListingPublication: wiringPending.confirmListingPublication,
     validateBuyOfferPsbt: wiringPending.validateBuyOfferPsbt,
