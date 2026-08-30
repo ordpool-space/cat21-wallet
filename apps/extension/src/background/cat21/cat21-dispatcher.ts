@@ -149,9 +149,6 @@ export function makeWiringPendingDeps(): Cat21RpcDeps {
     evaluateAgentPolicy() {
       return { allowed: false, reason: 'wiring-pending' };
     },
-    pickFundingUtxo() {
-      return rejectFn('pickFundingUtxo');
-    },
     spendableUtxos() {
       return Promise.reject(new Error('cat21-dispatcher: spendableUtxos not yet wired (iter 10)'));
     },

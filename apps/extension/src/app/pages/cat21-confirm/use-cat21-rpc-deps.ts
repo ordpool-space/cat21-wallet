@@ -10,7 +10,6 @@ import {
   type CoreFundingUtxo,
   type UtxoClassification,
   broadcastCat21,
-  pickLargestFundingUtxoThatCovers,
   toPaymentAddress,
   validateCat21BuyOfferPsbt,
 } from 'ordpool-sdk/core';
@@ -52,12 +51,14 @@ import { type Cat21RpcDeps, walletNetworkToSdkNetwork } from '@background/cat21/
  *   - `validateBuyOfferPsbt(args)` — pure SDK call; the deps arg shape
  *     mirrors the SDK input one-to-one, only the network string ↔ enum
  *     translation is local
- *   - `broadcast(signedTx)` — SDK's `broadcastCat21` decides
- *     mempool-vs-slipstream by weight; mempool path goes through
- *     Leather's existing `transactionsApi.broadcastTransaction`
- *   - `pickFundingUtxo(requiredSats)` — first available native-segwit
- *     UTXO with value ≥ requiredSats, scriptPubKey decoded from the
- *     UTXO's address via @scure/btc-signer
+ *   - `broadcast(signedTxHex)` — re-derives the weight from the hex, then
+ *     SDK's `broadcastCat21` decides mempool-vs-slipstream by weight;
+ *     mempool path goes through Leather's existing
+ *     `transactionsApi.broadcastTransaction`
+ *   - `spendableUtxos(address)` — the native-segwit spendable bucket as a
+ *     `CoreFundingUtxo[]`; the SDK core selects + fees over it
+ *   - `classifyOutpoint(outpoint)` — cat-only content scan via cat21-ord's
+ *     `/output`; rejects on scan failure (core treats it as not-auto)
  *   - `resolveCatUtxo(catId)` — synchronous lookup against a React-
  *     Query-cached `/cat/<id>` response that the popup pre-fetches via
  *     the `catIdHint` argument. Returns a 546-sat `Cat21TransferCatInput`
@@ -196,37 +197,6 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
           }
         );
         return { txid: result.txid, channel: result.channel };
-      },
-      // SDK-canonical coin selection. `pickLargestFundingUtxoThatCovers`
-      // is the SDK's default strategy (see its JSDoc): highest mint-
-      // success probability at high fee rates, defragments the wallet
-      // over time, avoids sub-dust change absorption. First-fit (which
-      // this used to do) hits exactly those failure modes.
-      //
-      // scriptPubKey is decoded from the picked UTXO's address (native
-      // segwit P2WPKH for the current account). The keychain payer-
-      // based derivation lives behind `useNativeSegwitPayer`; the
-      // address → script path is enough for the SDK mint builder to
-      // construct a valid witness UTXO.
-      pickFundingUtxo: requiredSats => {
-        const available = utxoQuery.isLoading ? [] : utxoQuery.utxos.available;
-        const picked = pickLargestFundingUtxoThatCovers({
-          utxos: available,
-          targetSpendSats: requiredSats,
-        });
-        if (!picked) {
-          throw new Error(
-            `no available UTXO of >= ${requiredSats} sats (have ${available.length})`
-          );
-        }
-        const scureNetwork = networkLabel === 'mainnet' ? btc.NETWORK : btc.TEST_NETWORK;
-        const scriptPubKey = btc.OutScript.encode(btc.Address(scureNetwork).decode(picked.address));
-        return {
-          txid: picked.txid,
-          vout: picked.vout,
-          value: picked.value,
-          scriptPubKey,
-        };
       },
       // The account's spendable (non-cat) native-segwit bucket as a plain
       // list. The SDK core does its own content-checked selection + fee

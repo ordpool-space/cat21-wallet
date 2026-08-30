@@ -54,20 +54,6 @@ import type {
 type TransferUtxo = Cat21TransferCatInput;
 
 /**
- * Funding UTXO shape accepted by every cat21 builder. The wallet's
- * UTXO service produces these via coin selection over the active
- * account's spendable bucket (cat-bearing UTXOs are filtered out
- * upstream — see HARD RULE #2 in `CLAUDE.md`).
- */
-export interface Cat21FundingUtxo {
-  txid: string;
-  vout: number;
-  value: number;
-  scriptPubKey: Uint8Array;
-  tapInternalKey?: Uint8Array;
-}
-
-/**
  * Active-account context the service needs to build a signable PSBT.
  * The dispatcher (background page) resolves this at call time from the
  * wallet's Redux state and passes it in — keeps `Cat21RpcService`
@@ -139,8 +125,6 @@ export interface Cat21RpcDeps {
   evaluateAgentPolicy(
     intent: Cat21Intent
   ): { allowed: true } | { allowed: false; reason: string; detail?: string };
-  /** Picks one funding UTXO sufficient for `requiredSats`. Throws if none. */
-  pickFundingUtxo(requiredSats: number): Cat21FundingUtxo;
   /**
    * The account's spendable funding UTXOs (the `available` bucket, not
    * cat-bearing). The SDK core does its own content-checked selection +

@@ -7,7 +7,6 @@ import type { Cat21OfferValidation } from './builders/accept-offer-validator';
 import {
   BroadcastResult,
   Cat21AccountContext,
-  Cat21FundingUtxo,
   Cat21RpcDeps,
   Cat21RpcService,
   SignedTx,
@@ -52,7 +51,7 @@ function defaultAccountCtx(): Cat21AccountContext {
   };
 }
 
-function defaultUtxo(): Cat21FundingUtxo {
+function defaultUtxo() {
   return {
     txid: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
     vout: 0,
@@ -104,7 +103,6 @@ function makeBuyIntent(overrides: Partial<Cat21BuyIntent> = {}): Cat21BuyIntent 
 interface SpyDeps extends Cat21RpcDeps {
   getAccountContext: ReturnType<typeof vi.fn> & Cat21RpcDeps['getAccountContext'];
   evaluateAgentPolicy: ReturnType<typeof vi.fn> & Cat21RpcDeps['evaluateAgentPolicy'];
-  pickFundingUtxo: ReturnType<typeof vi.fn> & Cat21RpcDeps['pickFundingUtxo'];
   spendableUtxos: ReturnType<typeof vi.fn> & Cat21RpcDeps['spendableUtxos'];
   classifyOutpoint: ReturnType<typeof vi.fn> & Cat21RpcDeps['classifyOutpoint'];
   resolveCatUtxo: ReturnType<typeof vi.fn> & Cat21RpcDeps['resolveCatUtxo'];
@@ -125,7 +123,6 @@ function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
     getAccountContext: vi.fn(() => defaultAccountCtx()),
     agentMode: { enabled: true },
     evaluateAgentPolicy: vi.fn(() => ({ allowed: true as const })),
-    pickFundingUtxo: vi.fn(() => defaultUtxo()),
     // One clean funding coin covering postage + fee. The core does its
     // own content-checked selection + two-pass fee over this list.
     spendableUtxos: vi.fn(() =>
@@ -192,10 +189,9 @@ describe('Cat21RpcService.mint', () => {
     it('mints via content-checked core selection (spendableUtxos + clean scan)', async () => {
       const result = await service.mint(makeIntent(), 'popup');
       expect(result.ok).toBe(true);
-      // The core selects over the wallet's spendable bucket; the legacy
-      // size-heuristic pickFundingUtxo is no longer on the mint path.
+      // The core selects over the wallet's spendable bucket (the legacy
+      // size-heuristic pickFundingUtxo dep is gone entirely).
       expect(deps.spendableUtxos).toHaveBeenCalled();
-      expect(deps.pickFundingUtxo).not.toHaveBeenCalled();
     });
   });
 
@@ -422,13 +418,11 @@ describe('Cat21RpcService.transfer', () => {
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
-    it('funds the fee via content-checked core selection (spendableUtxos, not pickFundingUtxo)', async () => {
+    it('funds the fee via content-checked core selection (spendableUtxos)', async () => {
       // The cat UTXO rides input 0 preserved; the fee comes from a
-      // funding coin the SDK core selects over the spendable bucket —
-      // the legacy size-heuristic pickFundingUtxo is off the transfer path.
+      // funding coin the SDK core selects over the spendable bucket.
       await service.transfer(makeTransferIntent(), 'popup');
       expect(deps.spendableUtxos).toHaveBeenCalled();
-      expect(deps.pickFundingUtxo).not.toHaveBeenCalled();
     });
   });
 

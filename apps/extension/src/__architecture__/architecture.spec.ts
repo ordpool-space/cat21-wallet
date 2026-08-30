@@ -641,7 +641,7 @@ describe('iter 10 — per-account agent-policy slice + dispatcher deps', () => {
   });
 });
 
-describe('iter 11 — popup-side deps wire all 11 Cat21RpcDeps', () => {
+describe('popup-side deps wire every Cat21RpcDeps field', () => {
   // The popup-side `useCat21RpcDeps` hook is the load-bearing wiring
   // for Path 2 (manual cat-flow in the wallet popup). Every dep on
   // the `Cat21RpcDeps` interface MUST be wired here to a real
@@ -671,11 +671,14 @@ describe('iter 11 — popup-side deps wire all 11 Cat21RpcDeps', () => {
       'recordSpend',
       'validateBuyOfferPsbt',
       'broadcast',
-      'pickFundingUtxo',
+      'spendableUtxos',
+      'classifyOutpoint',
       'resolveCatUtxo',
       'confirmListingPublication',
       'signWithConfirmation',
       'signSilently',
+      'signBuyOfferInputs',
+      'postBid',
     ];
     for (const f of fields) {
       // Each dep name appears as an object-literal key in the hook's
