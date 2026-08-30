@@ -6,7 +6,6 @@ import * as btc from '@scure/btc-signer';
 import { useQuery } from '@tanstack/react-query';
 import {
   type AgentActionKind,
-  CAT21_POSTAGE_SATS,
   type CoreFundingUtxo,
   type UtxoClassification,
   broadcastCat21,
@@ -33,6 +32,8 @@ import { incrementSpentToday } from '@app/store/agent-policy/agent-policy.slice'
 import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 import { makeAgentPolicyDeps } from '@background/cat21/agent-policy-deps';
 import { type Cat21RpcDeps, walletNetworkToSdkNetwork } from '@background/cat21/cat21-rpc.service';
+
+import { resolveCatFundingUtxo } from './resolve-cat-funding-utxo';
 
 /**
  * Build the popup-side `Cat21RpcDeps` for `Cat21RpcService`. Every
@@ -61,9 +62,11 @@ import { type Cat21RpcDeps, walletNetworkToSdkNetwork } from '@background/cat21/
  *     `/output`; rejects on scan failure (core treats it as not-auto)
  *   - `resolveCatUtxo(catId)` — synchronous lookup against a React-
  *     Query-cached `/cat/<id>` response that the popup pre-fetches via
- *     the `catIdHint` argument. Returns a 546-sat `Cat21TransferCatInput`
- *     with `txid`/`vout` parsed out of `satpoint` and `scriptPubKey`
- *     decoded from the cat's current `address`.
+ *     the `catIdHint` argument. Maps the OrdCat21 to a
+ *     `Cat21TransferCatInput` via `resolveCatFundingUtxo`, PRESERVING
+ *     the cat's real UTXO `value` (a cat is not always 546 — SDK HARD
+ *     RULE), with `txid`/`vout` parsed out of `satpoint` and
+ *     `scriptPubKey` decoded from the cat's current `address`.
  *   - `confirmListingPublication()` — resolves immediately. The popup
  *     IS the user's listing-publish consent: the dialog they clicked
  *     to land here already named the cat, the price, and the seller
@@ -218,20 +221,19 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         return output.cats.length > 0 ? 'has-assets' : 'clean';
       },
       // Synchronous answer from the React-Query cache populated by the
-      // hook above. Throws (caught one frame up as
-      // `intent-invariant-violated: cat-utxo-resolve-failed: …`) if:
+      // hook above. The hook-state guards run here; the OrdCat21 →
+      // Cat21TransferCatInput mapping (address, value PRESERVE, satpoint
+      // parse, scriptPubKey encode) is the pure `resolveCatFundingUtxo`
+      // helper, unit-tested against non-546 sizes. Throws (caught one
+      // frame up as `intent-invariant-violated: cat-utxo-resolve-failed:
+      // …`) if:
       //   - the popup wasn't constructed with this catId in its hint
       //     (defensive: caller-asserted catId mismatch),
       //   - the query hasn't resolved yet (popup opened, user clicked
       //     before the cat fetch returned),
       //   - the query errored,
-      //   - cat21-ord returned a cat without an address (unconfirmed
-      //     or already-spent UTXO),
-      //   - the satpoint failed to parse into txid:vout.
-      // CAT21_POSTAGE_SATS is the protocol-pinned 546; ord doesn't
-      // emit the UTXO value on `/cat/<id>` and a cat-bearing UTXO is
-      // always exactly 546 sats by HARD RULE — no need to round-trip
-      // through `/output/<outpoint>` for the value.
+      //   - the helper rejects the cat (no address / no value / bad
+      //     satpoint) — see resolve-cat-funding-utxo.ts.
       resolveCatUtxo: catId => {
         if (catIdHint == null || catId !== catIdHint) {
           throw new Error(
@@ -240,23 +242,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         }
         if (catQuery.error) throw catQuery.error;
         if (!catQuery.data) throw new Error('cat-data-not-loaded');
-        const cat = catQuery.data;
-        if (!cat.address) {
-          throw new Error('cat21-ord returned cat without address');
-        }
-        const [txid, voutStr] = cat.satpoint.split(':');
-        const vout = Number(voutStr);
-        if (!txid || Number.isNaN(vout)) {
-          throw new Error(`malformed satpoint: ${cat.satpoint}`);
-        }
-        const scureNetwork = networkLabel === 'mainnet' ? btc.NETWORK : btc.TEST_NETWORK;
-        const scriptPubKey = btc.OutScript.encode(btc.Address(scureNetwork).decode(cat.address));
-        return {
-          txid,
-          vout,
-          value: CAT21_POSTAGE_SATS,
-          scriptPubKey,
-        };
+        return resolveCatFundingUtxo(catQuery.data, networkLabel);
       },
       // The popup dialog the user clicked Confirm on already states
       // the cat, price, and payment address — it IS the consent. No

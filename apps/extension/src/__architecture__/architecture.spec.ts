@@ -656,6 +656,8 @@ describe('popup-side deps wire every Cat21RpcDeps field', () => {
   // everything," not "every entrypoint wires everything."
 
   const HOOK_PATH = 'apps/extension/src/app/pages/cat21-confirm/use-cat21-rpc-deps.ts';
+  const CAT_UTXO_HELPER_PATH =
+    'apps/extension/src/app/pages/cat21-confirm/resolve-cat-funding-utxo.ts';
 
   it('the hook does not import makeWiringPendingDeps', () => {
     const src = read(join(REPO_ROOT, HOOK_PATH));
@@ -706,7 +708,20 @@ describe('popup-side deps wire every Cat21RpcDeps field', () => {
     const src = read(join(REPO_ROOT, HOOK_PATH));
     expect(src).toMatch(/getCat21OrdApiClient/);
     expect(src).toMatch(/fetchCat21\(/);
-    expect(src).toMatch(/CAT21_POSTAGE_SATS/);
+    // The OrdCat21 → Cat21TransferCatInput mapping is the pure,
+    // unit-tested helper (not inlined + not a 546 hardcode).
+    expect(src).toMatch(/resolveCatFundingUtxo\(/);
+  });
+
+  it('the cat-UTXO helper PRESERVES the cat value, never hardcodes 546 (SDK HARD RULE: cat size preserved)', () => {
+    // The SDK core commits `value` as the input-0 witnessUtxo amount, so
+    // a cat on a >546-sat UTXO (external nLockTime=21 mint / grown cat /
+    // inscription-cat) MUST carry its real size or the signature is
+    // invalid. Pin that the helper reads cat.value and does NOT rewrite
+    // the cat value to the postage constant.
+    const src = read(join(REPO_ROOT, CAT_UTXO_HELPER_PATH));
+    expect(src).toMatch(/value:\s*cat\.value/);
+    expect(src).not.toMatch(/value:\s*CAT21_POSTAGE_SATS/);
   });
 
   it('the popup route only constructs Cat21RpcService — not Cat21Dispatcher (no double-dispatch)', () => {

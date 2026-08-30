@@ -340,9 +340,14 @@ does NOT keep its own copies.
 broadcast sequence to the SDK core's framework-agnostic orchestrators —
 `executeMint`, `executeTransfer`, `createOffer` (the BUYER side, `cat21_buy`)
 — via the injected ports (`UtxosPort` / `ContentScanPort` / `SignPort` /
-`BroadcastPort` / `OfferCreateSignPort`). The core owns the sequencing (and
-does CONTENT-CHECKED funding selection — it refuses a coin carrying an
-inscription / rune / rare sat, not just a cat); the wallet owns the ports.
+`BroadcastPort` / `OfferCreateSignPort`). The core owns the sequencing and
+runs CONTENT-CHECKED funding selection over whatever the wallet's
+`ContentScanPort` reports. The wallet wires a CAT-ONLY scan
+(`classifyOutpoint` → cat21-ord `/output`, the maintainer's chosen depth),
+so in the wallet the core refuses cat-bearing funding coins; it does NOT
+detect regular inscriptions / runes / rare sats, because cat21-ord only
+indexes cats. (A broader scan is the port's job, not the core's — the core
+would honour it if the wallet ever supplied one.) The wallet owns the ports.
 `Cat21RpcService` no longer hand-rolls coin-selection or fee-simulation
 (the old `pickFundingUtxo` + `cat21-fee-simulation.ts` are deleted). See
 `CORE-ADOPTION-HANDOVER.md`.**

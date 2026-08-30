@@ -242,7 +242,7 @@ interface Cat21PostBidArgs {
   network: 'mainnet' | 'testnet';
   catTxid: string;
   catVout: number;
-  /** Cat numbers on the UTXO (buyer-observed). 546-sat UTXO ⇒ one cat. */
+  /** Cat numbers on the UTXO (buyer-observed, from cat21-ord's index — not a size heuristic). */
   cats: number[];
   headlineCatNumber: number;
   bidSats: number;
@@ -356,10 +356,14 @@ export class Cat21RpcService {
 
   /**
    * `cat21_mint` — delegates the full select → fee → build → sign →
-   * broadcast sequence to the SDK core's `executeMint`. The core does
-   * content-checked funding selection (refuses a coin carrying an
-   * inscription / rune / rare sat, not just cats) and returns the
-   * realised fee for the daily-cap accounting.
+   * broadcast sequence to the SDK core's `executeMint`. The core runs
+   * content-checked funding selection over whatever the wallet's
+   * `ContentScanPort` reports; the wallet wires a CAT-ONLY scan
+   * (`classifyOutpoint` → cat21-ord `/output`, the maintainer's chosen
+   * depth), so in the wallet the core refuses cat-bearing funding coins.
+   * It does NOT detect regular inscriptions / runes / rare sats — cat21-
+   * ord only indexes cats. `executeMint` returns the realised fee for
+   * the daily-cap accounting.
    */
   async mint(intent: Cat21MintIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'mint', intent }, transport);
@@ -607,15 +611,14 @@ export class Cat21RpcService {
    *
    *   1. validateCat21Operation({ kind: 'buy', intent })
    *   2. resolveSigningMode(...)
-   *   3. resolveCatUtxo(catId) — the seller's cat UTXO on-chain (546,
-   *      scriptPubKey); cross-checked against the gate's parsed outpoint
-   *   4. pick funding UTXO → two-pass fee sim (input 0 non-signable)
-   *      → re-pick if the fee grew the obligation past the picked UTXO
-   *   5. buildCat21BuyOfferPsbt (cat → buyer ordinals, payment → seller,
-   *      change → buyer payment)
-   *   6. signBuyOfferInputs(psbt, [1..N]) — buyer inputs only, no finalize
-   *   7. postBid(...) — unauthenticated; the SIGHASH_ALL sigs are the auth
-   *   8. Return `{ kind: 'bid', ... }`.
+   *   3. resolveCatUtxo(catId) — the seller's cat UTXO on-chain (value
+   *      PRESERVED from cat21-ord + scriptPubKey)
+   *   4. createBuyOffer(...) via the SDK core — content-checked buyer
+   *      funding selection, two-pass fee, buy-offer PSBT, and buyer-input
+   *      signing (SIGHASH_ALL on inputs 1..N; input 0 stays for the
+   *      seller). No broadcast — the artifact is a bid.
+   *   5. postBid(...) — unauthenticated; the SIGHASH_ALL sigs are the auth
+   *   6. Return `{ kind: 'bid', ... }`.
    */
   async buy(intent: Cat21BuyIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'buy', intent }, transport);
