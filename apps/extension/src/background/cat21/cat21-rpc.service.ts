@@ -4,20 +4,22 @@ import {
   type BroadcastPort,
   CAT21_POSTAGE_SATS,
   Cat21GateResources,
-  Cat21OfferBuyerInput,
-  Cat21OfferDestinations,
-  Cat21OfferSellerInput,
   Cat21OfferValidation,
   Cat21OperationGateConfig,
   Cat21TransferCatInput,
   type ContentScanPort,
   type CoreFundingUtxo,
+  type CreateOfferArtifact,
   KnownOrdinalWalletType,
   Network,
+  type OfferCreateSignPort,
   type SignPort,
   type UtxoClassification,
   type UtxosPort,
-  buildCat21BuyOfferPsbt,
+  // Aliased: the SDK's createOffer is the BUYER-side buy-offer builder
+  // (cat21_buy), distinct from this service's own createOffer (the SELL
+  // listing, cat21_create_offer).
+  createOffer as createBuyOffer,
   executeMint,
   executeTransfer,
   validateCat21Operation,
@@ -25,7 +27,6 @@ import {
 
 import { validateAcceptOffer } from './builders/accept-offer-validator';
 import { buildListing } from './builders/listing-builder';
-import { simulateBuyOfferFee } from './cat21-fee-simulation';
 import {
   AgentModeFlag,
   Cat21Transport,
@@ -351,6 +352,23 @@ export class Cat21RpcService {
   }
 
   /**
+   * Buy-offer signer: signs ONLY the buyer's funding inputs (1..N)
+   * without finalizing — input 0 (the seller's cat) stays unsigned for
+   * the seller. Used by the core's `createOffer` (the `cat21_buy` path).
+   */
+  private offerCreateSignPort(): OfferCreateSignPort {
+    return {
+      signBuyerInputs: async (psbt, buyerInputIndexes) => {
+        try {
+          return await this.deps.signBuyOfferInputs(psbt, buyerInputIndexes);
+        } catch (err) {
+          throw new SignError(errorDetail(err));
+        }
+      },
+    };
+  }
+
+  /**
    * `cat21_mint` — delegates the full select → fee → build → sign →
    * broadcast sequence to the SDK core's `executeMint`. The core does
    * content-checked funding selection (refuses a coin carrying an
@@ -598,12 +616,19 @@ export class Cat21RpcService {
     // `resources` (parsed catId → mint txid) is unused: a moved cat's
     // current UTXO differs from its inscription-id txid, so the seller
     // input comes from the on-chain resolver, not the parsed catId.
+    // `resources` (parsed catId → mint txid) is unused: a moved cat's
+    // current UTXO differs from its inscription-id txid, so the seller
+    // input comes from the on-chain resolver, not the parsed catId.
     const { accountCtx } = opened;
 
+    const paymentPublicKey = accountCtx.paymentPublicKey;
     // The cat lands at the buyer's ordinals (taproot) address. Fail
     // closed if the account has none — never route a cat to a payment
     // address (would contaminate ordinal-safety accounting).
     const buyerReceiveAddress = accountCtx.ordinalsAddress;
+    if (!paymentPublicKey) {
+      return denied('intent-invariant-violated', 'no-payment-public-key');
+    }
     if (!buyerReceiveAddress) {
       return denied(
         'intent-invariant-violated',
@@ -623,79 +648,40 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
-    const sdkNetwork = walletNetworkToSdkNetwork(accountCtx.network);
-    const sellerInput: Cat21OfferSellerInput = {
-      txid: sellerCatUtxo.txid,
-      vout: sellerCatUtxo.vout,
-      value: sellerCatUtxo.value,
-      scriptPubKey: sellerCatUtxo.scriptPubKey,
-    };
-    const destinations: Cat21OfferDestinations = {
-      buyerReceiveAddress,
-      sellerPaymentAddress: intent.sellerPaymentAddress,
-      buyerChangeAddress: accountCtx.paymentAddress,
-    };
-
-    // Buyer obligation = priceSats + postage + fee (the builder's
-    // priceSats + 2*postage - sellerInput.value(546) + fee reduces to
-    // this because the seller's 546-sat input covers one postage).
-    const placeholderFee = 1_000;
-    const baseObligation = intent.bidSats + CAT21_POSTAGE_SATS;
-    let fundingUtxo: Cat21FundingUtxo;
+    // The SDK core builds + buyer-signs the offer: content-checked buyer
+    // funding selection, two-pass fee, buy-offer PSBT, and buyer-input
+    // signing (SIGHASH_ALL on inputs 1..N; input 0 stays for the seller).
+    // No broadcast — the artifact is a bid.
+    let artifact: CreateOfferArtifact;
     try {
-      fundingUtxo = this.deps.pickFundingUtxo(baseObligation + placeholderFee);
+      artifact = await createBuyOffer(
+        {
+          walletType: KnownOrdinalWalletType.cat21wallet,
+          network: walletNetworkToSdkNetwork(accountCtx.network),
+          paymentPublicKey: hex.decode(paymentPublicKey),
+          paymentAddress: accountCtx.paymentAddress,
+          buyerReceiveAddress,
+          sellerPaymentAddress: intent.sellerPaymentAddress,
+          targetCat: {
+            txid: sellerCatUtxo.txid,
+            vout: sellerCatUtxo.vout,
+            value: sellerCatUtxo.value,
+            scriptPubKey: sellerCatUtxo.scriptPubKey,
+          },
+          priceSats: intent.bidSats,
+          feeRatePerVbyte: intent.feeRate,
+        },
+        {
+          utxos: this.utxosPort(),
+          scan: this.contentScanPort(),
+          signOffer: this.offerCreateSignPort(),
+        }
+      );
     } catch (err) {
-      return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
+      return mapCoreError(err);
     }
 
-    let estimatedFee: number;
-    try {
-      ({ finalFeeSats: estimatedFee } = simulateBuyOfferFee({
-        network: sdkNetwork,
-        sellerInput,
-        buyerInputs: toBuyerInputs(fundingUtxo),
-        destinations,
-        priceSats: intent.bidSats,
-        feeRatePerVbyte: intent.feeRate,
-      }));
-    } catch (err) {
-      return denied('intent-invariant-violated', `fee-simulation-failed: ${errorDetail(err)}`);
-    }
-
-    if (fundingUtxo.value < baseObligation + estimatedFee) {
-      try {
-        fundingUtxo = this.deps.pickFundingUtxo(baseObligation + estimatedFee);
-      } catch (err) {
-        return denied('intent-invariant-violated', `funding-pick-failed: ${errorDetail(err)}`);
-      }
-    }
-
-    const buyerInputs = toBuyerInputs(fundingUtxo);
-    let built;
-    try {
-      built = buildCat21BuyOfferPsbt({
-        walletType: KnownOrdinalWalletType.cat21wallet,
-        network: sdkNetwork,
-        sellerInput,
-        buyerInputs,
-        destinations,
-        priceSats: intent.bidSats,
-        feeSats: estimatedFee,
-      });
-    } catch (err) {
-      return denied('intent-invariant-violated', `build-failed: ${errorDetail(err)}`);
-    }
-
-    // Sign ONLY the buyer inputs (1..N). Input 0 is the seller's cat —
-    // untouched, left for the seller to sign at accept time.
-    const buyerInputIndexes = buyerInputs.map((_input, i) => i + 1);
-    let signedPsbt: Uint8Array;
-    try {
-      signedPsbt = await this.deps.signBuyOfferInputs(built.psbt, buyerInputIndexes);
-    } catch (err) {
-      return denied('broadcast-failed', `sign-failed: ${errorDetail(err)}`);
-    }
-    const psbtBase64 = Buffer.from(signedPsbt).toString('base64');
+    const psbtBase64 = Buffer.from(artifact.offerPsbt).toString('base64');
 
     try {
       await this.deps.postBid({
@@ -714,8 +700,8 @@ export class Cat21RpcService {
       return denied('broadcast-failed', `bid-post-failed: ${errorDetail(err)}`);
     }
 
-    // Daily-cap accounting: the buyer commits bidSats + fee on this bid.
-    this.deps.recordSpend(intent.bidSats + estimatedFee);
+    // Daily-cap accounting: the buyer commits bidSats + realised fee.
+    this.deps.recordSpend(intent.bidSats + artifact.feeSats);
     return {
       ok: true,
       value: {
@@ -854,26 +840,6 @@ function mapCoreError(err: unknown): Cat21RpcResult {
     return denied('intent-invariant-violated', `funding-pick-failed: ${msg}`);
   }
   return denied('intent-invariant-violated', `build-failed: ${msg}`);
-}
-
-/**
- * Map a picked funding UTXO to the SDK's buy-offer buyer-input shape.
- * Native-segwit (P2WPKH) inputs need only `scriptPubKey` + `value` for
- * a witnessUtxo; taproot inputs carry `tapInternalKey` through when the
- * picker provided it. Returned as a single-element array — the wallet's
- * `pickFundingUtxo` selects one covering UTXO (same single-input model
- * as mint / transfer).
- */
-function toBuyerInputs(utxo: Cat21FundingUtxo): Cat21OfferBuyerInput[] {
-  return [
-    {
-      txid: utxo.txid,
-      vout: utxo.vout,
-      value: utxo.value,
-      scriptPubKey: utxo.scriptPubKey,
-      ...(utxo.tapInternalKey ? { tapInternalKey: utxo.tapInternalKey } : {}),
-    },
-  ];
 }
 
 /**

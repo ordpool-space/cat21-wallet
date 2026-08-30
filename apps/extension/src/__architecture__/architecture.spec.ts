@@ -418,11 +418,11 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
     {
       methodName: 'cat21_buy',
       serviceMethod: 'buy',
-      // buy is the BUYER side: the wallet builds a buy-offer PSBT with
-      // the SDK's buildCat21BuyOfferPsbt, funds + buyer-signs it, and
-      // POSTs it to the Bazaar as a bid (via the postBid dep-callback).
-      // The SDK builder is the load-bearing binding.
-      handlerBinding: { kind: 'sdk-symbol', symbol: 'buildCat21BuyOfferPsbt' },
+      // buy is the BUYER side: the SDK core's createOffer (imported as
+      // createBuyOffer, distinct from this service's SELL createOffer)
+      // does content-checked funding selection + buyer-signs the offer;
+      // the wallet POSTs it to the Bazaar as a bid (postBid dep-callback).
+      handlerBinding: { kind: 'sdk-symbol', symbol: 'createBuyOffer' },
     },
   ];
 

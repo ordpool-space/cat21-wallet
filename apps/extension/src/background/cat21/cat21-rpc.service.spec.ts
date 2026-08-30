@@ -21,11 +21,10 @@ import type {
   Cat21TransferIntent,
 } from './types';
 
-// Use the SDK's well-known dummy keypair so the fee-simulation path's
-// `signIdx(dummyPrivateKey, …) + finalize` can produce a valid
-// finalized tx for vsize measurement. Production uses a real
-// keychain key; the simulation in cat21-fee-simulation.ts always
-// dummy-signs with this exact key.
+// The SDK's well-known dummy keypair. The core's fee simulation
+// dummy-signs with this exact key to measure vsize; these fixtures
+// derive the account's payment/ordinals addresses + pubkeys from it so
+// the core builders can construct valid inputs during the tests.
 const { dummyPublicKey } = getDummyKeypair(btc.NETWORK);
 const p2wpkhMainnet = btc.p2wpkh(dummyPublicKey, btc.NETWORK);
 
@@ -1143,6 +1142,7 @@ describe('Cat21RpcService.buy', () => {
       deps = makeDeps({
         getAccountContext: vi.fn(() => ({
           paymentAddress: ACCOUNT_PAYMENT_ADDR,
+          paymentPublicKey: hex.encode(accountKey),
           network: 'mainnet' as const,
         })),
       });
@@ -1152,6 +1152,22 @@ describe('Cat21RpcService.buy', () => {
       if (result.ok) throw new Error('expected denial');
       expect(result.value.reason).toBe('intent-invariant-violated');
       expect(result.value.detail).toContain('no-ordinals-address');
+      expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
+    });
+
+    it('denies when the account has no payment public key', async () => {
+      deps = makeDeps({
+        getAccountContext: vi.fn(() => ({
+          paymentAddress: ACCOUNT_PAYMENT_ADDR,
+          ordinalsAddress: ACCOUNT_ORDINALS_ADDR,
+          network: 'mainnet' as const,
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (result.ok) throw new Error('expected denial');
+      expect(result.value.detail).toContain('no-payment-public-key');
       expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
     });
 
