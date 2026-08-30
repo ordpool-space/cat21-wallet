@@ -134,7 +134,7 @@ export function makeWiringPendingDeps(): Cat21RpcDeps {
   return {
     getAccountContext() {
       // Returns a placeholder so downstream invariants run; the actual
-      // failure surfaces at pickFundingUtxo / resolveCatUtxo / sign,
+      // failure surfaces at spendableUtxos / resolveCatUtxo / sign,
       // bubbled up as a typed denial rather than an unhandled throw at
       // method entry.
       return {

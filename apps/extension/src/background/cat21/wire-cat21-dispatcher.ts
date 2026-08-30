@@ -13,7 +13,7 @@ import type { Cat21RpcDeps } from './cat21-rpc.service';
  * fall through to the wiring-pending stub from iter 9. That means:
  *
  *   - `cat21_*` calls in **manual** (popup) mode return a typed
- *     "wiring pending" denial because pickFundingUtxo / sign / broadcast
+ *     "wiring pending" denial because spendableUtxos / sign / broadcast
  *     haven't landed yet
  *   - `cat21_*` calls in **autonomous** (MCP-host bridge) mode hit the
  *     real policy gate FIRST; if the gate denies (e.g. agent mode off),

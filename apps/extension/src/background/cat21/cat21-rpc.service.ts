@@ -1,4 +1,5 @@
 import { hex } from '@scure/base';
+import * as btc from '@scure/btc-signer';
 import {
   type BroadcastOutcome,
   type BroadcastPort,
@@ -22,6 +23,7 @@ import {
   createOffer as createBuyOffer,
   executeMint,
   executeTransfer,
+  toScureNetwork,
   validateCat21Operation,
 } from 'ordpool-sdk/core';
 
@@ -429,6 +431,21 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
+    // The SDK core derives the cat's input-0 script from ordinalsAddress
+    // + ordinalsPublicKey (its API doesn't take the cat's real
+    // scriptPubKey). So transfer only works when the cat actually lives
+    // at THIS account's ordinals address. A cat received at a different
+    // address would otherwise build an input that doesn't match the UTXO
+    // and fail at broadcast; deny early with a clear reason instead.
+    const scureNet = toScureNetwork(walletNetworkToSdkNetwork(accountCtx.network));
+    const ordinalsScript = btc.OutScript.encode(btc.Address(scureNet).decode(ordinalsAddress));
+    if (hex.encode(catUtxo.scriptPubKey) !== hex.encode(ordinalsScript)) {
+      return denied(
+        'intent-invariant-violated',
+        'cat-not-at-ordinals-address: the SDK transfer path requires the cat to live at this account’s ordinals address'
+      );
+    }
+
     let out: BroadcastOutcome & { feeSats: number };
     try {
       out = await executeTransfer(
@@ -603,12 +620,6 @@ export class Cat21RpcService {
   async buy(intent: Cat21BuyIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'buy', intent }, transport);
     if ('result' in opened) return opened.result;
-    // Mode isn't branched on here: buy uses one no-finalize signer for
-    // both manual (popup consent) and autonomous (mode gate already ran
-    // in openPipeline). Unlike mint/transfer, there's no broadcast tail.
-    // `resources` (parsed catId → mint txid) is unused: a moved cat's
-    // current UTXO differs from its inscription-id txid, so the seller
-    // input comes from the on-chain resolver, not the parsed catId.
     // `resources` (parsed catId → mint txid) is unused: a moved cat's
     // current UTXO differs from its inscription-id txid, so the seller
     // input comes from the on-chain resolver, not the parsed catId.

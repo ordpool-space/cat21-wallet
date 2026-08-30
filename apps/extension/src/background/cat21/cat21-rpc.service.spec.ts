@@ -37,7 +37,8 @@ const ACCOUNT_PAYMENT_ADDR = p2wpkhAccount.address!;
 
 // Taproot ordinals (receive) address for the buy flow — where a bought
 // cat lands. x-only key derived from the dummy keypair's 33-byte pubkey.
-const ACCOUNT_ORDINALS_ADDR = btc.p2tr(dummyPublicKey.slice(1), undefined, btc.NETWORK).address!;
+const p2trOrdinals = btc.p2tr(dummyPublicKey.slice(1), undefined, btc.NETWORK);
+const ACCOUNT_ORDINALS_ADDR = p2trOrdinals.address!;
 
 function defaultAccountCtx(): Cat21AccountContext {
   return {
@@ -67,7 +68,9 @@ function defaultCatUtxo() {
     txid: 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
     vout: 0,
     value: 546,
-    scriptPubKey: p2wpkhMainnet.script,
+    // The cat lives at the account's ordinals (taproot) address — the
+    // transfer guard requires this; the SDK core derives input 0 from it.
+    scriptPubKey: p2trOrdinals.script,
   };
 }
 
@@ -507,6 +510,23 @@ describe('Cat21RpcService.transfer', () => {
         expect(result.value.reason).toBe('intent-invariant-violated');
         expect(result.value.detail).toContain('funding-pick-failed');
       }
+    });
+
+    it('denies when the cat does not live at the account ordinals address (SDK core derives input 0 from it)', async () => {
+      // resolveCatUtxo returns a cat sitting at a segwit address, not the
+      // account's taproot ordinals address. The core would derive a
+      // mismatching input-0 script and fail at broadcast; deny early.
+      deps = makeDeps({
+        resolveCatUtxo: vi.fn(() => ({ ...defaultCatUtxo(), scriptPubKey: p2wpkhMainnet.script })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.transfer(makeTransferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.detail).toContain('cat-not-at-ordinals-address');
+      }
+      expect(deps.spendableUtxos).not.toHaveBeenCalled();
     });
   });
 
