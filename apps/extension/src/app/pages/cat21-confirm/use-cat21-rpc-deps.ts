@@ -346,6 +346,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     networkLabel,
     accountKey,
     bitcoinClient,
+    cat21OrdClient,
     utxoQuery.utxos,
     utxoQuery.isLoading,
     signBitcoinTx,
