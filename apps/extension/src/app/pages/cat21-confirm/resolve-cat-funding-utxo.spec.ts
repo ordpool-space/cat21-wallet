@@ -78,9 +78,9 @@ describe('resolveCatFundingUtxo', () => {
   });
 
   it.each([null, undefined])('throws when the cat has no value (%s)', value => {
-    expect(() =>
-      resolveCatFundingUtxo(makeCat({ value: value as null | undefined }), 'mainnet')
-    ).toThrow('cat21-ord returned cat without a UTXO value');
+    expect(() => resolveCatFundingUtxo(makeCat({ value }), 'mainnet')).toThrow(
+      'cat21-ord returned cat without a UTXO value'
+    );
   });
 
   it('throws on a satpoint whose vout is not a number', () => {
