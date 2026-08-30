@@ -333,10 +333,33 @@ prose is the explanation. They drift apart at your peril.
 
 ## HARD RULE #10: PSBT logic comes from ordpool-sdk, imported via `/core`
 
-Every CAT-21 PSBT the wallet signs is built by `ordpool-sdk`.
-`buildCat21MintPsbt`, `buildCat21TransferPsbt`, `buildCat21BuyOfferPsbt`,
-`validateCat21BuyOfferPsbt`, `evaluateAgentPolicy`, `submitToSlipstream`
-— all live in the SDK. The wallet does NOT keep its own copies.
+Every CAT-21 PSBT the wallet signs is built by `ordpool-sdk`. The wallet
+does NOT keep its own copies.
+
+**mint / transfer / buy delegate the whole select → fee → build → sign →
+broadcast sequence to the SDK core's framework-agnostic orchestrators —
+`executeMint`, `executeTransfer`, `createOffer` (the BUYER side, `cat21_buy`)
+— via the injected ports (`UtxosPort` / `ContentScanPort` / `SignPort` /
+`BroadcastPort` / `OfferCreateSignPort`). The core owns the sequencing (and
+does CONTENT-CHECKED funding selection — it refuses a coin carrying an
+inscription / rune / rare sat, not just a cat); the wallet owns the ports.
+`Cat21RpcService` no longer hand-rolls coin-selection or fee-simulation
+(the old `pickFundingUtxo` + `cat21-fee-simulation.ts` are deleted). See
+`CORE-ADOPTION-HANDOVER.md`.**
+
+**`accept_offer` is the one exception: it stays keychain-based (validate
+via the SDK's `validateCat21BuyOfferPsbt`, then the wallet signs input 0
+with its own keychain + broadcasts). It is deliberately NOT migrated to
+the core's `acceptOffer`, because the SDK's cat21wallet signer signs via
+`window.Cat21Provider` — the dapp-injected provider, which is absent in
+the extension background where `Cat21RpcService` runs. accept-offer has no
+coin selection either, so it gains nothing from the core migration. Do not
+"fix" it by routing it through the core.**
+
+The lower-level builders (`buildCat21MintPsbt`, `buildCat21TransferPsbt`,
+`buildCat21BuyOfferPsbt`), the validator (`validateCat21BuyOfferPsbt`),
+`evaluateAgentPolicy`, and `submitToSlipstream` all still live in the SDK
+and back those orchestrators.
 
 **Imports come from `'ordpool-sdk/core'`, never bare `'ordpool-sdk'`.**
 

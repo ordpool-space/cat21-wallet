@@ -511,6 +511,15 @@ export class Cat21RpcService {
    * validates it against the seller's expected deal (`expectedCatId`,
    * `expectedPriceSats`, `expectedSellerUtxo`), signs input 0 (the
    * seller's cat input) with SIGHASH_ALL, and broadcasts.
+   *
+   * DELIBERATELY NOT migrated to the SDK core's `acceptOffer` (unlike
+   * mint / transfer / buy). The core's `acceptOffer` signs via the SDK's
+   * cat21wallet signer, which calls `window.Cat21Provider` — the
+   * dapp-injected provider, absent in the extension background where this
+   * service runs. accept-offer also has NO coin selection (the buyer
+   * already funded the offer), so it gains nothing from the core's
+   * content-checked selection. It keeps keychain signing here on purpose;
+   * see CLAUDE.md HARD RULE #10.
    */
   async acceptOffer(
     intent: Cat21AcceptOfferIntent,
