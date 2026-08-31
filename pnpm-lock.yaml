@@ -140,7 +140,7 @@ importers:
         version: 8.47.0(eslint@9.34.0(jiti@2.5.1))(typescript@5.9.3)
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
 
   apps/extension:
     dependencies:
@@ -385,8 +385,8 @@ importers:
         specifier: 2.71.1
         version: 2.71.1
       ordpool-sdk:
-        specifier: github:ordpool-space/ordpool-sdk#fd69ee5841ed3b475a005da4029b620cfeb01f2f
-        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/fd69ee5841ed3b475a005da4029b620cfeb01f2f(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
+        specifier: github:ordpool-space/ordpool-sdk#ead49a628311762fc84c118397a8d72b9fe85c2a
+        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/ead49a628311762fc84c118397a8d72b9fe85c2a(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
       os-browserify:
         specifier: 0.3.0
         version: 0.3.0
@@ -1081,7 +1081,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
 
   apps/web:
     dependencies:
@@ -1349,7 +1349,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
 
   packages/bitcoin:
     dependencies:
@@ -2440,7 +2440,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
 
 packages:
 
@@ -16471,8 +16471,8 @@ packages:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
     engines: {node: '>=18'}
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/fd69ee5841ed3b475a005da4029b620cfeb01f2f:
-    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/fd69ee5841ed3b475a005da4029b620cfeb01f2f}
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/ead49a628311762fc84c118397a8d72b9fe85c2a:
+    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/ead49a628311762fc84c118397a8d72b9fe85c2a}
     version: 0.1.0
     peerDependencies:
       '@angular/common': '>=20'
@@ -23554,11 +23554,6 @@ snapshots:
 
   '@dmsnell/diff-match-patch@1.1.0': {}
 
-  '@dnd-kit/accessibility@3.1.1(react@19.1.0)':
-    dependencies:
-      react: 19.1.0
-      tslib: 2.6.2
-
   '@dnd-kit/accessibility@3.1.1(react@19.2.3)':
     dependencies:
       react: 19.2.3
@@ -23566,8 +23561,8 @@ snapshots:
 
   '@dnd-kit/core@6.3.1(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
     dependencies:
-      '@dnd-kit/accessibility': 3.1.1(react@19.1.0)
-      '@dnd-kit/utilities': 3.2.2(react@19.1.0)
+      '@dnd-kit/accessibility': 3.1.1(react@19.2.3)
+      '@dnd-kit/utilities': 3.2.2(react@19.2.3)
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
       tslib: 2.6.2
@@ -30896,7 +30891,7 @@ snapshots:
       std-env: 3.9.0
       test-exclude: 7.0.1
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+      vitest: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -38897,7 +38892,7 @@ snapshots:
       string-width: 7.2.0
       strip-ansi: 7.1.2
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/fd69ee5841ed3b475a005da4029b620cfeb01f2f(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/ead49a628311762fc84c118397a8d72b9fe85c2a(@angular/common@22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1))(@angular/core@22.0.1(rxjs@7.8.1))(@noble/curves@1.8.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
     dependencies:
       '@angular/common': 22.0.1(@angular/core@22.0.1(rxjs@7.8.1))(rxjs@7.8.1)
       '@angular/core': 22.0.1(rxjs@7.8.1)
@@ -43266,7 +43261,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0):
+  vitest@2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(vite@5.4.21(@types/node@24.0.8)(lightningcss@1.30.2)(terser@5.46.0))
