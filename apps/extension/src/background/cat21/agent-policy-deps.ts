@@ -3,6 +3,7 @@ import {
   type AgentActionKind,
   type AgentPolicy,
   type AgentPolicyDecision,
+  CAT21_POSTAGE_SATS,
   evaluateAgentPolicy as sdkEvaluateAgentPolicy,
 } from 'ordpool-sdk/core';
 
@@ -105,11 +106,15 @@ function detectIntentKind(intent: Cat21Intent): AgentActionKind {
  * that's correct-or-low so a policy that allows X never sees Y > X
  * masked by a downstream undercount. The conservative defaults:
  *
- *   - mint: `0` placeholder; the wallet's recordSpend dep tracks the
- *     actual paid amount AFTER broadcast. We're under the daily cap
- *     check; the per-action cap is bypassed by `0` here. Per the
- *     iter 10 design, fee-rate is the meaningful gate for mints.
- *   - transfer: `0` placeholder; same reasoning.
+ *   - mint: `CAT21_POSTAGE_SATS + tip.value` — the fresh cat's postage
+ *     plus the optional tip output. The tip is an arbitrary
+ *     `{address, value}` output, so counting it here is what bounds it
+ *     under the per-action and daily caps (a mint with a large tip to an
+ *     arbitrary address would otherwise be uncapped).
+ *   - transfer: `CAT21_POSTAGE_SATS` — the cat postage that leaves to the
+ *     recipient (the recipient is additionally gated by the counterparty
+ *     allowlist). The cat UTXO's true size is unknown pre-build, so
+ *     postage is the conservative floor.
  *   - create-offer: `priceSats` is what we'd receive, not spend.
  *     Used as `receivePriceSats` for the floor gate.
  *   - accept-offer: caller must populate at the dispatcher layer
@@ -136,6 +141,7 @@ function cat21IntentToAgentContext(
       const mintIntent = intent as Cat21MintIntent;
       return {
         ...base,
+        spendSats: CAT21_POSTAGE_SATS + (mintIntent.tip?.value ?? 0),
         feeRateSatPerVbyte: mintIntent.feeRate,
       };
     }
@@ -143,6 +149,7 @@ function cat21IntentToAgentContext(
       const transferIntent = intent as Cat21TransferIntent;
       return {
         ...base,
+        spendSats: CAT21_POSTAGE_SATS,
         feeRateSatPerVbyte: transferIntent.feeRate,
         counterpartyAddress: transferIntent.recipient,
       };
