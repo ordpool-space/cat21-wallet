@@ -4,7 +4,7 @@ import {
   type AgentPolicy,
   type AgentPolicyDecision,
   CAT21_POSTAGE_SATS,
-  evaluateAgentPolicy as sdkEvaluateAgentPolicy,
+  evaluateAgentPolicyCaps as sdkEvaluateAgentPolicyCaps,
 } from 'ordpool-sdk/core';
 
 import type { RootState } from '@app/store';
@@ -30,9 +30,13 @@ import type {
  *
  *   - `agentMode.enabled`     — read from `selectIsAgentModeEnabledForAccount`
  *   - `evaluateAgentPolicy()` — translates a `Cat21Intent` into the
- *                               SDK's `AgentActionContext`, reads
- *                               policy + spentToday from the store, and
- *                               calls the SDK's pure-function evaluator
+ *                               SDK's `AgentActionContext` and enforces the
+ *                               per-account CAPS (via the SDK's
+ *                               `evaluateAgentPolicyCaps`). Caps only, no
+ *                               `enabled` gate: a configured cap binds BOTH
+ *                               manual and autonomous flows. The resolver's
+ *                               `agentMode.enabled` guard is what gates
+ *                               silent-sign, not this.
  *   - `recordSpend(sats)`     — dispatches `incrementSpentToday`
  *
  * Wiring this together with the keychain / sign / broadcast deps is the
@@ -76,7 +80,8 @@ interface AgentPolicyDepsArgs {
 interface AgentPolicyDeps {
   agentMode: { enabled: boolean };
   evaluateAgentPolicy(
-    intent: Cat21Intent
+    intent: Cat21Intent,
+    spendSatsOverride?: number
   ): { allowed: true } | { allowed: false; reason: string; detail?: string };
   recordSpend(sats: number): void;
 }
@@ -111,23 +116,29 @@ function detectIntentKind(intent: Cat21Intent): AgentActionKind {
  *     `{address, value}` output, so counting it here is what bounds it
  *     under the per-action and daily caps (a mint with a large tip to an
  *     arbitrary address would otherwise be uncapped).
- *   - transfer: `CAT21_POSTAGE_SATS` — the cat postage that leaves to the
- *     recipient (the recipient is additionally gated by the counterparty
- *     allowlist). The cat UTXO's true size is unknown pre-build, so
- *     postage is the conservative floor.
+ *   - transfer: the real outflow is the WHOLE cat UTXO value (it all moves
+ *     to the recipient), which the intent does not carry. The caller
+ *     resolves it and passes `spendSatsOverride`; this branch REQUIRES it
+ *     and fails closed if it's absent, so the spend cap can never be
+ *     undercounted by a placeholder (a low count is permissive, not
+ *     conservative). The recipient is also gated by the counterparty
+ *     allowlist.
  *   - create-offer: `priceSats` is what we'd receive, not spend.
  *     Used as `receivePriceSats` for the floor gate.
- *   - accept-offer: caller must populate at the dispatcher layer
- *     because the price is in the inbound PSBT bytes; placeholder `0`
- *     for now.
+ *   - accept-offer: `receivePriceSats` = the seller's declared
+ *     `expectedPriceSats`, checked against the floor. The inbound PSBT is
+ *     separately validated to pay at least that, so the floor binds the
+ *     real proceeds. No spend (the seller receives, not pays).
  *
- * A future refactor can move the precise spend numbers out of the
- * adapter and into the SDK; for now the gate is "good enough" for the
- * fee-rate and counterparty-allowlist branches.
+ * `spendSatsOverride`, when provided, REPLACES the derived `spendSats`. It
+ * exists for the one kind whose spend is resolution-derived rather than
+ * intent-derived (transfer): the caller supplies the resolved cat UTXO
+ * value so the amount caps see the real outflow.
  */
 function cat21IntentToAgentContext(
   intent: Cat21Intent,
-  spentTodaySats: number
+  spentTodaySats: number,
+  spendSatsOverride?: number
 ): AgentActionContext {
   const kind = detectIntentKind(intent);
   const base: AgentActionContext = {
@@ -147,9 +158,18 @@ function cat21IntentToAgentContext(
     }
     case 'cat21_transfer': {
       const transferIntent = intent as Cat21TransferIntent;
+      if (spendSatsOverride === undefined) {
+        // A transfer's real spend is the whole cat UTXO value, resolved from
+        // cat21-ord, not present in the intent. The caller MUST supply it; a
+        // missing override would let the spend cap see a placeholder and
+        // undercount, so fail closed rather than guess.
+        throw new Error(
+          'cat21_transfer requires spendSatsOverride (the resolved cat UTXO value) for the cap gate'
+        );
+      }
       return {
         ...base,
-        spendSats: CAT21_POSTAGE_SATS,
+        spendSats: spendSatsOverride,
         feeRateSatPerVbyte: transferIntent.feeRate,
         counterpartyAddress: transferIntent.recipient,
       };
@@ -162,17 +182,16 @@ function cat21IntentToAgentContext(
       };
     }
     case 'cat21_accept_offer': {
-      // accept-offer's price + feeRate are inside the PSBT bytes the
-      // SDK validator parses later. We submit a stub here; the rpc
-      // service can override at a higher layer once it has decoded
-      // the PSBT. For now this means accept-offer in autonomous mode
-      // is effectively gated only by enabled-flag + counterparty.
+      // The seller RECEIVES BTC (no spend). The floor gate checks the
+      // seller's declared expectedPriceSats; the inbound PSBT is separately
+      // validated (validateBuyOfferPsbt) to pay at least that, so the floor
+      // binds the real proceeds. The buyer's address lives in the PSBT and
+      // isn't known here, so no counterparty is set (an allowlist therefore
+      // fails closed for accept, by design).
       const acceptIntent = intent as Cat21AcceptOfferIntent;
       return {
         ...base,
-        receivePriceSats: 0,
-        // The buyer address lives in the PSBT; not available here.
-        counterpartyAddress: acceptIntent.expectedCatId ? undefined : undefined,
+        receivePriceSats: acceptIntent.expectedPriceSats,
       };
     }
     case 'cat21_buy': {
@@ -205,12 +224,14 @@ function cat21IntentToAgentContext(
  * Build the three agent-policy deps that read/write the slice. The
  * factory is "live" — each call to `evaluateAgentPolicy` reads the
  * latest store state, so a policy change in the settings UI is picked
- * up by the next autonomous action without dispatcher reconstruction.
+ * up by the next action without dispatcher reconstruction.
  *
  * If the account has no policy stored (the first-run wizard hasn't
- * been completed), `evaluateAgentPolicy` returns
- * `{ allowed: false, reason: 'agent-disabled' }` — agent mode is OFF
- * by default for any new account.
+ * been completed), there are no caps to enforce, so `evaluateAgentPolicy`
+ * returns `{ allowed: true }`. That does NOT open an autonomous hole: the
+ * mode resolver's `agentMode.enabled` guard is false without a policy, so
+ * an autonomous request is still rejected `agent-disabled`; a manual
+ * request proceeds to the human-confirm dialog.
  */
 export function makeAgentPolicyDeps(args: AgentPolicyDepsArgs): AgentPolicyDeps {
   const { getState, dispatch, accountId, dayKeyFn } = args;
@@ -222,17 +243,27 @@ export function makeAgentPolicyDeps(args: AgentPolicyDepsArgs): AgentPolicyDeps 
       },
     },
     evaluateAgentPolicy(
-      intent: Cat21Intent
+      intent: Cat21Intent,
+      spendSatsOverride?: number
     ): { allowed: true } | { allowed: false; reason: string; detail?: string } {
       const state = getState();
       const policy: AgentPolicy | undefined = selectAgentPolicyForAccount(state, accountId);
+      // No policy configured → no caps to enforce, so nothing to deny here.
+      // A manual action proceeds to the human-confirm dialog; an AUTONOMOUS
+      // action is still blocked by the mode resolver's `agentMode.enabled`
+      // guard (false when no policy exists).
       if (!policy) {
-        return { allowed: false, reason: 'agent-disabled' };
+        return { allowed: true };
       }
       const dayKey = dayKeyFn();
       const spentToday = selectSpentTodayForAccount(state, accountId, dayKey);
-      const context = cat21IntentToAgentContext(intent, spentToday);
-      const decision: AgentPolicyDecision = sdkEvaluateAgentPolicy(policy, context);
+      const context = cat21IntentToAgentContext(intent, spentToday, spendSatsOverride);
+      // Caps ONLY (no `enabled` gate): a configured cap binds BOTH manual and
+      // autonomous flows, with no override. `enabled` decides silent-sign in
+      // the mode resolver, never whether the caps apply — so an account that
+      // kept its caps but turned agent mode off still has them enforced on a
+      // manual action.
+      const decision: AgentPolicyDecision = sdkEvaluateAgentPolicyCaps(policy, context);
       return decision;
     },
     recordSpend(sats: number): void {

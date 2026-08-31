@@ -698,13 +698,22 @@ convention, reads identically in JS).
    `allowed_origins` entry pinning our extension ID, one policy
    slot. Per-agent policies are punted to a future ADR.
 
-6. **Caps apply to BOTH modes**. Policy gates Path 2 manual flows
-   the same way it gates Path 3 autonomous flows. Mistakes happen
-   fast; the cap is a backstop against a misclicked zero or a
-   pasted-wrong address. Manual mode adds a user prompt; it does
-   not skip the cap. (Override path TBD — likely password re-entry
-   for breaking a per-action cap on purpose, never for the daily
-   cap.)
+6. **Caps apply to BOTH modes, with NO override.** Policy gates Path 2
+   manual flows the same way it gates Path 3 autonomous flows. Mistakes
+   happen fast; the cap is a backstop against a misclicked zero or a
+   pasted-wrong address. Manual mode adds a user prompt; it does not
+   skip the cap. **There is no override mechanism of any kind: to raise
+   a cap you change the policy value, never bypass it.** The cap gate
+   (`evaluateAgentPolicyCaps` from ordpool-sdk, run inside
+   `resolveSigningMode` BEFORE the manual/autonomous split) is reached
+   on every action in both modes; `enabled` gates only silent-sign,
+   never the caps, so a policy with `enabled: false` but caps set still
+   has its caps enforced on a manual action. An account with no policy
+   has no caps configured (nothing to enforce, and autonomous is still
+   blocked by `agentMode.enabled`), but a configured cap is absolute.
+   The wallet dep `evaluateAgentPolicy` (in `agent-policy-deps.ts`)
+   wires the caps-only SDK function; the SDK's own `evaluateAgentPolicy`
+   keeps the `enabled`-then-caps behaviour for other consumers.
 
 7. **Network endpoints**: prefer our own infrastructure; Leather's
    public endpoints (`api.leather.io`, `api.hiro.so`) will not

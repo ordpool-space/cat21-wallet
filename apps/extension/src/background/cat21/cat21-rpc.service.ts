@@ -124,8 +124,15 @@ export interface BroadcastResult {
 export interface Cat21RpcDeps {
   getAccountContext(): Cat21AccountContext;
   agentMode: AgentModeFlag;
+  /**
+   * The per-account cap gate. `spendSatsOverride` supplies a
+   * resolution-derived spend the intent doesn't carry (today only
+   * `cat21_transfer`, which passes the resolved cat UTXO value) so the
+   * amount caps bind the real outflow, not a placeholder.
+   */
   evaluateAgentPolicy(
-    intent: Cat21Intent
+    intent: Cat21Intent,
+    spendSatsOverride?: number
   ): { allowed: true } | { allowed: false; reason: string; detail?: string };
   /**
    * The account's spendable funding UTXOs (the `available` bucket, not
@@ -414,7 +421,19 @@ export class Cat21RpcService {
    * core signs `'all'` (every input is wallet-owned).
    */
   async transfer(intent: Cat21TransferIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
-    const opened = this.openPipeline({ kind: 'transfer', intent }, transport);
+    // Resolve the cat UTXO up front (synchronous, cached): its value is the
+    // transfer's real outflow (the whole UTXO moves to the recipient), and
+    // the cap gate inside openPipeline must see it. The intent alone doesn't
+    // carry it, so we feed it as the spend override; without it the amount
+    // caps would undercount a large-value cat.
+    let catUtxo: TransferUtxo;
+    try {
+      catUtxo = this.deps.resolveCatUtxo(intent.catId);
+    } catch (err) {
+      return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
+    }
+
+    const opened = this.openPipeline({ kind: 'transfer', intent }, transport, catUtxo.value);
     if ('result' in opened) return opened.result;
     const { mode, accountCtx } = opened;
 
@@ -426,13 +445,6 @@ export class Cat21RpcService {
     }
     if (!ordinalsPublicKey || !ordinalsAddress) {
       return denied('intent-invariant-violated', 'no-ordinals-key');
-    }
-
-    let catUtxo: TransferUtxo;
-    try {
-      catUtxo = this.deps.resolveCatUtxo(intent.catId);
-    } catch (err) {
-      return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
     // The SDK core derives the cat's input-0 script from ordinalsAddress
@@ -724,14 +736,18 @@ export class Cat21RpcService {
 
   /**
    * Pipeline preamble: run the SDK gate, then resolve the signing
-   * mode. Returns either the early-return result (rejection) or the
-   * resolved `{ mode, accountCtx, resources }` for the per-method body
-   * to consume. The `resources` field is narrowed to the kind passed
-   * in so consumers don't cast.
+   * mode (which also enforces the per-account caps, both modes).
+   * Returns either the early-return result (rejection) or the resolved
+   * `{ mode, accountCtx, resources }` for the per-method body to consume.
+   * The `resources` field is narrowed to the kind passed in so consumers
+   * don't cast. `spendSatsOverride` is forwarded to the cap gate for kinds
+   * whose spend isn't intent-derived (transfer passes the resolved cat
+   * UTXO value so the amount caps see the real outflow).
    */
   private openPipeline<K extends Cat21OperationKind>(
     operation: Cat21OperationOfKind<K>,
-    transport: Cat21Transport
+    transport: Cat21Transport,
+    spendSatsOverride?: number
   ):
     | { result: Cat21RpcResult }
     | {
@@ -749,6 +765,7 @@ export class Cat21RpcService {
       mode = resolveSigningMode({
         intent: operation.intent,
         transport,
+        spendSatsOverride,
         agentMode: this.deps.agentMode,
         evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
       });

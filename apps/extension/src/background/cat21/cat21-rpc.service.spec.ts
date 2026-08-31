@@ -198,6 +198,32 @@ describe('Cat21RpcService.mint', () => {
     });
   });
 
+  describe('caps bind manual mode too (no cap-free manual path)', () => {
+    it('denies a MANUAL mint when a cap is exceeded, before any signing', async () => {
+      // "A cap is a cap": a human-confirmed manual mint that trips a
+      // configured cap is denied exactly like an autonomous one. agent mode
+      // is OFF here, proving the caps do not depend on enabled.
+      deps = makeDeps({
+        agentMode: { enabled: false },
+        evaluateAgentPolicy: vi.fn(() => ({
+          allowed: false as const,
+          reason: 'spend-above-action-cap',
+          detail: '546 > 100',
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup'); // manual (mode omitted)
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('policy-denied');
+        expect(result.value.detail).toContain('spend-above-action-cap');
+      }
+      // The cap fired before the signer / broadcaster were reached.
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+      expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+  });
+
   describe('autonomous rejections surface as typed RPC denials (no downgrade)', () => {
     it('returns "transport-not-trusted-for-autonomous" when caller declared autonomous from popup', async () => {
       const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'popup');
@@ -464,6 +490,33 @@ describe('Cat21RpcService.transfer', () => {
     });
   });
 
+  describe('transfer spend cap uses the real cat UTXO value', () => {
+    it('feeds the resolved cat UTXO value to the cap gate (not a 546 placeholder)', async () => {
+      // "A cap is a cap": a transfer of a cat that sits on a large UTXO must
+      // be capped on its REAL outflow. The method resolves the cat UTXO and
+      // passes its value as the spend override; the gate sees 1_000_000, not
+      // 546. Manual mode (popup), proving the cap binds the manual path too.
+      const bigCat = { ...defaultCatUtxo(), value: 1_000_000 };
+      const evaluateAgentPolicy = vi.fn((_intent: unknown, spendSatsOverride?: number) =>
+        spendSatsOverride !== undefined && spendSatsOverride > 100_000
+          ? {
+              allowed: false as const,
+              reason: 'spend-above-action-cap',
+              detail: `${spendSatsOverride} > 100000`,
+            }
+          : { allowed: true as const }
+      );
+      deps = makeDeps({ resolveCatUtxo: vi.fn(() => bigCat), evaluateAgentPolicy });
+      service = new Cat21RpcService(deps);
+      const result = await service.transfer(makeTransferIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.reason).toBe('policy-denied');
+      // The gate was called with the resolved cat value, not a placeholder.
+      expect(evaluateAgentPolicy).toHaveBeenCalledWith(expect.anything(), 1_000_000);
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+    });
+  });
+
   describe('intent-invariant violations bubble up as typed denials', () => {
     it('returns "intent-invariant-violated" on malformed catId', async () => {
       const result = await service.transfer(makeTransferIntent({ catId: 'not-a-cat-id' }), 'popup');
@@ -570,10 +623,15 @@ describe('Cat21RpcService.transfer', () => {
       expect(deps.evaluateAgentPolicy).not.toHaveBeenCalled();
     });
 
-    it('resolves mode BEFORE resolving the cat UTXO', async () => {
-      // Autonomous rejection on popup transport must skip cat UTXO resolution.
+    it('resolves the cat UTXO up front to feed its value to the cap gate', async () => {
+      // Transfer resolves the cat UTXO BEFORE mode resolution because its
+      // value IS the transfer's real spend, and the cap gate (which runs
+      // before the transport/enabled checks) must see it. So on an
+      // autonomous-over-popup rejection the cat lookup has already happened.
+      // resolveCatUtxo is a cheap cached read; capping the real outflow
+      // outweighs skipping it on the reject path.
       await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'popup');
-      expect(deps.resolveCatUtxo).not.toHaveBeenCalled();
+      expect(deps.resolveCatUtxo).toHaveBeenCalled();
     });
   });
 

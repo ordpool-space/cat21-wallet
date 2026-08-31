@@ -26,7 +26,14 @@ export interface AgentModeFlag {
 }
 
 /**
- * Reasons the resolver can reject an `'autonomous'` request.
+ * Reasons the resolver can reject a request.
+ *
+ *   - `policy-denied`: a per-account CAP was exceeded. Fires in BOTH
+ *     modes; caps bind a manual (human-confirmed) action exactly as an
+ *     autonomous one, with no override.
+ *   - `transport-not-trusted-for-autonomous` / `agent-disabled`: only an
+ *     `'autonomous'` request can hit these; they gate silent-sign, not the
+ *     caps.
  *
  * Note the absence of a "downgrade to manual" branch. If the caller
  * said `'autonomous'`, the caller meant it; silently returning
@@ -52,40 +59,67 @@ export class ModeResolverError extends Error {
 }
 
 /**
- * Decides what signing mode applies to a Cat21 RPC call. The truth
- * table (per CLAUDE.md HARD RULE #8 + Cat21 RPC architecture decision #6):
+ * Decides what signing mode applies to a Cat21 RPC call AND enforces the
+ * per-account policy CAPS on the way (per CLAUDE.md HARD RULE #8 + Cat21
+ * RPC architecture decision #6). The truth table:
+ *
+ *   ALWAYS, both modes:
+ *     0. evaluateAgentPolicy(intent) → allowed   (the per-account caps)
+ *        A configured cap binds every action, manual or autonomous. There
+ *        is NO override: to raise a cap you change the policy value, you
+ *        never bypass it. A cap failure throws policy-denied.
  *
  *   declared = undefined     →  return 'manual'
  *   declared = 'manual'      →  return 'manual'
- *   declared = 'autonomous'  →  check four conditions:
+ *   declared = 'autonomous'  →  additionally require:
  *     1. transport === 'mcp-nmh'
  *     2. agentMode.enabled === true
- *     3. evaluateAgentPolicy(intent) → allowed
- *     If all three pass     →  return 'autonomous'
- *     If any one fails      →  throw ModeResolverError(typed rejection)
+ *     If both pass          →  return 'autonomous'
+ *     If either fails       →  throw ModeResolverError(typed rejection)
  *
- * There is no downgrade path. A caller that requested `'autonomous'`
- * but failed a guard gets a typed error and must explicitly re-call
- * with `mode: 'manual'` to take the popup-confirm path. This makes
- * mode resolution observable and prevents two distinct failure
- * modes from being silently equivalenced.
+ * `agentMode.enabled` gates only silent-sign, so it is NOT consulted for a
+ * manual call. The caps (step 0) ARE. There is no downgrade path: a caller
+ * that requested `'autonomous'` but failed guard 1 or 2 gets a typed error
+ * and must explicitly re-call with `mode: 'manual'` to take the popup-
+ * confirm path (where the same caps still apply).
  *
- * Implementation lands in the iteration-2 commit. The spec at
- * `mode-resolver.spec.ts` pins every branch of the truth table.
+ * The spec at `mode-resolver.spec.ts` pins every branch of the truth table.
  */
 export function resolveSigningMode(args: {
   intent: Cat21Intent;
   transport: Cat21Transport;
   agentMode: AgentModeFlag;
   /**
-   * Callback into the SDK's `evaluateAgentPolicy`. Passed in (rather
-   * than imported here) so the resolver stays SDK-version-agnostic
-   * and the spec can stub the policy without spinning up a real SDK.
+   * Resolution-derived spend for the cap gate, when the intent alone
+   * doesn't carry it. Today only `cat21_transfer` supplies it (the whole
+   * cat UTXO value, resolved from cat21-ord); the cap gate uses it as the
+   * action's `spendSats` so the amount caps see the real outflow instead of
+   * a placeholder. Omitted for every other kind (their spend is
+   * intent-derived).
+   */
+  spendSatsOverride?: number;
+  /**
+   * Callback into the per-account cap gate (the wallet wires it to the
+   * SDK's `evaluateAgentPolicyCaps` over the stored policy). Passed in
+   * (rather than imported here) so the resolver stays SDK-version-agnostic
+   * and the spec can stub the policy without spinning up a real SDK. It
+   * enforces the CAPS only; the `enabled` flag is handled by `agentMode`
+   * above, so this callback binds both manual and autonomous flows.
    */
   evaluateAgentPolicy(
-    intent: Cat21Intent
+    intent: Cat21Intent,
+    spendSatsOverride?: number
   ): { allowed: true } | { allowed: false; reason: string; detail?: string };
 }): 'autonomous' | 'manual' {
+  // Caps bind BOTH modes. Enforce before the manual/autonomous split so a
+  // misclicked amount or a pasted-wrong counterparty is caught even on a
+  // human-confirmed manual action. No override: changing a cap means
+  // changing the policy value, never a bypass here.
+  const decision = args.evaluateAgentPolicy(args.intent, args.spendSatsOverride);
+  if (!decision.allowed) {
+    throw new ModeResolverError('policy-denied', describePolicyDenial(decision));
+  }
+
   if (args.intent.mode !== 'autonomous') {
     return 'manual';
   }
@@ -99,11 +133,6 @@ export function resolveSigningMode(args: {
 
   if (!args.agentMode.enabled) {
     throw new ModeResolverError('agent-disabled');
-  }
-
-  const decision = args.evaluateAgentPolicy(args.intent);
-  if (!decision.allowed) {
-    throw new ModeResolverError('policy-denied', describePolicyDenial(decision));
   }
 
   return 'autonomous';

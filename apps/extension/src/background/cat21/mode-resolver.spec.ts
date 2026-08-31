@@ -42,29 +42,73 @@ describe('resolveSigningMode', () => {
     });
 
     it('does not consult agentMode.enabled when declared !== "autonomous"', () => {
-      // The resolver short-circuits when the caller didn't request autonomous.
-      // If a future refactor consults agentMode for non-autonomous, this stub
-      // throws and the test surfaces it loudly.
+      // Manual short-circuits before the autonomous-only enabled gate. A
+      // throwing getter surfaces any future refactor that reads enabled for a
+      // non-autonomous call. (The caps ARE consulted for manual: see the next
+      // test, so evaluateAgentPolicy is a plain allow stub here.)
+      const agentMode = {
+        get enabled(): boolean {
+          throw new Error('agentMode.enabled must NOT be read for a non-autonomous call');
+        },
+      };
       const mode = resolveSigningMode({
         intent: mintIntent({ mode: 'manual' }),
         transport: 'mcp-nmh',
-        agentMode: { enabled: true },
-        evaluateAgentPolicy: () => {
-          throw new Error('evaluateAgentPolicy must NOT be called for non-autonomous');
-        },
+        agentMode,
+        evaluateAgentPolicy: policyAllow,
       });
       expect(mode).toBe('manual');
     });
 
-    it('does not consult evaluateAgentPolicy when declared !== "autonomous"', () => {
+    it('DOES consult evaluateAgentPolicy (the caps) for a manual call', () => {
+      // Caps bind BOTH modes; manual is not a cap-free path. The resolver
+      // must run the cap gate even when the caller did not request autonomous.
       const spy = vi.fn(policyAllow);
-      resolveSigningMode({
+      const mode = resolveSigningMode({
         intent: mintIntent(),
         transport: 'mcp-nmh',
         agentMode: { enabled: true },
         evaluateAgentPolicy: spy,
       });
-      expect(spy).not.toHaveBeenCalled();
+      expect(mode).toBe('manual');
+      expect(spy).toHaveBeenCalledTimes(1);
+      // (intent, spendSatsOverride) — override is undefined for a mint.
+      expect(spy).toHaveBeenCalledWith(expect.objectContaining({ feeRate: 5 }), undefined);
+    });
+  });
+
+  describe('caps bind both modes (no override, no cap-free manual path)', () => {
+    it('throws policy-denied for a MANUAL call that exceeds a cap', () => {
+      // The core of "a cap is a cap": a manual (human-confirmed) action that
+      // trips a configured cap is denied exactly like an autonomous one.
+      // agent mode is OFF here, proving the caps do not depend on enabled.
+      try {
+        resolveSigningMode({
+          intent: mintIntent({ mode: 'manual' }),
+          transport: 'popup',
+          agentMode: { enabled: false },
+          evaluateAgentPolicy: () => policyDeny('spend-above-action-cap', '999 > 10'),
+        });
+        throw new Error('did not throw');
+      } catch (err) {
+        expect(err).toBeInstanceOf(ModeResolverError);
+        expect((err as ModeResolverError).rejection).toBe('policy-denied');
+        expect((err as ModeResolverError).detail).toBe('spend-above-action-cap: 999 > 10');
+      }
+    });
+
+    it('throws policy-denied for an omitted-mode (defaults to manual) call that exceeds a cap', () => {
+      try {
+        resolveSigningMode({
+          intent: mintIntent(), // no mode → manual
+          transport: 'popup',
+          agentMode: { enabled: false },
+          evaluateAgentPolicy: () => policyDeny('fee-rate-above-ceiling', '900 > 50'),
+        });
+        throw new Error('did not throw');
+      } catch (err) {
+        expect((err as ModeResolverError).rejection).toBe('policy-denied');
+      }
     });
   });
 

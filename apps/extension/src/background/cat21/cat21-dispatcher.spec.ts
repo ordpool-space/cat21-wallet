@@ -128,8 +128,11 @@ describe('Cat21Dispatcher', () => {
     );
     expect(reply.result.ok).toBe(false);
     if (!reply.result.ok) {
-      // wiring-pending agentMode.enabled=false → 'agent-disabled' denial.
-      expect(reply.result.value.reason).toBe('agent-disabled');
+      // The wiring-pending stub's evaluateAgentPolicy is fail-closed
+      // (allowed:false). Caps run BEFORE the manual/autonomous split, so the
+      // rejection surfaces as 'policy-denied' (the cap gate), ahead of the
+      // agentMode.enabled=false check.
+      expect(reply.result.value.reason).toBe('policy-denied');
     }
   });
 });
