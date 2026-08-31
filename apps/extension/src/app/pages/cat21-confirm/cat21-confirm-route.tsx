@@ -190,6 +190,14 @@ export function Cat21ConfirmRoute() {
   useEffect(() => {
     if (urlRequest.status !== 'ready') return;
     if (urlRequest.transport !== 'mcp-nmh') return;
+    // Only an explicit `mode: 'autonomous'` request may auto-sign without a
+    // human click. `mode` omitted (or `'manual'`) resolves to manual, which
+    // `resolveSigningMode` returns WITHOUT consulting `evaluateAgentPolicy`
+    // or the `agentMode.enabled` switch — so auto-confirming it would let an
+    // NMH agent move cats/funds silently (even with agent-mode off) by simply
+    // omitting `mode`. Manual/omitted-mode NMH requests fall through to the
+    // human-confirm dialog below (the standard Path-2 approve/reject path).
+    if (urlRequest.intent.mode !== 'autonomous') return;
     if (autoConfirmedRef.current) return;
     // Audit H1 — locked-wallet gate. Refuse the autoconfirm before
     // any service call (and therefore before any keychain access)
