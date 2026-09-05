@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'react-router';
 
 import type { Cat21Transport } from '@background/cat21/mode-resolver';
@@ -81,11 +81,19 @@ function defaultStorage(): SessionStorageLike {
  * patch the global `chrome` object.
  */
 export function useCat21RequestFromUrl(
-  storage: SessionStorageLike = defaultStorage()
+  storageOverride?: SessionStorageLike
 ): Cat21RequestFromUrlState {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const requestId = params.get('cat21RequestId');
+
+  // `defaultStorage()` builds a fresh object; as an inline default param it
+  // was a NEW reference every render, so the effect below (dep: [requestId,
+  // storage]) re-fired on every render and its setState spun into an infinite
+  // render loop (React "Maximum update depth exceeded") whenever a
+  // `cat21RequestId` was present (the Path-3 / NMH auto-confirm path).
+  // Memoize so the storage reference is stable across renders.
+  const storage = useMemo(() => storageOverride ?? defaultStorage(), [storageOverride]);
 
   const [state, setState] = useState<Cat21RequestFromUrlState>(
     requestId ? { status: 'loading', requestId } : { status: 'idle' }
