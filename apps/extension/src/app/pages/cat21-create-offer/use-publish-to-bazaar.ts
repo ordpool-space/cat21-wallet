@@ -33,6 +33,21 @@ import { publishCat21Listing } from '@app/common/cat21-bazaar/cat21-bazaar-clien
 import { Cat21BazaarPublishState } from '@app/common/cat21-bazaar/cat21-bazaar.types';
 import { clearCat21Session, getOrCreateCat21Session } from '@app/common/cat21-bazaar/cat21-session';
 import { useCat21SessionSigner } from '@app/common/cat21-bazaar/use-cat21-session-signer';
+import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
+
+/**
+ * Map the wallet's active bitcoin network mode to the listing's network tag,
+ * which the backend validates against its deployment. Production is 'mainnet'
+ * (ADR-7); the E2E chain-truth suite drives 'regtest' against a real regtest
+ * Bazaar backend. Non-mainnet, non-regtest modes collapse to 'testnet3'.
+ */
+function toListingNetwork(
+  mode: string
+): 'mainnet' | 'testnet3' | 'testnet4' | 'signet' | 'regtest' {
+  if (mode === 'mainnet') return 'mainnet';
+  if (mode === 'regtest') return 'regtest';
+  return 'testnet3';
+}
 
 interface PublishToBazaarArgs {
   /** Inscription id of the headline cat (from the confirmed intent). */
@@ -55,6 +70,7 @@ export function usePublishToBazaar(): UsePublishToBazaarResult {
   const runningRef = useRef(false);
 
   const { ordinalsAddress, signBip322 } = useCat21SessionSigner();
+  const network = useCurrentNetwork();
 
   function publish(args: PublishToBazaarArgs) {
     if (runningRef.current) return;
@@ -82,6 +98,7 @@ export function usePublishToBazaar(): UsePublishToBazaarResult {
           ordinalsAddress,
           catTxid: args.sellerUtxo.txid,
           catVout: args.sellerUtxo.vout,
+          network: toListingNetwork(network.chain.bitcoin.mode),
         });
 
         // ─── session token (cached 24 h; signs on first sale only) ───

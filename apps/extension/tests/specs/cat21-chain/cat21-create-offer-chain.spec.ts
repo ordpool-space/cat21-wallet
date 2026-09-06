@@ -9,6 +9,7 @@ import {
   readReceiveAddress,
   switchToRegtestNetwork,
   waitElectrsSynced,
+  waitForBackendListing,
 } from './regtest-harness';
 
 const PRICE_SATS = 50_000;
@@ -23,14 +24,19 @@ const PRICE_SATS = 50_000;
  * cat21-ord, builds the listing, signs a real BIP-322 session with its taproot
  * keychain, and POSTs the listing. We prove:
  *
- *   1. OWNERSHIP TRUTH — the published listing's catTxid/catVout are the cat's
- *      real on-chain UTXO (resolved from cat21-ord, not guessed).
- *   2. INTENT TRUTH    — askSats / payTo / ordinalsAddress in the POSTed body
- *      match exactly what the user typed and the wallet's own addresses.
+ *   1. OWNERSHIP TRUTH — the persisted listing's catTxid/catVout are the cat's
+ *      real on-chain UTXO (the backend cross-checked ownership against the
+ *      local cat21-ord before storing it).
+ *   2. INTENT TRUTH    — askSats / payTo / ordinalsAddress / network read back
+ *      from the backend match what the user typed and the wallet's addresses.
  *
- * The Bazaar backend (backend2.cat21.space) is not part of the regtest stack,
- * so its POST is stubbed to succeed and its body captured; the BIP-322 auth
- * the wallet signs first is real. Prereqs/run: see cat21-mint-chain.spec.ts.
+ * NO STUB: backend2.cat21.space is forwarded to the REAL cat21-indexer backend
+ * running locally against regtest (BACKEND_NETWORK=regtest, ORD_API_URL -> the
+ * local cat21-ord, MariaDB). The backend verifies the wallet's real BIP-322
+ * session, cross-checks cat ownership against cat21-ord, and persists the
+ * listing; the test reads it back from the backend's own API. Prereqs: bring up
+ * the regtest stack AND the backend (see cat21-mint-chain.spec.ts + the harness
+ * header). Run: see cat21-mint-chain.spec.ts.
  */
 test.describe('CAT-21 create offer (regtest chain truth)', () => {
   test('lists a real owned cat: publishes the correct listing to the Bazaar', async ({
@@ -92,27 +98,23 @@ test.describe('CAT-21 create offer (regtest chain truth)', () => {
       )
       .toBe('done');
 
-    // The wallet published exactly one listing; assert its contents.
+    // The wallet POSTed to the REAL backend. Read the persisted listing back
+    // from the backend's database (not the request we sent) to prove it landed.
     const listingPost = capture.bazaarPosts.find(p => p.path === '/api/v1/listings');
-    if (!listingPost) throw new Error('no listing was POSTed to the Bazaar');
-    const body = JSON.parse(listingPost.body) as {
-      askSats: number;
-      payTo: string;
-      catTxid: string;
-      catVout: number;
-      ordinalsAddress: string;
-      catNumber: number;
-      cats: number[];
-    };
+    if (!listingPost) throw new Error('no listing was POSTed to the Bazaar backend');
+    const catNumber = (JSON.parse(listingPost.body) as { catNumber: number }).catNumber;
 
+    const listing = await waitForBackendListing(catNumber);
+    // The backend independently verified the BIP-322 session AND cross-checked
+    // cat ownership against the local cat21-ord before persisting; these assert
+    // exactly what it stored.
     // INTENT TRUTH: price + payout + owner match what the user typed.
-    expect(body.askSats).toBe(PRICE_SATS);
-    expect(body.payTo).toBe(paymentAddress);
-    expect(body.ordinalsAddress).toBe(ordinalsAddress);
-    // OWNERSHIP TRUTH: the listing points at the cat's real on-chain UTXO.
-    expect(body.catTxid).toBe(catMintTxid);
-    expect(body.catVout).toBe(0);
-    expect(Number.isInteger(body.catNumber)).toBeTruthy();
-    expect(body.cats).toContain(body.catNumber);
+    expect(listing.network).toBe('regtest');
+    expect(listing.askSats).toBe(PRICE_SATS);
+    expect(listing.payTo).toBe(paymentAddress);
+    expect(listing.ordinalsAddress).toBe(ordinalsAddress);
+    // OWNERSHIP TRUTH: the persisted listing points at the cat's real on-chain UTXO.
+    expect(listing.catTxid).toBe(catMintTxid);
+    expect(listing.catVout).toBe(0);
   });
 });

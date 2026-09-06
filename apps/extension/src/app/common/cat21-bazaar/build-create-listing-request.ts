@@ -27,13 +27,21 @@ interface BuildCreateListingRequestArgs {
   /** Cat UTXO outpoint parts (from the headline cat's satpoint). */
   catTxid: string;
   catVout: number;
+  /**
+   * Network tag the backend validates against its own deployment
+   * (`network-mismatch` otherwise). 'mainnet' in production (the wallet is
+   * mainnet-only, ADR-7); the E2E chain-truth suite drives 'regtest' against
+   * a real regtest Bazaar backend.
+   */
+  network: 'mainnet' | 'testnet3' | 'testnet4' | 'signet' | 'regtest';
 }
 
 /**
  * Throws on structurally invalid input (headline not in bundle,
  * non-positive ask, malformed txid) — these are programmer errors
  * at the call site, not user-input errors (the form validates ask
- * before this runs). Network is pinned 'mainnet' per ADR-7.
+ * before this runs). The network tag comes from the caller (the wallet's
+ * active network); production is always 'mainnet' per ADR-7.
  *
  * catNumber 0 is valid — the Genesis Cat is a real, owned UTXO and
  * per the workspace HARD RULE its one canonical listing must be
@@ -71,7 +79,7 @@ export function buildCreateListingRequest(
   return {
     catNumber: args.catNumber,
     cats,
-    network: 'mainnet',
+    network: args.network,
     askSats: args.askSats,
     payTo: args.paymentAddress,
     catTxid: args.catTxid,

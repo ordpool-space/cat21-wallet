@@ -36,6 +36,12 @@ const BITCOIND_CONTAINER = 'ordpool-e2e-bitcoind';
 const MINER_WALLET = 'e2e-miner';
 const ELECTRS_BASE = 'http://localhost:3000';
 const CAT21_ORD_BASE = 'http://localhost:8080';
+/**
+ * The REAL CAT-21 Bazaar backend (cat21-indexer) running locally against the
+ * regtest chain (BACKEND_NETWORK=regtest, ORD_API_URL -> local cat21-ord,
+ * MariaDB). The create-offer flow publishes a real listing here — no stub.
+ */
+const BAZAAR_BACKEND_BASE = 'http://127.0.0.1:3333';
 
 /**
  * Built-in sBTC-devenv network id (WalletDefaultNetworkConfigurationIds.sbtcDevenv).
@@ -300,6 +306,47 @@ export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+export interface BackendListing {
+  catNumber: number;
+  askSats: number;
+  payTo: string;
+  ordinalsAddress: string;
+  catTxid: string;
+  catVout: number;
+  network: string;
+}
+
+/**
+ * Read a cat's listing back from the REAL Bazaar backend
+ * (`GET /api/v1/listings/cat/:catNumber`). Returns null on 404 (no listing).
+ * This is how a create-offer test proves the listing actually persisted in the
+ * backend's database, not that a stub echoed it back.
+ */
+export async function getBackendListing(catNumber: number): Promise<BackendListing | null> {
+  const resp = await fetch(`${BAZAAR_BACKEND_BASE}/api/v1/listings/cat/${catNumber}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`GET listing/cat/${catNumber} -> HTTP ${resp.status}`);
+  return (await resp.json()) as BackendListing;
+}
+
+/** Poll the real backend until it reports a listing for `catNumber`. */
+export async function waitForBackendListing(
+  catNumber: number,
+  timeoutMs = 30_000
+): Promise<BackendListing> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const listing = await getBackendListing(catNumber).catch(() => null);
+    if (listing) return listing;
+    if (Date.now() > deadline) {
+      throw new Error(`backend never reported a listing for cat #${catNumber} within ${timeoutMs}ms`);
+    }
+    await sleep(500);
+  }
+}
+
 /**
  * Click the Cat21 confirmation dialog's Approve button until the wallet
  * broadcasts (a new txid lands in `capture.txids`), then return that txid.
@@ -428,21 +475,22 @@ export async function installRegtestRoutes(
     }
   );
 
-  // CAT-21 Bazaar stub (backend2.cat21.space): the marketplace backend is not
-  // part of the regtest stack. Capture listing/bid POST bodies so a test can
-  // assert what the wallet published, and answer 200 so the publish UI reaches
-  // its success state. The BIP-322 auth the wallet signs first is real.
+  // CAT-21 Bazaar: forward backend2.cat21.space to the REAL cat21-indexer
+  // backend running locally against regtest. The listing POST (with its
+  // BIP-322 session headers + body) is replayed verbatim; the backend verifies
+  // the session, cross-checks cat ownership against the local cat21-ord, and
+  // persists the listing in MariaDB. No stub.
   await context.route(
     url => url.hostname === 'backend2.cat21.space',
     async route => {
       const req = route.request();
+      const target = req.url().replace(/https?:\/\/backend2\.cat21\.space/, BAZAAR_BACKEND_BASE);
       if (req.method() === 'POST') {
-        capture.bazaarPosts.push({
-          path: new URL(req.url()).pathname,
-          body: req.postData() ?? '',
-        });
+        capture.bazaarPosts.push({ path: new URL(req.url()).pathname, body: req.postData() ?? '' });
       }
-      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      const resp = await route.fetch({ url: target });
+      const bodyText = await resp.text();
+      await route.fulfill({ response: resp, body: bodyText });
     }
   );
 

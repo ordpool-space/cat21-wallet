@@ -11,10 +11,11 @@ const BASE = {
   ordinalsAddress: 'bc1pordinals',
   catTxid: TXID,
   catVout: 0,
+  network: 'mainnet' as const,
 };
 
 describe('buildCreateListingRequest', () => {
-  it('assembles the full DTO with network pinned to mainnet', () => {
+  it('assembles the full DTO, carrying the caller-supplied network', () => {
     expect(buildCreateListingRequest(BASE)).toEqual({
       catNumber: 42,
       cats: [42],
@@ -25,6 +26,10 @@ describe('buildCreateListingRequest', () => {
       catVout: 0,
       ordinalsAddress: 'bc1pordinals',
     });
+  });
+
+  it('passes a non-mainnet network through (regtest E2E against a real backend)', () => {
+    expect(buildCreateListingRequest({ ...BASE, network: 'regtest' }).network).toBe('regtest');
   });
 
   it('dedupes + ascending-sorts bundleCatNumbers', () => {
