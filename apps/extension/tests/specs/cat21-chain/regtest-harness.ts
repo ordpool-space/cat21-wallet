@@ -194,12 +194,45 @@ export interface EsploraTx {
   txid: string;
   locktime: number;
   vin: { txid: string; vout: number }[];
-  vout: { scriptpubkey_address?: string; value: number }[];
+  vout: { scriptpubkey?: string; scriptpubkey_address?: string; value: number }[];
   status: { confirmed: boolean; block_height?: number };
 }
 
 export async function getEsploraTx(txid: string): Promise<EsploraTx> {
   return fetchJson<EsploraTx>(`${ELECTRS_BASE}/tx/${txid}`);
+}
+
+export interface EsploraUtxo {
+  txid: string;
+  vout: number;
+  value: number;
+  status: { confirmed: boolean };
+}
+
+export async function getAddressUtxos(address: string): Promise<EsploraUtxo[]> {
+  return fetchJson<EsploraUtxo[]>(`${ELECTRS_BASE}/address/${address}/utxo`);
+}
+
+/** Poll electrs until a confirmed UTXO of at least `minValue` sats exists at `address`. */
+export async function waitForUtxoAt(
+  address: string,
+  minValue = 1,
+  timeoutMs = 60_000
+): Promise<EsploraUtxo> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const utxos = await getAddressUtxos(address);
+      const hit = utxos.find(u => u.status.confirmed && u.value >= minValue);
+      if (hit) return hit;
+    } catch {
+      /* retry */
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`no confirmed UTXO >= ${minValue} at ${address} within ${timeoutMs}ms`);
+    }
+    await sleep(500);
+  }
 }
 
 export interface Cat21OrdOutput {
@@ -298,7 +331,13 @@ export async function approveUntilBroadcast(
         if (capture.txids.length > before) return true;
         if (await errorLabel.isVisible()) {
           const detail = (await errorLabel.textContent()) ?? '';
-          if (!/funding-pick-failed|Insufficient funds/.test(detail)) {
+          // Transient races only: funding UTXOs / cat metadata not yet loaded
+          // when the first click landed. Anything else is a real rejection.
+          if (
+            !/funding-pick-failed|Insufficient funds|cat-utxo-resolve-failed|cat-data-not-loaded/.test(
+              detail
+            )
+          ) {
             throw new Error(`cat21 action rejected: ${detail}`);
           }
         }
@@ -464,6 +503,28 @@ export function regtestWalletState(): object {
     ...state,
     networks: { ...state.networks, currentNetworkId: REGTEST_NETWORK_ID },
   };
+}
+
+/**
+ * Stash a Cat21 request in `chrome.storage.session` under the key the confirm
+ * route reads (`cat21-request-<id>`), the same way the NMH popup relay does
+ * for Path 3. The route is then reached with `?cat21RequestId=<id>`. With an
+ * intent `mode` other than `'autonomous'` the route does NOT auto-confirm, so
+ * the test clicks the real Approve button (a manual confirmation reached via
+ * the MCP transport). Requires an extension page to be loaded (chrome.* APIs).
+ */
+export async function stashCat21Request(
+  page: Page,
+  requestId: string,
+  intent: unknown,
+  transport = 'mcp-nmh'
+): Promise<void> {
+  await page.evaluate(
+    async ({ key, value }) => {
+      await chrome.storage.session.set({ [key]: value });
+    },
+    { key: `cat21-request-${requestId}`, value: { intent, transport } }
+  );
 }
 
 /**

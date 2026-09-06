@@ -20,7 +20,11 @@ import { useBitcoinClient } from '@app/query/bitcoin/clients/bitcoin-client';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { type RootState, useAppDispatch } from '@app/store';
 import { useCurrentAccountId } from '@app/store/accounts/account';
-import { useSignBitcoinTx } from '@app/store/accounts/blockchain/bitcoin/bitcoin.hooks';
+import {
+  useAddTapInternalKeysIfMissing,
+  useGetAssumedZeroIndexSigningConfig,
+  useSignBitcoinTx,
+} from '@app/store/accounts/blockchain/bitcoin/bitcoin.hooks';
 import {
   useCurrentAccountNativeSegwitIndexZeroPayerNullable,
   useNativeSegwitAccountIndexAddressIndexZero,
@@ -127,6 +131,15 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   // can answer without awaiting. `enabled: !!catIdHint` keeps mint
   // popups from issuing the query at all.
   const signBitcoinTx = useSignBitcoinTx();
+  // A buy-offer PSBT arrives with the seller's cat input (input 0) carrying
+  // only its witnessUtxo — the buyer who built it cannot know the seller's
+  // taproot internal key, so a taproot cat input has no `tapInternalKey`. The
+  // software signer can't key-path-sign (and finalize) without it. Inject the
+  // wallet's own internal key for any bare taproot input before signing, the
+  // same way the generic `usePsbtSigner` does. No-op for inputs that already
+  // carry it (mint/transfer, built with the wallet's own key) or aren't taproot.
+  const addMissingTapInternalKeys = useAddTapInternalKeysIfMissing();
+  const getAssumedSigningConfig = useGetAssumedZeroIndexSigningConfig();
   const cat21OrdClient = getCat21OrdApiClient();
   const catQuery = useQuery({
     queryKey: ['cat21-ord-cat', catIdHint],
@@ -279,13 +292,17 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
       // the service for broadcast-channel decision and submission.
       signWithConfirmation: async (psbt, _intent, inputIndexes) => {
         const inputsToSign = inputIndexes === 'all' ? undefined : inputIndexes;
-        const signedTx = await signBitcoinTx(psbt, inputsToSign);
+        const tx = btc.Transaction.fromPSBT(psbt);
+        addMissingTapInternalKeys(tx, getAssumedSigningConfig(psbt, inputsToSign));
+        const signedTx = await signBitcoinTx(tx.toPSBT(), inputsToSign);
         signedTx.finalize();
         return { hex: signedTx.hex, weight: signedTx.weight };
       },
       signSilently: async (psbt, inputIndexes) => {
         const inputsToSign = inputIndexes === 'all' ? undefined : inputIndexes;
-        const signedTx = await signBitcoinTx(psbt, inputsToSign);
+        const tx = btc.Transaction.fromPSBT(psbt);
+        addMissingTapInternalKeys(tx, getAssumedSigningConfig(psbt, inputsToSign));
+        const signedTx = await signBitcoinTx(tx.toPSBT(), inputsToSign);
         signedTx.finalize();
         return { hex: signedTx.hex, weight: signedTx.weight };
       },
@@ -344,6 +361,8 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     utxoQuery.utxos,
     utxoQuery.isLoading,
     signBitcoinTx,
+    addMissingTapInternalKeys,
+    getAssumedSigningConfig,
     catIdHint,
     catQuery.data,
     catQuery.error,
