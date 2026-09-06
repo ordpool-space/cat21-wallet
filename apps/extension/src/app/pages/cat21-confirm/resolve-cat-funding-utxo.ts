@@ -1,5 +1,5 @@
 import * as btc from '@scure/btc-signer';
-import type { Cat21TransferCatInput } from 'ordpool-sdk/core';
+import { type Cat21TransferCatInput, Network, toScureNetwork } from 'ordpool-sdk/core';
 
 import type { OrdCat21 } from '@leather.io/services';
 
@@ -25,7 +25,7 @@ import type { OrdCat21 } from '@leather.io/services';
  */
 export function resolveCatFundingUtxo(
   cat: OrdCat21,
-  networkLabel: 'mainnet' | 'testnet'
+  networkLabel: 'mainnet' | 'testnet' | 'regtest'
 ): Cat21TransferCatInput {
   if (!cat.address) {
     throw new Error('cat21-ord returned cat without address');
@@ -38,7 +38,15 @@ export function resolveCatFundingUtxo(
   if (!txid || Number.isNaN(vout)) {
     throw new Error(`malformed satpoint: ${cat.satpoint}`);
   }
-  const scureNetwork = networkLabel === 'mainnet' ? btc.NETWORK : btc.TEST_NETWORK;
+  // regtest (bcrt) is NOT scure's TEST_NETWORK (tb); use the SDK's mapping so
+  // a regtest cat address decodes correctly for the E2E chain-truth harness.
+  const sdkNet =
+    networkLabel === 'mainnet'
+      ? Network.Mainnet
+      : networkLabel === 'regtest'
+        ? Network.Regtest
+        : Network.Testnet3;
+  const scureNetwork = toScureNetwork(sdkNet);
   const scriptPubKey = btc.OutScript.encode(btc.Address(scureNetwork).decode(cat.address));
   return { txid, vout, value: cat.value, scriptPubKey };
 }

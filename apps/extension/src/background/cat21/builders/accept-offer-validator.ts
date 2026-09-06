@@ -44,7 +44,7 @@ interface ValidateAcceptOfferArgs {
   psbtBytes: Uint8Array;
   /** Wallet's own payment address — Output 1 of the PSBT MUST land here. */
   expectedSellerPaymentAddress: string;
-  network: 'mainnet' | 'testnet';
+  network: 'mainnet' | 'testnet' | 'regtest';
 }
 
 /**
@@ -63,7 +63,7 @@ export function validateAcceptOffer(
     expectedSellerUtxo: { txid: string; vout: number };
     floorPriceSats: number;
     expectedSellerPaymentAddress: string;
-    network: 'mainnet' | 'testnet';
+    network: 'mainnet' | 'testnet' | 'regtest';
   }) => Cat21OfferValidation
 ): Cat21OfferValidation {
   const sdkResult = delegate({

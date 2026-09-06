@@ -107,8 +107,16 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   const nativeSegwitPayer = useCurrentAccountNativeSegwitIndexZeroPayerNullable();
   const paymentPublicKey = nativeSegwitPayer ? hex.encode(nativeSegwitPayer.publicKey) : '';
   const network = useCurrentNetwork();
-  const networkLabel: 'mainnet' | 'testnet' =
-    network.chain.bitcoin.mode === 'mainnet' ? 'mainnet' : 'testnet';
+  // regtest is threaded through so the E2E chain-truth harness can drive the
+  // real cat-flow pipeline against a local regtest chain (bcrt addresses).
+  // Inert in production: the wallet is mainnet in normal use, and any other
+  // non-mainnet mode still collapses to testnet.
+  const networkLabel: 'mainnet' | 'testnet' | 'regtest' =
+    network.chain.bitcoin.mode === 'mainnet'
+      ? 'mainnet'
+      : network.chain.bitcoin.mode === 'regtest'
+        ? 'regtest'
+        : 'testnet';
   const accountKey = accountIdToSliceKey(currentAccount);
   const bitcoinClient = useBitcoinClient();
   const utxoQuery = useCurrentNativeSegwitUtxos();

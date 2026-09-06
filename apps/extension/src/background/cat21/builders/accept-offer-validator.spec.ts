@@ -8,7 +8,7 @@ interface SdkArgs {
   expectedSellerUtxo: { txid: string; vout: number };
   floorPriceSats: number;
   expectedSellerPaymentAddress: string;
-  network: 'mainnet' | 'testnet';
+  network: 'mainnet' | 'testnet' | 'regtest';
 }
 type SdkDelegate = (sdkArgs: SdkArgs) => Cat21OfferValidation;
 

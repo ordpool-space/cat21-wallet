@@ -88,7 +88,7 @@ export interface Cat21AccountContext {
    */
   ordinalsPublicKey?: string;
   /** Network the account is operating on. */
-  network: 'mainnet' | 'testnet';
+  network: 'mainnet' | 'testnet' | 'regtest';
   /**
    * Operation-kind allowlist sourced from the per-account
    * `AgentPolicy.allowedOperations` (with the `cat21_` prefix
@@ -197,7 +197,7 @@ export interface Cat21RpcDeps {
     expectedSellerUtxo: { txid: string; vout: number };
     floorPriceSats: number;
     expectedSellerPaymentAddress: string;
-    network: 'mainnet' | 'testnet';
+    network: 'mainnet' | 'testnet' | 'regtest';
   }): Cat21OfferValidation;
   /**
    * Autonomous-mode signer: signs without prompting.
@@ -246,7 +246,7 @@ export interface Cat21RpcDeps {
  * infers the shape from the interface, so it isn't exported.
  */
 interface Cat21PostBidArgs {
-  network: 'mainnet' | 'testnet';
+  network: 'mainnet' | 'testnet' | 'regtest';
   catTxid: string;
   catVout: number;
   /** Cat numbers on the UTXO (buyer-observed, from cat21-ord's index — not a size heuristic). */
@@ -818,8 +818,10 @@ export class Cat21RpcService {
  * Wallet currently exposes only `'mainnet' | 'testnet'`; testnet maps
  * to Testnet3 (the chain ordpool defaults to in tests).
  */
-export function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet'): Network {
-  return net === 'mainnet' ? Network.Mainnet : Network.Testnet3;
+export function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet' | 'regtest'): Network {
+  if (net === 'mainnet') return Network.Mainnet;
+  if (net === 'regtest') return Network.Regtest;
+  return Network.Testnet3;
 }
 
 function denied(reason: Cat21RpcDenyReason, detail?: string): Cat21RpcResult {
