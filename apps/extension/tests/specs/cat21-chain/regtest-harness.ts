@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 
-import type { BrowserContext, Page } from '@playwright/test';
+import { type BrowserContext, type Page, expect } from '@playwright/test';
 
 import { getTestSoftwareAccountDefaultWalletState } from '@tests/page-object-models/onboarding.page';
 
@@ -82,6 +82,44 @@ export function ensureMinerWallet(): void {
 
 export function minerNewAddress(): string {
   return bitcoinCli(['getnewaddress'], MINER_WALLET);
+}
+
+/** A fresh regtest address controlled by the miner wallet (transfer recipient). */
+export function newRegtestAddress(kind: 'bech32' | 'bech32m' = 'bech32m'): string {
+  return bitcoinCli(['getnewaddress', '', kind], MINER_WALLET);
+}
+
+/**
+ * Create a CAT-21 cat at `address` by broadcasting a real `nLockTime=21`
+ * transaction (output 0 = the cat; change forced to position 1). This mints a
+ * cat OWNED by an address the wallet controls, so transfer/offer flows have a
+ * cat to act on without first driving the mint UI. Mirrors how an external
+ * minter (or ord) would create a cat. Returns the mint txid; the cat's
+ * inscription id is `<txid>i0`.
+ */
+export function mintCatViaRawTx(address: string, amountBtc = 0.00005): string {
+  ensureSpendableMinerFunds();
+  const raw = bitcoinCli(
+    ['createrawtransaction', '[]', JSON.stringify([{ [address]: amountBtc }]), '21'],
+    MINER_WALLET
+  );
+  const funded = JSON.parse(
+    bitcoinCli(
+      ['-named', 'fundrawtransaction', `hexstring=${raw}`, 'options={"changePosition":1}'],
+      MINER_WALLET
+    )
+  ).hex as string;
+  const signed = JSON.parse(bitcoinCli(['signrawtransactionwithwallet', funded], MINER_WALLET))
+    .hex as string;
+  const txid = bitcoinCli(['sendrawtransaction', signed]);
+  mine(1);
+  return txid;
+}
+
+/** Wait for cat21-ord to index the output, then return its cat inscription id. */
+export async function getCatIdAtOutput(txid: string, vout: number): Promise<string> {
+  const out = await waitForCatAtOutput(txid, vout);
+  return out.cats[0];
 }
 
 export function blockHeight(): number {
@@ -170,6 +208,8 @@ export interface Cat21OrdOutput {
   // at least one cat.
   cats: string[];
   indexed: boolean;
+  // The address currently holding the output (the cat's owner after a move).
+  address?: string;
 }
 
 /**
@@ -229,6 +269,50 @@ export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/**
+ * Click the Cat21 confirmation dialog's Approve button until the wallet
+ * broadcasts (a new txid lands in `capture.txids`), then return that txid.
+ *
+ * The confirm route fetches the account's UTXOs asynchronously, so the
+ * pipeline's funding selection can lose a race with that fetch on the first
+ * click (surfacing as the transient `funding-pick-failed`). We re-click while
+ * that is the only error — each render re-binds the approve handler to
+ * freshly-loaded state — until broadcast. Any other error fails loudly. The
+ * service guards against double-submit, so repeated clicks are safe.
+ *
+ * For broadcasting flows only (mint, transfer, accept-offer). create-offer
+ * does not broadcast; its success is a Bazaar-publish UI state.
+ */
+export async function approveUntilBroadcast(
+  page: Page,
+  capture: BroadcastCapture,
+  { timeoutMs = 90_000 }: { timeoutMs?: number } = {}
+): Promise<string> {
+  const approve = page.getByTestId('cat21-confirmation-approve');
+  const errorLabel = page.getByTestId('cat21-confirmation-error');
+  await approve.waitFor({ state: 'visible' });
+  const before = capture.txids.length;
+  await expect
+    .poll(
+      async () => {
+        if (capture.txids.length > before) return true;
+        if (await errorLabel.isVisible()) {
+          const detail = (await errorLabel.textContent()) ?? '';
+          if (!/funding-pick-failed|Insufficient funds/.test(detail)) {
+            throw new Error(`cat21 action rejected: ${detail}`);
+          }
+        }
+        if (await approve.isEnabled().catch(() => false)) {
+          await approve.click().catch(() => undefined);
+        }
+        return false;
+      },
+      { timeout: timeoutMs, intervals: [1500], message: 'wallet never broadcast a tx' }
+    )
+    .toBe(true);
+  return capture.txids[capture.txids.length - 1];
+}
+
 // ── wallet regtest wiring ───────────────────────────────────────────────────
 
 /**
@@ -244,10 +328,16 @@ export interface BroadcastCapture {
    * signal that the account's UTXOs have been fetched at least once.
    */
   utxoResponses: number;
+  /**
+   * Bodies POSTed to the CAT-21 Bazaar (backend2.cat21.space), captured so a
+   * create-offer test can assert the published listing. The Bazaar backend is
+   * not part of the regtest stack, so its endpoints are stubbed to succeed.
+   */
+  bazaarPosts: { path: string; body: string }[];
 }
 
 export function newCapture(): BroadcastCapture {
-  return { txids: [], lastRawHex: null, utxoResponses: 0 };
+  return { txids: [], lastRawHex: null, utxoResponses: 0, bazaarPosts: [] };
 }
 
 /**
@@ -304,6 +394,25 @@ export async function installRegtestRoutes(
       const bodyText = await resp.text();
       log('cat21-ord', new URL(target).pathname, '->', resp.status());
       await route.fulfill({ response: resp, body: bodyText });
+    }
+  );
+
+  // CAT-21 Bazaar stub (backend2.cat21.space): the marketplace backend is not
+  // part of the regtest stack. Capture listing/bid POST bodies so a test can
+  // assert what the wallet published, and answer 200 so the publish UI reaches
+  // its success state. The BIP-322 auth the wallet signs first is real.
+  await context.route(
+    url => url.hostname === 'backend2.cat21.space',
+    async route => {
+      const req = route.request();
+      if (req.method() === 'POST') {
+        capture.bazaarPosts.push({
+          path: new URL(req.url()).pathname,
+          body: req.postData() ?? '',
+        });
+        log('bazaar POST', new URL(req.url()).pathname);
+      }
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     }
   );
 
