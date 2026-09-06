@@ -341,7 +341,9 @@ export async function waitForBackendListing(
     const listing = await getBackendListing(catNumber).catch(() => null);
     if (listing) return listing;
     if (Date.now() > deadline) {
-      throw new Error(`backend never reported a listing for cat #${catNumber} within ${timeoutMs}ms`);
+      throw new Error(
+        `backend never reported a listing for cat #${catNumber} within ${timeoutMs}ms`
+      );
     }
     await sleep(500);
   }
