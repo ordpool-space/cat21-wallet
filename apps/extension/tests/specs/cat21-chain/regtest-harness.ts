@@ -1,8 +1,6 @@
-import { execFileSync } from 'node:child_process';
-
 import { type BrowserContext, type Page, expect } from '@playwright/test';
-
 import { getTestSoftwareAccountDefaultWalletState } from '@tests/page-object-models/onboarding.page';
+import { execFileSync } from 'node:child_process';
 
 /**
  * Chain-truth harness for the cat21-wallet real-button E2E suite.
