@@ -15,7 +15,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Run locally (the regtest stack must be up first — see the spec header):
  *   PW_CHROMIUM_EXE=~/Library/Caches/ms-playwright/chromium-1234/chrome-mac/Chromium.app/Contents/MacOS/Chromium \
- *     pnpm --filter @leather.io/extension exec playwright test --config playwright.chain.config.ts
+ *     pnpm --filter @leather.io/extension exec playwright test --config playwright.config.chain.ts
  */
 export default defineConfig({
   globalSetup: './tests/global-playwright-setup.js',
