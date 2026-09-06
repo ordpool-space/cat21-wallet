@@ -143,7 +143,13 @@ export function Cat21ConfirmRoute() {
       const result = await runService(actionIntent);
       setIsSubmitting(false);
       if (urlRequest.status === 'ready') {
-        await finalisePath3(urlRequest.requestId, result);
+        // Deliver the result to the agent's result bus (Path 3), FIRE-AND-
+        // FORGET: the NMH relay listens for it, so the popup must not await a
+        // response. A slow or absent receiver otherwise HANGS the underlying
+        // sendMessage, which stalled the popup's own outcome below and left an
+        // autonomous denial invisible in the briefly-flashed popup. Decouple
+        // the agent-bus post from the human-visible outcome.
+        void finalisePath3(urlRequest.requestId, result).catch(() => undefined);
       }
       if (result.ok) {
         if (

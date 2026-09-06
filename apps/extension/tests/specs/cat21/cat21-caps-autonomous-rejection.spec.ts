@@ -24,28 +24,33 @@ import { test } from '../../fixtures/fixtures';
 // Valid mainnet P2TR distinct from the test account's own address.
 const RECIPIENT = 'bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0';
 
-test.describe('CAT-21 Path 3 / NMH confirm route (render-loop regression guard)', () => {
+test.describe('CAT-21 caps bind the real autonomous (Path 3 / NMH) pipeline', () => {
   test.beforeEach(async ({ page, extensionId, onboardingPage }) => {
     await page.goto(`chrome-extension://${extensionId}/index.html`);
     await onboardingPage.signInWithTestAccount(extensionId);
   });
 
-  test('the confirm route renders a stashed autonomous NMH request without the render-loop crash', async ({
+  test('an over-cap AUTONOMOUS (mcp-nmh) mint is rejected by the caps via SILENT auto-confirm', async ({
     page,
     extensionId,
   }) => {
-    // Regression guard for the bug this lane found: useCat21RequestFromUrl
-    // built a fresh storage object every render (default param), so the
-    // effect (dep: [requestId, storage]) re-fired every render and its
-    // setState spun into React "Maximum update depth exceeded" whenever a
-    // cat21RequestId was present — i.e. on EVERY Path-3 / NMH popup. The
-    // whole confirm route crashed before any pipeline ran. Fixed by
-    // memoizing the storage reference.
-    //
-    // Stash an autonomous mint intent exactly as the NMH relay does, then
-    // open the confirm route with the request id. The route must render the
-    // confirmation UI (not the crash boundary).
-    const requestId = 'e2e-autonomous-render';
+    // Also a regression guard for the render-loop crash this lane found
+    // (useCat21RequestFromUrl built a fresh storage object every render, so
+    // its effect re-fired endlessly into React "Maximum update depth" on
+    // EVERY Path-3 / NMH popup — fixed by memoizing the storage ref). If the
+    // route crashed, the pipeline below would never run.
+
+    // 1. Set a per-action cap of 200 sats (below the 546-sat mint postage)
+    //    via the real wizard (default enables agent mode). Persists to the
+    //    real store across the reload, exactly like the Path-2 lane.
+    await page.goto(`chrome-extension://${extensionId}/index.html#/cat21-agent-policy`);
+    await page.getByTestId('cat21-agent-policy-form').waitFor();
+    await page.locator('[name="maxSpendPerActionSats"]').fill('200');
+    await page.getByTestId('cat21-agent-policy-save').click();
+
+    // 2. Stash an AUTONOMOUS mint intent exactly as the NMH relay does, then
+    //    open the confirm route with the request id.
+    const requestId = 'e2e-autonomous-overcap';
     await page.evaluate(
       async ({ id, recipient }) => {
         await chrome.storage.session.set({
@@ -62,8 +67,13 @@ test.describe('CAT-21 Path 3 / NMH confirm route (render-loop regression guard)'
       `chrome-extension://${extensionId}/index.html#/cat21-mint-confirm?cat21RequestId=${requestId}`
     );
 
-    // The confirmation UI renders (crash boundary would show "Leather has
-    // crashed" with no cat21 testids).
-    await expect(page.getByTestId('cat21-confirmation-title')).toBeVisible();
+    // 3. The route auto-confirms silently (transport 'mcp-nmh' + mode
+    //    'autonomous', wallet unlocked) — no human click. The cap gate in
+    //    resolveSigningMode runs FIRST (before the autonomous grant), so the
+    //    over-cap autonomous mint is rejected, never signed. The running
+    //    extension surfaces the cap denial.
+    const error = page.getByTestId('cat21-confirmation-error');
+    await expect(error).toBeVisible();
+    await expect(error).toContainText('spend-above-action-cap');
   });
 });
