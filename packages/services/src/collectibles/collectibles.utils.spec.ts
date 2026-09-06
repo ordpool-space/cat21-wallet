@@ -1,52 +1,9 @@
-import { BisInscription } from '../infrastructure/api/best-in-slot/best-in-slot-api.client';
-import { isLpToken, mapBisInscriptionToCreateInscriptionData } from './collectibles.utils';
-
-describe(mapBisInscriptionToCreateInscriptionData.name, () => {
-  const mockBisInscription = {
-    inscription_id: 'insc1',
-    inscription_number: 1,
-    content_url: 'https://example.com/1',
-    render_url: 'https://example.com/preview.png',
-    mime_type: 'image/png',
-    owner_wallet_addr: 'bc1pabc',
-    satpoint: 'abc:0:0',
-    genesis_block_hash: 'hash1',
-    genesis_ts: '2025-01-01',
-    genesis_height: 100,
-    last_transfer_block_height: 120,
-    output_value: 1000,
-  } as BisInscription;
-
-  it('maps fields as expected', () => {
-    const createInscriptionData = mapBisInscriptionToCreateInscriptionData(mockBisInscription);
-    expect(createInscriptionData.id).toEqual(mockBisInscription.inscription_id);
-    expect(createInscriptionData.number).toEqual(mockBisInscription.inscription_number);
-    expect(createInscriptionData.contentSrc).toEqual(mockBisInscription.content_url);
-    expect(createInscriptionData.mimeType).toEqual(mockBisInscription.mime_type);
-    expect(createInscriptionData.ownerAddress).toEqual(mockBisInscription.owner_wallet_addr);
-    expect(createInscriptionData.satPoint).toEqual(mockBisInscription.satpoint);
-    expect(createInscriptionData.genesisBlockHash).toEqual(mockBisInscription.genesis_block_hash);
-    expect(createInscriptionData.genesisBlockHeight).toEqual(mockBisInscription.genesis_height);
-    expect(createInscriptionData.genesisTimestamp).toEqual(mockBisInscription.genesis_ts);
-    expect(createInscriptionData.outputValue).toEqual(mockBisInscription.output_value.toString());
-    expect(createInscriptionData.thumbnailSrc).toEqual(mockBisInscription.render_url);
-  });
-
-  it('uses delegate object fields when available', () => {
-    const delegate = {
-      mime_type: 'text/html',
-      content_url: 'https://other.example.com/2',
-      render_url: 'https://example.com/preview.png',
-    };
-    const createInscriptionData = mapBisInscriptionToCreateInscriptionData({
-      ...mockBisInscription,
-      delegate,
-    } as BisInscription);
-    expect(createInscriptionData.mimeType).toEqual(delegate.mime_type);
-    expect(createInscriptionData.contentSrc).toEqual(delegate.content_url);
-    expect(createInscriptionData.thumbnailSrc).toEqual(delegate.render_url);
-  });
-});
+import cat0 from '../infrastructure/api/cat21-ord/__fixtures__/cat-0.json';
+import {
+  isLpToken,
+  mapOrdCat21ToCat21Asset,
+  sortOrdCat21ByBlockHeight,
+} from './collectibles.utils';
 
 describe(isLpToken.name, () => {
   it('returns true for pool-token-id pattern', () => {
@@ -89,5 +46,34 @@ describe(isLpToken.name, () => {
     expect(isLpToken('SP123.VELAR::POOL-TOKEN-ID')).toBe(true);
     expect(isLpToken('sp123.velar::pool-token-id')).toBe(true);
     expect(isLpToken('Sp123.Velar::Pool-Token-Id')).toBe(true);
+  });
+});
+
+describe(mapOrdCat21ToCat21Asset.name, () => {
+  it('gives the asset a populated src, not an empty string', () => {
+    // ord sends content_type: null for every cat. Passed straight through it
+    // trips upstream's `!mimeType` guard, which returns src: '' — so the
+    // locally drawn cat never reaches anything reading `.src`.
+    const asset = mapOrdCat21ToCat21Asset(cat0 as never);
+
+    expect(asset.mimeType).toBe('svg');
+    expect(asset.src.startsWith('data:image/svg+xml')).toBe(true);
+    expect(asset.thumbnailSrc?.startsWith('data:image/svg+xml')).toBe(true);
+  });
+
+  it('maps the real output value rather than a hardcoded zero', () => {
+    const asset = mapOrdCat21ToCat21Asset(cat0 as never);
+
+    expect(asset.value).toBe(String(cat0.value));
+  });
+});
+
+describe(sortOrdCat21ByBlockHeight.name, () => {
+  it('orders newest first', () => {
+    const cats = [{ height: 100 }, { height: 300 }, { height: 200 }] as never[];
+
+    expect(cats.sort(sortOrdCat21ByBlockHeight).map(c => (c as { height: number }).height)).toEqual(
+      [300, 200, 100]
+    );
   });
 });

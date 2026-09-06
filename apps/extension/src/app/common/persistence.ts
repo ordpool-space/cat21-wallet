@@ -94,12 +94,41 @@ export const queryClient = new QueryClient({
   },
 });
 
+// HACK -- Cat21 (audit H4): exclude cat21-ord and address-monitor
+// queries from the persisted react-query cache. Without this filter
+// the wallet writes a permanent on-disk log of which BTC addresses
+// the user has viewed and which cats live there (cache key starts
+// with the address). PRIVACY-POLICY.md claims "nothing identifies
+// users by address" — `dehydrateOptions.shouldDehydrateQuery` is
+// the single place that promise is enforced for the cache layer.
+//
+// Anything starting with `cat21-ord-` or `http-cat21-ord-` is the
+// cat-ownership graph; `bitcoin-address-*` and `mempool-*` carry
+// addresses too. Add a key here BEFORE introducing a new query that
+// includes any address-shaped value.
+const CAT21_PRIVACY_LEAK_KEY_PREFIXES = [
+  'cat21-ord-',
+  'http-cat21-ord-',
+  'bitcoin-address-',
+  'mempool-tx-',
+  'mempool-address-',
+];
+
+function isPrivacyLeakingQueryKey(queryKey: readonly unknown[]): boolean {
+  const head = queryKey[0];
+  if (typeof head !== 'string') return false;
+  return CAT21_PRIVACY_LEAK_KEY_PREFIXES.some(prefix => head.startsWith(prefix));
+}
+
 export function persistAndRenderApp(renderApp: () => void) {
   if (!IS_TEST_ENV) {
     void persistQueryClient({
       queryClient,
       persister: chromeStorageLocalPersister,
       buster: VERSION,
+      dehydrateOptions: {
+        shouldDehydrateQuery: query => !isPrivacyLeakingQueryKey(query.queryKey),
+      },
     });
   }
   renderApp();

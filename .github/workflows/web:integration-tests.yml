@@ -1,11 +1,7 @@
 name: web:integration-tests
-on:
-  pull_request:
-    paths:
-      - 'apps/web/**'
-      - 'packages/**'
-      - '!packages/ui/**/*.native.ts'
-      - '!packages/ui/**/*.native.tsx'
+# HACK -- Cat21: was auto-triggered upstream. Disabled in our fork: this workflow either pushes to leather-io destinations (npm, Chrome Web Store, deploy) or covers surface we do not ship (mobile, web). Manual trigger only.
+on: workflow_dispatch
+
 
 env:
   DO_NOT_TRACK: 1

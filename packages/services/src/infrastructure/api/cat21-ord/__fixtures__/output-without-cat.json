@@ -1,0 +1,13 @@
+{
+  "address": "37jKPSmbEGwgfacCr2nayn1wTaqMAbA94Z",
+  "confirmations": 4,
+  "indexed": true,
+  "cats": [],
+  "outpoint": "c882dfac7835cf32fdef478988721a6aa90038c9444b6fbb107ba57e6b7539cf:0",
+  "runes": null,
+  "sat_ranges": [[2005906250000000, 2005906250000546]],
+  "script_pubkey": "a91442402a28dd61f2718a4b27ae72a4791d5bbdade787",
+  "spent": false,
+  "transaction": "c882dfac7835cf32fdef478988721a6aa90038c9444b6fbb107ba57e6b7539cf",
+  "value": 546
+}

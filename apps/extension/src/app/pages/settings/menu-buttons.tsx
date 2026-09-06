@@ -4,13 +4,17 @@ import { SettingsSelectors } from '@tests/selectors/settings.selectors';
 import { Flex, styled } from 'leather-styles/jsx';
 
 import { LEATHER_GITBOOK_DEVS, LEATHER_GUIDES_URL } from '@leather.io/constants';
+/* HACK -- Cat21: GlobeTiltedIcon import dropped — only consumer was the Network
+ * settings button hidden below per ADR-7 (mainnet only). */
 import {
   BellAlarmIcon,
   BellIcon,
   CodeIcon,
-  GlobeTiltedIcon,
   KeyIcon,
   MegaphoneIcon,
+  // HACK -- Cat21: PulseIcon for the Cat21 Agent Mode settings entry
+  // (autonomous-mode policy, "agent's heartbeat").
+  PulseIcon,
   SunInCloudIcon,
   SupportIcon,
 } from '@leather.io/ui';
@@ -59,15 +63,30 @@ export function MenuButtons() {
         icon={<SunInCloudIcon />}
       />
 
+      {/* HACK -- Cat21: Network settings button hidden per ADR-7. Cat21 Wallet
+          is mainnet only; users do not switch networks. Original:
+          <SettingsButton
+            data-testid={SettingsSelectors.ChangeNetworkAction}
+            variant="chevron"
+            title="Network"
+            onClick={() => {
+              analytics.track('click_change_network_menu_item');
+              void navigate(RouteUrls.SelectNetwork);
+            }}
+            icon={<GlobeTiltedIcon />}
+          /> */}
+
+      {/* HACK -- Cat21: Settings entry for the Cat21 Agent Mode wizard.
+          Surfaces the iter-10 agent-policy slice (per-account caps, fee
+          ceiling, counterparty + operation allowlists) without forcing
+          the user to type the route URL. Wizard component lives at
+          `cat21-agent-policy-wizard/cat21-agent-policy-wizard.tsx`. */}
       <SettingsButton
-        data-testid={SettingsSelectors.ChangeNetworkAction}
+        data-testid="cat21-agent-mode-settings-button"
         variant="chevron"
-        title="Network"
-        onClick={() => {
-          analytics.track('click_change_network_menu_item');
-          void navigate(RouteUrls.SelectNetwork);
-        }}
-        icon={<GlobeTiltedIcon />}
+        title="Cat21 Agent Mode"
+        onClick={() => navigate(RouteUrls.Cat21AgentPolicy)}
+        icon={<PulseIcon />}
       />
 
       <SettingsButton

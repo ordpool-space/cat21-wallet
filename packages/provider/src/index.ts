@@ -24,18 +24,24 @@ export function initInpageProvider({ onDispatch, env }: initInpageProviderArgs) 
   addLeatherToProviders();
 
   interface LeatherProviderOverrides extends Omit<StacksProvider, 'profileUpdateRequest'> {
+    /* HACK -- Cat21: kept for dapps that key off the Leather identity when
+     * we're filling the LeatherProvider slot in real Leather's absence. */
     isLeather: true;
+    /* HACK -- Cat21: positive identification of the Cat21 Wallet provider.
+     * Dapps should branch on this rather than `isLeather` to disambiguate. */
+    isCat21: true;
   }
 
   const provider: LeatherProviderOverrides = {
     isLeather: true,
+    isCat21: true,
 
     ...getLegacyRequests(env.platform),
 
     getProductInfo() {
       return {
         version: env.version,
-        name: 'Leather',
+        name: 'Cat21 Wallet',
         meta: {
           tag: env.branch,
           commit: env.commitSha,
@@ -116,43 +122,76 @@ export function initInpageProvider({ onDispatch, env }: initInpageProviderArgs) 
     );
   }
 
-  try {
-    // Makes properties immutable to contend with other wallets that use agressive
-    // "prioritisation" default settings. As other wallet's use this approach,
-    // Leather has to use it too, so that the browsers' own internal logic being
-    // used to determine content script exeuction order. A more fair way to
-    // contend over shared provider space. `StacksProvider` should be considered
-    // deprecated and each wallet use their own provider namespace.
-    Object.defineProperty(window, 'StacksProvider', {
-      get: () => warnAboutDeprecatedProvider(provider),
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      set: () => {},
-    });
-  } catch {
-    // eslint-disable-next-line no-console
-    console.log('Unable to set StacksProvider');
+  /* HACK -- Cat21: politeness extends to the deprecated Stacks + Hiro
+   * legacy slots. Cat21 is a Bitcoin-L1 wallet and has no Stacks surface,
+   * but the @leather.io/provider package still injects these because
+   * upstream Leather supports Stacks. We never claim either if real
+   * Leather (or any other StacksProvider-aware extension) is already
+   * present on the page. */
+  if (typeof (window as any).StacksProvider === 'undefined') {
+    try {
+      Object.defineProperty(window, 'StacksProvider', {
+        get: () => warnAboutDeprecatedProvider(provider),
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        set: () => {},
+      });
+    } catch {
+      // eslint-disable-next-line no-console
+      console.log('Unable to set StacksProvider');
+    }
   }
 
-  try {
-    Object.defineProperty(window, 'HiroWalletProvider', {
-      get: () => warnAboutDeprecatedProvider(provider),
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      set: () => {},
-    });
-  } catch {
-    // eslint-disable-next-line no-console
-    console.log('Unable to set HiroWalletProvider');
+  if (typeof (window as any).HiroWalletProvider === 'undefined') {
+    try {
+      Object.defineProperty(window, 'HiroWalletProvider', {
+        get: () => warnAboutDeprecatedProvider(provider),
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        set: () => {},
+      });
+    } catch {
+      // eslint-disable-next-line no-console
+      console.log('Unable to set HiroWalletProvider');
+    }
   }
 
+  /* HACK -- Cat21: politeness namespace strategy.
+   *
+   *   - `window.Cat21Provider` is ALWAYS defined (our own slot, nobody else
+   *     owns this name).
+   *   - `window.LeatherProvider` is ONLY defined if no other extension has
+   *     already taken it. If real Leather is co-installed, we defer to it
+   *     and dapps that look up `LeatherProvider` reach the actual Leather
+   *     binary, not us. This is the same coexistence model real wallets
+   *     use among each other (see Xverse, Unisat, OKX) and respects the
+   *     fact that this codebase is a Leather fork — we owe upstream the
+   *     courtesy of not squatting on their identity. */
+  const win = window as unknown as Window & {
+    LeatherProvider?: unknown;
+    Cat21Provider?: unknown;
+  };
+
   try {
-    Object.defineProperty(window, 'LeatherProvider', {
+    Object.defineProperty(win, 'Cat21Provider', {
       get: () => provider,
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       set: () => {},
     });
   } catch {
     // eslint-disable-next-line no-console
-    console.warn('Unable to set LeatherProvider');
+    console.warn('Unable to set Cat21Provider');
+  }
+
+  if (typeof win.LeatherProvider === 'undefined') {
+    try {
+      Object.defineProperty(win, 'LeatherProvider', {
+        get: () => provider,
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        set: () => {},
+      });
+    } catch {
+      // eslint-disable-next-line no-console
+      console.warn('Unable to set LeatherProvider');
+    }
   }
 
   // Legacy product provider objects

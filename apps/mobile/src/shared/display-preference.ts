@@ -56,13 +56,12 @@ export function getChainDisplayLabel(
 export function getProtocolDisplayLabel(protocol: CryptoAssetProtocol): string {
   return {
     sip9: t`SIP-009`,
-    inscription: t`Inscription`,
-    stamp: t`Stamp`,
     nativeBtc: t`Bitcoin`,
     nativeStx: t`Stacks`,
     sip10: t`SIP-010`,
-    brc20: t`BRC-20`,
-    src20: t`SRC-20`,
-    rune: t`Rune`,
+    // HACK -- Cat21: cat21 protocol added to CryptoAssetProtocol; mobile
+    // mirrors the label. Bonus shipping target — wire-up of the actual
+    // mobile cat21 UI lands later.
+    cat21: t`CAT-21`,
   }[protocol];
 }

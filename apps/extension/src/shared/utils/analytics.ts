@@ -1,40 +1,31 @@
-import { useEffect } from 'react';
-import {
-  createRoutesFromChildren,
-  matchRoutes,
-  useLocation,
-  useNavigationType,
-} from 'react-router';
-
+/*
+ * HACK -- Cat21 (audit C1): every code path in this file is a no-op.
+ * Cat21 Wallet ships zero telemetry per PRIVACY-POLICY.md. The
+ * upstream Leather analytics surface (Mixpanel, Sentry, the
+ * deriveAnalyticsIdentifier(publicKey) per-user fingerprint) was
+ * leaking BTC-balance reports, route history, and an xpub-derived
+ * identifier when the env vars were populated.
+ *
+ * The exports stay so the upstream call sites still compile (~100
+ * `analytics.track(...)` sites across the codebase) — they all
+ * route to noop. The module deliberately imports NOTHING from
+ * `@sentry/*` or `mixpanel-browser`: zero bytes ship in the
+ * production bundle.
+ *
+ * Quarterly upstream sync: when Leather adds a new `analytics.track`
+ * call, our noop client makes the call a no-op without further
+ * action. When Leather adds a new telemetry vendor (e.g. PostHog),
+ * the HACK marker rule means the new import line surfaces in the
+ * diff and we strip it here.
+ */
 import { ripemd160 } from '@noble/hashes/ripemd160';
 import { sha256 } from '@noble/hashes/sha256';
 import { base58 } from '@scure/base';
-import { browserTracingIntegration, feedbackIntegration, setTag } from '@sentry/browser';
-import { init as SentryInit, reactRouterV7BrowserTracingIntegration } from '@sentry/react';
-import { token } from 'leather-styles/tokens';
-import mixpanel, { type OverridedMixpanel } from 'mixpanel-browser';
 
 import { configureAnalyticsClient } from '@leather.io/analytics';
 import { noop } from '@leather.io/utils';
 
-import {
-  IS_DEV_ENV,
-  IS_TEST_ENV,
-  MIXPANEL_TOKEN,
-  SENTRY_DSN,
-  WALLET_ENVIRONMENT,
-} from '@shared/environment';
-
-function configureMixpanel(mixpanelClient: OverridedMixpanel) {
-  return Object.assign(mixpanelClient, {
-    setGroup: mixpanelClient.set_group,
-    getGroup: mixpanelClient.get_group,
-    getPeople() {
-      return mixpanelClient.people;
-    },
-  });
-}
-function getMockedMixpanel() {
+function getNoopAnalyticsClient() {
   return {
     identify() {
       return Promise.resolve();
@@ -51,127 +42,42 @@ function getMockedMixpanel() {
 }
 
 export const analytics = configureAnalyticsClient({
-  client: MIXPANEL_TOKEN ? configureMixpanel(mixpanel) : getMockedMixpanel(),
+  client: getNoopAnalyticsClient(),
   defaultProperties: {
     platform: 'extension',
   },
 });
 
 export function decorateAnalyticsEventsWithContext(
-  getEventContextProperties: () => Record<string, unknown>
+  _getEventContextProperties: () => Record<string, unknown>
 ) {
-  try {
-    mixpanel.register(getEventContextProperties());
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('Error decorating mixpanel properties', e);
-  }
+  // noop — see file header
 }
 
 export function initAnalytics() {
-  mixpanel.init(MIXPANEL_TOKEN, {
-    track_pageview: false,
-    persistence: 'localStorage',
-    ip: false,
-    batch_requests: true,
-    batch_size: 10,
-    batch_flush_interval_ms: 5000,
-    debug: IS_DEV_ENV,
-    // Only ignore "Do Not Track" mode in dev
-    ignore_dnt: IS_DEV_ENV,
-  });
+  // noop — see file header
 }
 
-// Used to create a unique identifier for a user's key in base58.
-// K = ripemd160(sha256(publicKey))[:8]
+// Kept for byte-compat with upstream Leather code that derives a
+// per-user identifier; we DO NOT call `analytics.identify` with it
+// anywhere in this wallet (see `identifyUser` below — also a noop).
 /** @knipignore */
 export function deriveAnalyticsIdentifier(publicKey: Uint8Array) {
   return base58.encode(ripemd160(sha256(publicKey)).slice(0, 8));
 }
 
-export function identifyUser(publicKey: Uint8Array) {
-  return analytics.identify(deriveAnalyticsIdentifier(publicKey));
+export function identifyUser(_publicKey: Uint8Array) {
+  // noop — we do not identify users (see file header)
+  return Promise.resolve();
 }
-
-const sentryFeedback = feedbackIntegration({
-  colorScheme: 'system',
-  isEmailRequired: false,
-  buttonLabel: 'Give feedback',
-  formTitle: 'Give feedback',
-  autoInject: false,
-  showEmail: false,
-  showName: false,
-  showBranding: false,
-  messageLabel: 'How can we improve Leather?',
-  enableScreenshot: false,
-  submitButtonLabel: 'Send feedback',
-  messagePlaceholder:
-    'This is not a support tool. To get help, follow the link in the main menu on the homepage.',
-  successMessageText: 'Thanks for helping make Leather better',
-  themeDark: {
-    background: token('colors.ink.background-primary'),
-    inputOutlineFocus: token('colors.ink.border-transparent'),
-    submitBackground: token('colors.ink.component-background-default'),
-    submitBackgroundHover: token('colors.ink.component-background-hover'),
-    submitOutlineFocus: token('colors.ink.border-transparent'),
-    submitBorder: token('colors.ink.component-background-default'),
-    cancelBackground: token('colors.colorPalette.action-primary-default'),
-    cancelBackgroundHover: token('colors.colorPalette.action-primary-hover'),
-  },
-  themeLight: {
-    submitBackground: token('colors.ink.text-primary'),
-    submitBackgroundHover: token('colors.ink.text-primary'),
-    submitOutlineFocus: token('colors.ink.text-primary'),
-  },
-});
 
 export function initSentry() {
-  if (IS_TEST_ENV || !SENTRY_DSN) return;
-
-  SentryInit({
-    dsn: SENTRY_DSN,
-    tracesSampleRate: 0.5,
-    profilesSampleRate: 0.25,
-    integrations: [
-      browserTracingIntegration({}),
-      reactRouterV7BrowserTracingIntegration({
-        useEffect,
-        useLocation,
-        useNavigationType,
-        createRoutesFromChildren,
-        matchRoutes,
-      }),
-      sentryFeedback,
-    ],
-    ignoreErrors: [
-      // Harmless error
-      'ResizeObserver loop limit exceeded',
-      /ResizeObserver/,
-      // Failed network requests needn't be tracked
-      'Network request failed',
-    ],
-    environment: WALLET_ENVIRONMENT,
-    beforeSend(event) {
-      delete event.user?.ip_address;
-      delete event.extra?.ip_address;
-
-      const values = event.exception?.values?.map(({ value }) => value);
-
-      // @see https://stackoverflow.com/questions/49384120/resizeobserver-loop-limit-exceeded
-      if (values?.includes('ResizeObserver loop limit exceeded')) return null;
-
-      return event;
-    },
-  });
-
-  setTag('app_version', VERSION);
+  // noop — see file header
 }
 
-export async function openFeedbackSheet() {
-  analytics.track('user_clicked_feedback_button');
-  const form = await sentryFeedback.createForm();
-  if (!form) return null;
-  form.appendToDom();
-  form.open();
-  return;
+export function openFeedbackSheet(): Promise<null> {
+  // noop — see file header. The settings "Feedback" link routes
+  // here today; we'll point users at a real GitHub-issues URL
+  // when the settings UI lands a proper redirect.
+  return Promise.resolve(null);
 }

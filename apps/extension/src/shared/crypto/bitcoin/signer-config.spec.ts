@@ -65,7 +65,13 @@ describe(getAssumedZeroIndexSigningConfig.name, () => {
       network: 'testnet',
     }).forAccountIndex(0);
 
-    expect(result).toEqual([{ derivationPath: "m/86'/1'/0'/0/0", index: 0 }]);
+    // HACK -- Cat21: ADR-7 makes Cat21 Wallet mainnet-only and we pin
+    // coin-type=0 across every network (see `coinTypeMap` in
+    // `packages/bitcoin/src/utils/bitcoin.utils.ts`). Even when the
+    // signer receives `network: 'testnet'`, BIP-86 still derives at
+    // `m/86'/0'/...` — non-mainnet only affects the bech32 HRP at the
+    // address encoding layer, not the underlying key derivation.
+    expect(result).toEqual([{ derivationPath: "m/86'/0'/0'/0/0", index: 0 }]);
   });
 
   test('it only returns config for inputs given, if passed', () => {

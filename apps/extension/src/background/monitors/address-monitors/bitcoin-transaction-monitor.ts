@@ -165,7 +165,7 @@ export function createBitcoinTransactionMonitor(addresses: MonitoredAddress[]): 
   }
 
   function sendNotification(title: string, message: string) {
-    const iconUrl = chrome.runtime.getURL('assets/icons/leather-icon-128.png');
+    const iconUrl = chrome.runtime.getURL('assets/icons/cat21-icon-128.png');
     chrome.notifications.create({
       type: 'basic',
       iconUrl,

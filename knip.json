@@ -23,14 +23,16 @@
     "lingui:compile",
     "prebuild",
     "only-allow",
-    "pinact"
+    "pinact",
+    "sed",
+    "gh"
   ],
   "ignoreUnresolved": [
     "metro-minify-terser",
     "/\\+types/"
   ],
   "ignore": [
-    "*/**/*.spec.ts",
+    "*/**/*.spec.{ts,tsx}",
     "*/**/tsdown.config*.ts",
     "*/**/panda.config.ts",
     "*/**/postcss.config.cjs",
@@ -38,7 +40,11 @@
     ".claude/**",
     "apps/extension/src/app/store/active/active.actions.ts",
     "packages/services/src/infrastructure/api/leather/leather-api.types.ts",
-    "packages/services/src/infrastructure/api/bitflow/bitflow-bff-api.types.ts"
+    "packages/services/src/infrastructure/api/bitflow/bitflow-bff-api.types.ts",
+    // HACK -- Cat21: vendored, generated bundle. Its export surface is the
+    // upstream module's, not ours; we import one symbol and knip would flag
+    // the rest forever. Regenerate it, never hand-edit it.
+    "packages/utils/src/assets/vendor/**"
   ],
   "workspaces": {
     "apps/extension": {
@@ -112,11 +118,57 @@
         "@types/webpack",
         "@redux-devtools/cli",
         "blns",
-        "web-ext-submit"
+        "web-ext-submit",
+        "buffer",
+        "@noble/secp256k1",
+        "base64url",
+        "ecdsa-sig-formatter",
+        "react-hook-form",
+        "@hookform/resolvers",
+        // HACK -- Cat21 (audit C1): telemetry packages declared as
+        // direct deps so the wallet keeps its package.json diff
+        // surface aligned with upstream Leather (HARD RULE #3 —
+        // quarterly upstream sync); none of them are actually
+        // bundled (webpack `resolve.alias` swaps every import to
+        // local no-op stubs under `src/shared/telemetry-stubs/`).
+        "@sentry/browser",
+        "@sentry/webpack-plugin",
+        "launchdarkly-react-client-sdk",
+        "mixpanel-browser"
       ],
       "ignore": [
         "src/shared/global-types.ts",
-        "src/shared/models/global-types.ts"
+        "src/shared/models/global-types.ts",
+        "src/app/common/unsafe-auth-response.ts",
+        "src/app/common/url-join.ts",
+        "src/background/cat21/**",
+        "src/app/pages/network/**",
+        "src/background/messaging/rpc-methods/sign-stacks-message.ts",
+        "src/background/messaging/rpc-methods/stx-*.ts",
+        "src/shared/rpc/methods/sign-stacks-message.ts",
+        "src/app/features/dialogs/transaction-action-dialog/cancel-stacks-transaction-sheet.tsx",
+        "src/app/features/dialogs/transaction-action-dialog/increase-stacks-fee-sheet.tsx",
+        "src/app/features/dialogs/transaction-action-dialog/stacks-transaction-action-sheet.tsx",
+        "src/app/features/dialogs/transaction-action-dialog/components/**",
+        "src/app/features/dialogs/transaction-action-dialog/hooks/use-stacks-transaction-action.ts",
+        "src/app/features/ledger/**",
+        "src/app/query/stacks/**",
+        "src/app/pages/swap-legacy/**",
+        "src/background/messaging/rpc-request-utils.ts",
+        "src/app/store/agent-policy/agent-policy.selectors.ts",
+        "src/app/store/agent-policy/agent-policy.hooks.ts",
+        "src/app/features/cat21-confirmation/**",
+        // HACK -- Cat21 (audit C1): telemetry stubs are statically
+        // unreferenced (webpack aliases imports to them at bundle
+        // time, not at type-resolution time). Knip can't see the
+        // alias link; skip the whole directory.
+        "src/shared/telemetry-stubs/**",
+        // HACK -- Cat21 (audit C1): getClientId + SENTRY_DSN are
+        // upstream-Leather-merge artifacts; statically unused now
+        // that telemetry is stripped. Keep the symbols + files so
+        // the quarterly upstream sync diff stays small.
+        "src/app/common/client-id/index.ts",
+        "src/shared/environment.ts"
       ]
     },
     "apps/mobile": {

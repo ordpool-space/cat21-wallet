@@ -61,7 +61,13 @@ export function useBtcIncreaseFee(btcTx: BitcoinTx) {
   const { data: feeRates } = useBitcoinFeeRates();
 
   function generateUnsignedTx(payload: { feeRate: string; tx: BitcoinTx }) {
-    const newTx = new btc.Transaction();
+    /* HACK -- Cat21: preserve nLockTime through RBF per CLAUDE.md HARD RULE #1.
+     * If the original tx is a CAT-21 mint (or any locktime-bearing tx) the
+     * replacement MUST carry the same locktime value, otherwise the protocol
+     * marker is lost and the cat is killed. Default Bitcoin RBF flows construct
+     * a new Transaction with lockTime=0; we copy the original's locktime
+     * explicitly. */
+    const newTx = new btc.Transaction({ lockTime: payload.tx.locktime });
     const { vin, vout, fee: prevFee } = payload.tx;
     const p2wpkh = btc.p2wpkh(publicKey, networkMode);
     const rbfAvailableUtxos = [
@@ -79,10 +85,17 @@ export function useBtcIncreaseFee(btcTx: BitcoinTx) {
         ? { tapInternalKey: payer.payment.tapInternalKey }
         : {};
 
+      /* HACK -- Cat21: clamp the bumped sequence so it never reaches
+       * 0xffffffff (which would mark the input final-for-locktime and ignore
+       * the transaction-level nLockTime). For non-locktime txs this clamp
+       * is a no-op; for locktime-bearing txs (CAT-21 mints) it keeps the
+       * locktime honored across an arbitrary number of replacements. */
+      const bumpedSequence = Math.min(input.sequence + 1, 0xfffffffe);
+
       newTx.addInput({
         txid: input.txid,
         index: input.vout,
-        sequence: input.sequence + 1,
+        sequence: bumpedSequence,
         witnessUtxo: {
           // script = 0014 + pubKeyHash
           script: payer ? payer.payment.script : p2wpkh.script,
@@ -118,6 +131,19 @@ export function useBtcIncreaseFee(btcTx: BitcoinTx) {
       }
       newTx.addOutputAddress(output.scriptpubkey_address, BigInt(output.value), networkMode);
     });
+
+    /* HACK -- Cat21: hard assert that the replacement carries the original
+     * locktime through. Per CLAUDE.md HARD RULE #1, losing nLockTime on a
+     * CAT-21 mint is the worst class of bug this wallet can ship. If a
+     * future refactor breaks the constructor argument above this fires
+     * before we sign. */
+    if (newTx.lockTime !== payload.tx.locktime) {
+      throw new Error(
+        `Replacement tx locktime ${newTx.lockTime} does not match original ` +
+          `${payload.tx.locktime}. Refusing to sign — would silently kill ` +
+          'any cat carried by the original.'
+      );
+    }
 
     return { tx: newTx, signingConfig };
   }

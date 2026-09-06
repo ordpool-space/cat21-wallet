@@ -1,0 +1,179 @@
+name: extension:trusted-build
+
+# Purpose: produce the canonical Cat21 Wallet extension ZIP exclusively on
+# GitHub-hosted runners, with a verifiable provenance attestation. The threat
+# model assumes the maintainer's local machine could be compromised; this
+# workflow defends against that by:
+#
+#   1. Refusing to run from anywhere but GitHub-hosted runners (no self-
+#      hosted runner can substitute its output).
+#   2. Pinning every tool by version + sha (pnpm via packageManager, all
+#      actions by full commit sha).
+#   3. Installing with --frozen-lockfile so the lockfile is the integrity
+#      anchor.
+#   4. Recording a build-provenance attestation via the official
+#      actions/attest-build-provenance action, signed by GitHub's OIDC
+#      identity. Verifiable later with `gh attestation verify`.
+#   5. Emitting a sha256sum.txt alongside the artifact so downstream
+#      automation can pin the hash.
+#
+# Triggered by:
+#   - tag push matching v*
+#   - manual workflow_dispatch
+#
+# Anyone receiving an extension ZIP can verify it was built by THIS workflow
+# in THIS repo at THIS commit:
+#
+#   gh attestation verify cat21-wallet-extension.zip \
+#     --repo ordpool-space/cat21-wallet
+#
+# A pass means: GitHub's OIDC identity for ordpool-space/cat21-wallet signed
+# a provenance saying it built this exact byte sequence from this exact
+# commit at this exact workflow run.
+
+on:
+  push:
+    tags:
+      # HACK -- Cat21: cat21-v* matcher (not Leather's v*). The
+      # quarterly upstream sync may import Leather's v1.0.x tags
+      # into our repo; matching v* would build a Leather commit and
+      # publish it as ours. The cat21- prefix is our reserved
+      # release namespace.
+      - 'cat21-v*'
+  workflow_dispatch:
+
+# Workflow-level: minimum needed for checkout. Each job re-declares what
+# it actually needs. zizmor rejects broad workflow-level permissions for
+# release/OIDC/attestation; scoped per-job below.
+permissions:
+  contents: read
+
+# One trusted build at a time per ref. A racing build cannot poison the
+# release artifact mid-flight.
+concurrency:
+  group: cat21-trusted-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: trusted-extension-build
+    permissions:
+      contents: write       # release upload
+      id-token: write       # OIDC for attestation
+      attestations: write   # sigstore attestation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: confirm-github-hosted-runner
+        run: |
+          # Refuse to run on self-hosted runners. The whole point of this
+          # workflow is that no maintainer-controlled machine touches the
+          # build artifact.
+          if [ "${RUNNER_ENVIRONMENT:-}" != "github-hosted" ]; then
+            echo "ERROR: this workflow must run on a GitHub-hosted runner"
+            echo "Got RUNNER_ENVIRONMENT='${RUNNER_ENVIRONMENT:-}'"
+            exit 1
+          fi
+
+      - name: checkout
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+        with:
+          # Need full history so the build commit is identifiable in
+          # provenance, but we do not need submodules.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: assert-pnpm-pinned-in-package-json
+        run: |
+          # The packageManager field is the source of truth for pnpm
+          # version + integrity hash. Assert it's set so action-setup's
+          # auto-detect path uses our pin, not its bundled default.
+          pm=$(node -e "console.log(require('./package.json').packageManager)")
+          if [[ "$pm" != pnpm@* ]]; then
+            echo "ERROR: packageManager in package.json is '$pm', expected pnpm@<version>"
+            exit 1
+          fi
+          echo "packageManager: ${pm}"
+
+      # Cache disabled across this trusted-build pipeline on purpose.
+      # zizmor flags package-manager cache as a cache-poisoning attack
+      # surface; the build artifact is small enough that the extra ~30s
+      # is worth eliminating that surface entirely. The inline `zizmor:`
+      # comment below suppresses the false-positive on setup-node, which
+      # zizmor flags even when no `cache:` key is set.
+      - name: setup-node
+        uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b  # v4.0.3 # zizmor: ignore[cache-poisoning]
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: setup-pnpm
+        # No `version:` input — action-setup v4 reads packageManager
+        # from package.json automatically and rejects double-pinning.
+        uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2  # v4.0.0
+        with:
+          run_install: false
+
+      - name: install-dependencies-frozen-lockfile
+        run: pnpm install --frozen-lockfile --strict-peer-dependencies
+
+      - name: build-extension-production
+        env:
+          WALLET_ENVIRONMENT: production
+          NODE_ENV: production
+        run: pnpm build:extension
+
+      - name: pack-zip-artifact
+        id: pack
+        run: |
+          set -euo pipefail
+          dist=apps/extension/dist
+          if [ ! -d "$dist" ]; then
+            echo "ERROR: $dist does not exist after build"
+            exit 1
+          fi
+          out=cat21-wallet-extension-${GITHUB_SHA:0:7}.zip
+          (cd "$dist" && zip -r -X "../../../${out}" .)
+          sha=$(shasum -a 256 "$out" | cut -d' ' -f1)
+          echo "${sha}  ${out}" > "${out}.sha256.txt"
+          echo "zip=${out}" >> "$GITHUB_OUTPUT"
+          echo "sha=${sha}" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Trusted build hash::${sha}"
+
+      - name: attest-build-provenance
+        # The hash is pinned per HARD RULE; the trailing version comment
+        # is informational and may drift slightly from upstream tag history.
+        uses: actions/attest-build-provenance@5e9cb68e95676991667494a6a4e59b8a2f13e1d0 # zizmor: ignore[unpinned-uses]
+        with:
+          subject-path: ${{ steps.pack.outputs.zip }}
+
+      - name: upload-as-workflow-artifact
+        uses: actions/upload-artifact@834a144ee995460fba8ed112a2fc961b36a5ec5a  # v4.3.6
+        with:
+          name: cat21-wallet-extension
+          path: |
+            ${{ steps.pack.outputs.zip }}
+            ${{ steps.pack.outputs.zip }}.sha256.txt
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: attach-to-release-on-tag-push
+        if: startsWith(github.ref, 'refs/tags/cat21-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # Pass steps.pack output through env to avoid `${{ }}` expansion
+          # inside the shell body — zizmor's template-injection rule wants
+          # all expansions confined to env vars under our control.
+          PACK_ZIP: ${{ steps.pack.outputs.zip }}
+        run: |
+          tag="${GITHUB_REF##refs/tags/}"
+          # Create the release if it does not exist yet; gh release create
+          # is idempotent under --notes-file flow when the tag already
+          # has a release.
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$tag" --notes "Trusted CI build. Verify with gh attestation verify."
+          fi
+          gh release upload "$tag" \
+            "$PACK_ZIP" \
+            "$PACK_ZIP.sha256.txt" \
+            --clobber

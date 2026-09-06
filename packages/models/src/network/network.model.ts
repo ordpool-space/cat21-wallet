@@ -15,9 +15,6 @@ export const BITCOIN_API_BASE_URL_TESTNET3 = 'https://leather.mempool.space/test
 export const BITCOIN_API_BASE_URL_TESTNET4 = 'https://leather.mempool.space/testnet4/api';
 export const BITCOIN_API_BASE_URL_SIGNET = 'https://mempool.space/signet/api';
 
-export const BESTINSLOT_API_BASE_URL_MAINNET = 'https://leatherapi.bestinslot.xyz/v3';
-export const BESTINSLOT_API_BASE_URL_TESTNET = 'https://leatherapi_testnet.bestinslot.xyz/v3';
-
 export const BNS_V2_API_BASE_URL = 'https://api.bnsv2.com';
 
 export const EMILY_API_BASE_URL_MAINNET = 'https://sbtc-emily.com';
@@ -38,6 +35,14 @@ export enum WalletDefaultNetworkConfigurationIds {
   sbtcTestnet = 'sbtcTestnet',
   sbtcDevenv = 'sbtcDevenv',
   devnet = 'devnet',
+  // HACK -- Cat21: `regtest` is the Bitcoin-standard name for the
+  // same network upstream Leather calls `devnet` (devnet is a
+  // Stacks-isms artifact). Both slots exist side by side: `regtest`
+  // is the primary entry CAT-21 wallet uses going forward; `devnet`
+  // stays for Leather-RPC-compat with dapps written against the
+  // upstream surface. Both target the same bcrt-HRP regtest
+  // Bitcoin chain — see `networkRegtest` below.
+  regtest = 'regtest',
 }
 
 export const defaultNetworkConfigurationsSchema = z.enum([
@@ -48,6 +53,8 @@ export const defaultNetworkConfigurationsSchema = z.enum([
   'sbtcTestnet',
   'sbtcDevenv',
   'devnet',
+  // HACK -- Cat21: see `WalletDefaultNetworkConfigurationIds.regtest`.
+  'regtest',
 ]);
 export type DefaultNetworkConfigurations = z.infer<typeof defaultNetworkConfigurationsSchema>;
 
@@ -233,6 +240,31 @@ const networkDevnet: NetworkConfiguration = {
   },
 };
 
+// HACK -- Cat21: Bitcoin-standard `regtest` slot. Identical
+// underlying chain config to `networkDevnet` (same RPC URL, same
+// bcrt HRP, same regtest mode) — they target the same bitcoind. The
+// duplication is a compatibility seam: CAT-21 wallet and ordpool-sdk
+// use `regtest` going forward; dapps built against upstream Leather's
+// RPC contract can still pass `network: 'devnet'` and get the same
+// addresses back. Both slots stay in `defaultNetworksKeyedById`.
+const networkRegtest: NetworkConfiguration = {
+  id: WalletDefaultNetworkConfigurationIds.regtest,
+  name: 'Regtest',
+  chain: {
+    stacks: {
+      blockchain: 'stacks',
+      chainId: ChainId.Testnet,
+      url: 'http://localhost:3999',
+    },
+    bitcoin: {
+      blockchain: 'bitcoin',
+      bitcoinNetwork: 'regtest',
+      mode: 'regtest',
+      bitcoinUrl: 'http://localhost:18443',
+    },
+  },
+};
+
 export const defaultCurrentNetwork: NetworkConfiguration = networkMainnet;
 
 export const defaultNetworksKeyedById: Record<
@@ -246,4 +278,6 @@ export const defaultNetworksKeyedById: Record<
   [WalletDefaultNetworkConfigurationIds.sbtcTestnet]: networkSbtcTestnet,
   [WalletDefaultNetworkConfigurationIds.sbtcDevenv]: networkSbtcDevenv,
   [WalletDefaultNetworkConfigurationIds.devnet]: networkDevnet,
+  // HACK -- Cat21: Bitcoin-standard regtest slot; see `networkRegtest`.
+  [WalletDefaultNetworkConfigurationIds.regtest]: networkRegtest,
 };
