@@ -115,12 +115,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   // real cat-flow pipeline against a local regtest chain (bcrt addresses).
   // Inert in production: the wallet is mainnet in normal use, and any other
   // non-mainnet mode still collapses to testnet.
-  const networkLabel: 'mainnet' | 'testnet' | 'regtest' =
-    network.chain.bitcoin.mode === 'mainnet'
-      ? 'mainnet'
-      : network.chain.bitcoin.mode === 'regtest'
-        ? 'regtest'
-        : 'testnet';
+  const networkLabel = toNetworkLabel(network.chain.bitcoin.mode);
   const accountKey = accountIdToSliceKey(currentAccount);
   const bitcoinClient = useBitcoinClient();
   const utxoQuery = useCurrentNativeSegwitUtxos();
@@ -367,6 +362,18 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     catQuery.data,
     catQuery.error,
   ]);
+}
+
+/**
+ * Collapse the wallet's bitcoin network mode to the coarse label the cat-flow
+ * pipeline uses. Regtest is threaded through so the E2E chain-truth harness can
+ * drive the real pipeline against a local regtest chain (bcrt addresses); inert
+ * in production, where the wallet is mainnet and any other mode is testnet.
+ */
+function toNetworkLabel(mode: string): 'mainnet' | 'testnet' | 'regtest' {
+  if (mode === 'mainnet') return 'mainnet';
+  if (mode === 'regtest') return 'regtest';
+  return 'testnet';
 }
 
 /**

@@ -391,10 +391,6 @@ export async function installRegtestRoutes(
   context: BrowserContext,
   capture: BroadcastCapture
 ): Promise<void> {
-  const log = (...a: unknown[]) => {
-    if (process.env.CHAIN_DEBUG) console.error('[route]', ...a);
-  };
-
   // Wallet Bitcoin client (electrs Esplora): strip the /api/proxy prefix the
   // sbtcDevenv bitcoinUrl carries and forward to electrs at the same host.
   await context.route(
@@ -413,7 +409,6 @@ export async function installRegtestRoutes(
       if (route.request().method() === 'GET' && /\/address\/[^/]+\/utxo$/.test(strippedPath)) {
         capture.utxoResponses += 1;
       }
-      log('electrs', route.request().method(), strippedPath, '->', resp.status());
       await route.fulfill({ response: resp, body: bodyText });
     }
   );
@@ -429,7 +424,6 @@ export async function installRegtestRoutes(
         .replace('http://ord.cat21.space', CAT21_ORD_BASE);
       const resp = await route.fetch({ url: target });
       const bodyText = await resp.text();
-      log('cat21-ord', new URL(target).pathname, '->', resp.status());
       await route.fulfill({ response: resp, body: bodyText });
     }
   );
@@ -447,7 +441,6 @@ export async function installRegtestRoutes(
           path: new URL(req.url()).pathname,
           body: req.postData() ?? '',
         });
-        log('bazaar POST', new URL(req.url()).pathname);
       }
       await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     }

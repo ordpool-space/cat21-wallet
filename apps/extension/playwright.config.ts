@@ -7,7 +7,7 @@ export default defineConfig({
   globalSetup: './tests/global-playwright-setup.js',
   testDir: './tests',
   // The cat21-chain/ chain-truth specs need a live regtest stack (bitcoind +
-  // electrs + cat21-ord) and run via playwright.chain.config.ts, NOT here. The
+  // electrs + cat21-ord) and run via playwright.config.chain.ts, NOT here. The
   // CI caps lane invokes `playwright test tests/specs/cat21`, whose path filter
   // also prefix-matches `tests/specs/cat21-chain/`; ignore them so that lane
   // never tries to run them without the stack.

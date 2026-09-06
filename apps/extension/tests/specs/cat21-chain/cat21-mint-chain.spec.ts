@@ -35,7 +35,7 @@ import {
  * Run (local; the pinned Chromium override avoids re-downloading a build):
  *   PW_CHROMIUM_EXE=~/Library/Caches/ms-playwright/chromium-1234/chrome-mac/Chromium.app/Contents/MacOS/Chromium \
  *     pnpm --filter @leather.io/extension exec playwright test \
- *       --config playwright.chain.config.ts cat21-mint-chain
+ *       --config playwright.config.chain.ts cat21-mint-chain
  */
 test.describe('CAT-21 mint (regtest chain truth)', () => {
   test('mints a real cat: locktime=21 on chain, cat indexed by cat21-ord', async ({
@@ -44,19 +44,6 @@ test.describe('CAT-21 mint (regtest chain truth)', () => {
     extensionId,
     onboardingPage,
   }) => {
-    if (process.env.CHAIN_DEBUG) {
-      page.on('console', m => console.error('[page]', m.type(), m.text()));
-      page.on('requestfailed', r =>
-        console.error('[reqfail]', r.method(), r.url(), r.failure()?.errorText)
-      );
-      context.on('request', r => {
-        const u = r.url();
-        if (/18443|ord\.cat21|localhost:(3000|8080)|leather|hiro|mempool/.test(u)) {
-          console.error('[req]', r.method(), u);
-        }
-      });
-    }
-
     const capture = newCapture();
     await installRegtestRoutes(context, capture);
 

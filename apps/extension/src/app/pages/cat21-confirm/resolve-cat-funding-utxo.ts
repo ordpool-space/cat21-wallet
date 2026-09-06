@@ -40,13 +40,14 @@ export function resolveCatFundingUtxo(
   }
   // regtest (bcrt) is NOT scure's TEST_NETWORK (tb); use the SDK's mapping so
   // a regtest cat address decodes correctly for the E2E chain-truth harness.
-  const sdkNet =
-    networkLabel === 'mainnet'
-      ? Network.Mainnet
-      : networkLabel === 'regtest'
-        ? Network.Regtest
-        : Network.Testnet3;
-  const scureNetwork = toScureNetwork(sdkNet);
+  const scureNetwork = toScureNetwork(toSdkNetwork(networkLabel));
   const scriptPubKey = btc.OutScript.encode(btc.Address(scureNetwork).decode(cat.address));
   return { txid, vout, value: cat.value, scriptPubKey };
+}
+
+/** Map the wallet's coarse network label to the SDK `Network` enum. */
+function toSdkNetwork(networkLabel: 'mainnet' | 'testnet' | 'regtest'): Network {
+  if (networkLabel === 'mainnet') return Network.Mainnet;
+  if (networkLabel === 'regtest') return Network.Regtest;
+  return Network.Testnet3;
 }

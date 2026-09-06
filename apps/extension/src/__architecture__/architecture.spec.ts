@@ -700,7 +700,10 @@ describe('popup-side deps wire every Cat21RpcDeps field', () => {
     // introduce a parallel signing path the extension team would
     // have to maintain forever.
     const src = read(join(REPO_ROOT, HOOK_PATH));
-    expect(src).toMatch(/import\s+\{\s*useSignBitcoinTx\s*\}/);
+    // useSignBitcoinTx may be imported alongside sibling signing hooks
+    // (e.g. useAddTapInternalKeysIfMissing), so match it within the import
+    // block, not as the sole specifier.
+    expect(src).toMatch(/import\s*\{[^}]*\buseSignBitcoinTx\b/);
     expect(src).toMatch(/const\s+signBitcoinTx\s*=\s*useSignBitcoinTx\(\)/);
   });
 
