@@ -18,13 +18,13 @@ import { execFileSync } from 'node:child_process';
  *
  * How the wallet reaches regtest:
  *   - We switch its `currentNetworkId` to the built-in `sbtcDevenv` config
- *     (mode='regtest', bitcoinUrl='http://localhost:3000/api/proxy'). That
+ *     (mode='regtest', bitcoinUrl='http://localhost:3010/api/proxy'). That
  *     makes the keychain derive bcrt addresses AND makes the UTXO/broadcast
  *     clients resolve a real base URL. (The bare `regtest` built-in is NOT
  *     usable here: `getMempoolUrlFromUserSettings` returns its base URL only
  *     for custom networks / sbtcTestnet / sbtcDevenv, so `regtest` yields a
  *     `null` base and the UTXO fetch silently produces nothing.)
- *   - Every wallet Bitcoin request is `http://localhost:3000/api/proxy/...`;
+ *   - Every wallet Bitcoin request is `http://localhost:3010/api/proxy/...`;
  *     interception strips `/api/proxy` and forwards to electrs at :3000
  *     (identical Esplora path shapes: /address/:a/utxo, /tx, /tx/:id/hex,
  *     POST /tx).
@@ -39,7 +39,7 @@ import { execFileSync } from 'node:child_process';
 // nothing changes for a local run.
 const BITCOIND_CONTAINER = process.env.E2E_BITCOIND_CONTAINER ?? 'ordpool-e2e-bitcoind';
 const MINER_WALLET = 'e2e-miner';
-const ELECTRS_BASE = process.env.E2E_ELECTRS_URL ?? 'http://localhost:3000';
+const ELECTRS_BASE = process.env.E2E_ELECTRS_URL ?? 'http://localhost:3010';
 const CAT21_ORD_BASE = process.env.E2E_CAT21_ORD_URL ?? 'http://localhost:8080';
 /**
  * The REAL CAT-21 Bazaar backend (cat21-indexer) running locally against the
@@ -55,7 +55,7 @@ const BAZAAR_BACKEND_BASE = process.env.E2E_BAZAAR_BACKEND_URL ?? 'http://127.0.
  */
 const REGTEST_NETWORK_ID = 'sbtcDevenv';
 /** Host of every wallet Bitcoin request under sbtcDevenv (path-prefixed /api/proxy). */
-const WALLET_BITCOIN_HOST = 'localhost:3000';
+const WALLET_BITCOIN_HOST = 'localhost:3010';
 const WALLET_BITCOIN_PATH_PREFIX = '/api/proxy';
 
 // ── bitcoind control (docker exec bitcoin-cli) ──────────────────────────────
@@ -488,7 +488,7 @@ export function newCapture(): BroadcastCapture {
 
 /**
  * Install the regtest route rewrites on the browser context:
- *   - localhost:18443  -> localhost:3000  (wallet Bitcoin client -> electrs)
+ *   - localhost:18443  -> localhost:3010  (wallet Bitcoin client -> electrs)
  *   - ord.cat21.space  -> localhost:8080  (wallet cat21-ord client)
  *   - mempool.space fee endpoint -> a static regtest fee (avoids a hang if
  *     the wallet prefetches recommended fees; the mint uses the form's rate)

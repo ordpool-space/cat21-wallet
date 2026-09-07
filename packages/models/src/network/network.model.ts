@@ -217,7 +217,7 @@ const networkSbtcDevenv: NetworkConfiguration = {
       blockchain: 'bitcoin',
       bitcoinNetwork: 'regtest',
       mode: 'regtest',
-      bitcoinUrl: 'http://localhost:3000/api/proxy',
+      bitcoinUrl: 'http://localhost:3010/api/proxy',
     },
   },
 };
