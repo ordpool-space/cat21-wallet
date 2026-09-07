@@ -1212,9 +1212,22 @@ describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () =>
     );
   });
 
-  it('autoconfirm effect re-runs on unlock + session-key state (no false-deny latch)', () => {
+  it('autoconfirm effect re-runs on unlock + session-key + funding-query state (no false-deny/false-reject latch)', () => {
     const src = read(join(REPO_ROOT, ROUTE));
-    expect(src).toMatch(/\}\s*,\s*\[urlRequest\.status,\s*isWalletUnlocked,\s*hasSessionKey\]\)/);
+    expect(src).toMatch(
+      /\}\s*,\s*\[urlRequest\.status,\s*isWalletUnlocked,\s*hasSessionKey,\s*intentNeedsFunding,\s*fundingQueryLoading\]\)/
+    );
+  });
+
+  it('waits for the funding UTXO query before a funding-requiring autoconfirm (no empty-set false-reject)', () => {
+    const src = read(join(REPO_ROOT, ROUTE));
+    // A funding intent (mint/transfer/buy) must not fire the single-shot
+    // autoconfirm while the native-segwit UTXO query is still loading, or the
+    // funding pick reads an empty spendable set and false-rejects.
+    expect(src).toMatch(/if\s*\(intentNeedsFunding\s*&&\s*fundingQueryLoading\)\s*return;/);
+    expect(src).toMatch(
+      /const\s+fundingQueryLoading\s*=\s*useCurrentNativeSegwitUtxos\(\)\.isLoading/
+    );
   });
 });
 

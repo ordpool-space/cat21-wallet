@@ -8,6 +8,7 @@ import { Button } from '@leather.io/ui';
 import { Content } from '@app/components/layout';
 import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat21-confirmation-copy';
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
+import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { useHasActiveInMemoryWalletSecretKey } from '@app/store/in-memory-key/in-memory-key.selectors';
 import { postCat21Result } from '@background/cat21/cat21-result-bus';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
@@ -111,6 +112,20 @@ export function Cat21ConfirmRoute() {
   const catIdHint = extractCatIdHint(intent);
   const deps = useCat21RpcDeps(catIdHint);
   const bazaar = usePublishToBazaar();
+
+  // Path-3 funding gate. mint/transfer/buy read the native-segwit spendable set
+  // during their funding pick; `useCurrentNativeSegwitUtxos` reports `isLoading`
+  // (state !== 'success') until its first fetch lands. On a fresh popup boot
+  // that query is still loading, so the single-shot autoconfirm must WAIT for it
+  // instead of firing on the still-empty set and false-rejecting a fundable
+  // action as "insufficient funds". createOffer + acceptOffer take no funding,
+  // so they are not gated on it. (Same React-Query cache key as the deps hook —
+  // this second call dedupes, no extra fetch.)
+  const fundingQueryLoading = useCurrentNativeSegwitUtxos().isLoading;
+  const intentNeedsFunding =
+    urlRequest.status === 'ready' &&
+    !('priceSats' in urlRequest.intent) &&
+    !('offerPsbt' in urlRequest.intent);
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
@@ -246,6 +261,13 @@ export function Cat21ConfirmRoute() {
       });
       return;
     }
+    // Wait for the funding UTXO query's first success before firing a
+    // funding-requiring autoconfirm; otherwise the funding pick reads an empty
+    // spendable set and false-rejects with "insufficient funds". WAIT, do not
+    // deny: the effect re-runs when `fundingQueryLoading` flips (it is in the
+    // dep array), and a genuinely unfunded wallet still reaches a real
+    // insufficient-funds rejection once the query settles.
+    if (intentNeedsFunding && fundingQueryLoading) return;
     autoConfirmedRef.current = true;
     confirm(urlRequest.intent);
     // `deps` and `confirm` close over many things that re-render-thrash
@@ -253,7 +275,7 @@ export function Cat21ConfirmRoute() {
     // etc.). The `autoConfirmedRef` guard keeps this at-most-once;
     // intentionally not listing the rest.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlRequest.status, isWalletUnlocked, hasSessionKey]);
+  }, [urlRequest.status, isWalletUnlocked, hasSessionKey, intentNeedsFunding, fundingQueryLoading]);
 
   if (urlRequest.status === 'loading') {
     return <div data-testid="cat21-confirm-loading">Loading request…</div>;
