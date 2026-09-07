@@ -3,10 +3,10 @@ name: extension:cat21-chain-e2e
 # Real-button chain-truth E2E for the CAT-21 wallet flows against a live
 # regtest chain (bitcoind + electrs + cat21-ord). The specs drive the wallet's
 # own popup UI, build/sign/broadcast real transactions, and assert on-chain +
-# cat21-ord state. Runs all five chain-truth flows: mint, transfer,
-# accept-offer, autonomous mint (chain stack only) plus create-offer, which
-# additionally publishes to a real cat21-indexer backend + MariaDB brought up
-# here against the same regtest stack.
+# cat21-ord state. Runs all six chain-truth flows: mint, transfer,
+# accept-offer, autonomous mint (chain stack only) plus create-offer and buy,
+# which additionally publish to / read from a real cat21-indexer backend +
+# MariaDB brought up here against the same regtest stack.
 
 on:
   workflow_dispatch:
@@ -176,7 +176,7 @@ jobs:
             sleep 1
           done
 
-      - name: Run all five chain-truth flows (incl. create-offer)
+      - name: Run all six chain-truth flows (incl. create-offer + buy)
         working-directory: apps/extension
         env:
           # The consumer-environment prefixes containers with -consumer-; ports

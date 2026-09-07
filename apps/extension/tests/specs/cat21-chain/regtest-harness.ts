@@ -354,6 +354,51 @@ export async function waitForBackendListing(
   }
 }
 
+/** cat21-ord cat number for an inscription id (needed to build a buy ask link). */
+export async function getCatNumber(catId: string): Promise<number> {
+  const cat = await fetchJson<{ number: number }>(`${CAT21_ORD_BASE}/cat/${catId}`);
+  return cat.number;
+}
+
+export interface BackendBid {
+  network: string;
+  catTxid: string;
+  catVout: number;
+  bidSats: number;
+  buyerOrdinalsAddress: string;
+  buyerPaymentAddress: string;
+  sellerPaymentAddress: string;
+  psbtBase64: string;
+}
+
+/**
+ * Poll the REAL Bazaar backend until it reports at least one bid at the outpoint
+ * (`GET /api/v1/bids/outpoint/:catTxid/:catVout` -> `BidDto[]`). Proves the
+ * wallet's buy-offer bid actually persisted in the backend, not a stub echo.
+ */
+export async function waitForBackendBids(
+  catTxid: string,
+  catVout: number,
+  timeoutMs = 30_000
+): Promise<BackendBid[]> {
+  const url = `${BAZAAR_BACKEND_BASE}/api/v1/bids/outpoint/${catTxid}/${catVout}`;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const bids = await fetchJson<BackendBid[]>(url);
+      if (bids.length > 0) return bids;
+    } catch {
+      /* retry */
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `backend never reported a bid for ${catTxid}:${catVout} within ${timeoutMs}ms`
+      );
+    }
+    await sleep(500);
+  }
+}
+
 /**
  * Click the Cat21 confirmation dialog's Approve button until the wallet
  * broadcasts (a new txid lands in `capture.txids`), then return that txid.
