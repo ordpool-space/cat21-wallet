@@ -120,7 +120,7 @@ jobs:
         run: pnpm turbo build --filter=@leather.io/extension^...
 
       - name: Build styles
-        run: pnpm run prepare:build
+        run: pnpm --filter @leather.io/extension run prepare:build
 
       - name: Build the test extension
         run: pnpm --filter @leather.io/extension run build:ext:test
