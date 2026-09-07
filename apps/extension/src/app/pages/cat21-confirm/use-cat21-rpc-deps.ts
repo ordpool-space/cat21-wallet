@@ -312,14 +312,15 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         return signedTx.toPSBT();
       },
       // Unauthenticated bid POST to the Bazaar (the SIGHASH_ALL sigs are
-      // the auth). Translates the wallet's coarse 'mainnet'|'testnet'
-      // network to the bid DTO's enum (testnet ⇒ 'testnet3', matching
-      // walletNetworkToSdkNetwork). Throws on rejection so the service's
-      // try/catch maps it to a typed 'broadcast-failed' denial.
+      // the auth). Translates the wallet's coarse network label to the bid
+      // DTO's enum via `toBidNetwork` (mainnet⇒mainnet, regtest⇒regtest, any
+      // other⇒testnet3), so a regtest bid matches a BACKEND_NETWORK=regtest
+      // backend. Throws on rejection so the service's try/catch maps it to a
+      // typed 'broadcast-failed' denial.
       postBid: async postArgs => {
         const result = await postBidToCat21Bazaar({
           request: {
-            network: postArgs.network === 'mainnet' ? 'mainnet' : 'testnet3',
+            network: toBidNetwork(postArgs.network),
             catTxid: postArgs.catTxid,
             catVout: postArgs.catVout,
             cats: postArgs.cats,
@@ -374,6 +375,17 @@ function toNetworkLabel(mode: string): 'mainnet' | 'testnet' | 'regtest' {
   if (mode === 'mainnet') return 'mainnet';
   if (mode === 'regtest') return 'regtest';
   return 'testnet';
+}
+
+/**
+ * Map the wallet's network label to the Bazaar bid DTO's network enum. Production
+ * is 'mainnet'; the E2E chain-truth suite drives 'regtest' against a real regtest
+ * backend. Any other non-mainnet label collapses to 'testnet3'.
+ */
+function toBidNetwork(net: string): 'mainnet' | 'testnet3' | 'regtest' {
+  if (net === 'mainnet') return 'mainnet';
+  if (net === 'regtest') return 'regtest';
+  return 'testnet3';
 }
 
 /**
