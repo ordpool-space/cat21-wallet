@@ -32,54 +32,59 @@ concurrency:
 
 jobs:
   chain-e2e:
-    name: cat21 chain-truth flows on regtest
+    name: cat21-chain-truth-flows-on-regtest
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - name: Checkout cat21-wallet
-        uses: actions/checkout@v4
+      - name: checkout-cat21-wallet
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
 
       # ordpool-sdk ships the regtest consumer-environment (compose + bootstrap)
       # + the electrs/cat21-ord build contexts. Check it out for those scripts.
-      - name: Checkout ordpool-sdk (consumer-environment bootstrap)
-        uses: actions/checkout@v4
+      - name: checkout-ordpool-sdk-bootstrap
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ordpool-space/ordpool-sdk
           ref: main
           path: sdk
+          persist-credentials: false
 
       # electrs is built from the ordpool-electrs fork (not upstream), and
       # cat21-ord from the index-cat21 branch — both compiled by the
       # consumer-environment compose from these checkouts.
-      - name: Checkout ordpool-electrs
-        uses: actions/checkout@v4
+      - name: checkout-ordpool-electrs
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ordpool-space/ordpool-electrs
           ref: ordpool
           path: ordpool-electrs
+          persist-credentials: false
 
-      - name: Checkout cat21-ord
-        uses: actions/checkout@v4
+      - name: checkout-cat21-ord
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ordpool-space/cat21-ord
           ref: index-cat21
           path: cat21-ord
+          persist-credentials: false
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: set-up-docker-buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Export GitHub Actions runtime for the gha cache backend
-        uses: crazy-max/ghaction-github-runtime@v3
+      - name: export-actions-runtime-for-gha-cache
+        uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3
 
-      - name: Stabilise electrs + cat21-ord build contexts for layer caching
+      - name: stabilise-build-contexts-for-layer-caching
         run: |
           printf '.git\ntarget\n' > ordpool-electrs/.dockerignore
           printf '.git\ntarget\n' > cat21-ord/.dockerignore
 
-      - name: Make the consumer-environment bootstrap executable
+      - name: make-bootstrap-executable
         run: chmod +x sdk/e2e/consumer-environment-bootstrap.sh
 
-      - name: Bring up consumer-environment (bitcoind + electrs + cat21-ord)
+      - name: bring-up-consumer-environment
         env:
           ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
           CAT21_ORD_SRC: ${{ github.workspace }}/cat21-ord
@@ -90,7 +95,7 @@ jobs:
             > stack.json
           cat stack.json
 
-      - name: Wait for cat21-ord ready on :8080
+      - name: wait-for-cat21-ord-ready
         run: |
           for i in $(seq 1 120); do
             code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/json' http://localhost:8080/status 2>/dev/null || echo 000)
@@ -103,7 +108,7 @@ jobs:
             sleep 2
           done
 
-      - name: Wait for electrs ready on :3000
+      - name: wait-for-electrs-ready
         run: |
           for i in $(seq 1 60); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3000/blocks/tip/height 2>/dev/null || echo 000)
@@ -114,21 +119,21 @@ jobs:
 
       # Same composite the caps-e2e lane uses: pnpm (version from
       # packageManager) + Node + salted store cache + `pnpm install`.
-      - name: Provision node + pnpm + install deps
+      - name: provision-node-pnpm-install-deps
         uses: ./.github/actions/provision
 
       # Same build sequence the caps-e2e lane uses, minus the test-app (the
       # chain specs drive the extension directly, no dapp on :3000).
-      - name: Build extension dependency packages
+      - name: build-extension-dependency-packages
         run: pnpm turbo build --filter=@leather.io/extension^...
 
-      - name: Build styles
+      - name: build-styles
         run: pnpm --filter @leather.io/extension run prepare:build
 
-      - name: Build the test extension
+      - name: build-test-extension
         run: pnpm --filter @leather.io/extension run build:ext:test
 
-      - name: Install Playwright Chromium + system deps
+      - name: install-playwright-chromium
         working-directory: apps/extension
         run: pnpm exec playwright install --with-deps chromium
 
@@ -138,14 +143,15 @@ jobs:
       # cross-check, BACKEND_NETWORK=regtest so the regtest listing passes the
       # network-mismatch gate. Its pinned ordpool-sdk (712b9a9) carries the
       # BIP-322 regtest verify fix.
-      - name: Checkout cat21-indexer (Bazaar backend)
-        uses: actions/checkout@v4
+      - name: checkout-cat21-indexer-backend
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ordpool-space/cat21-indexer
           ref: main
           path: cat21-indexer-src
+          persist-credentials: false
 
-      - name: Install + build the cat21-indexer backend
+      - name: install-build-cat21-indexer-backend
         working-directory: cat21-indexer-src/backend
         run: |
           # The backend pins ordpool-sdk / ordpool-parser as git+ssh github deps;
@@ -155,7 +161,7 @@ jobs:
           npm ci
           npm run build
 
-      - name: Bring up the cat21-indexer backend on :3333 (regtest)
+      - name: bring-up-cat21-indexer-backend
         working-directory: cat21-indexer-src/backend
         env:
           PORT: '3333'
@@ -178,7 +184,7 @@ jobs:
             sleep 1
           done
 
-      - name: Run all six chain-truth flows (incl. create-offer + buy)
+      - name: run-chain-truth-flows
         working-directory: apps/extension
         env:
           # The consumer-environment prefixes containers with -consumer-; ports
@@ -189,9 +195,9 @@ jobs:
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             pnpm exec playwright test --config playwright.config.chain.ts
 
-      - name: Upload Playwright artifacts
+      - name: upload-playwright-artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cat21-chain-e2e-${{ github.run_id }}
           path: |
@@ -200,7 +206,7 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      - name: Tear down the stack
+      - name: tear-down-the-stack
         if: always()
         run: |
           if [ -f cat21-indexer-src/backend/backend.pid ]; then
