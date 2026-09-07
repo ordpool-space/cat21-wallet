@@ -977,9 +977,10 @@ Active on push/PR (safety net):
 
 - `extension:code-checks.yml`, `extension:pr-build.yml`
 - `extension:cat21-e2e.yml` (mocked real-extension cat21 flows) +
-  `extension:cat21-chain-e2e.yml` (the six cat21 flows + autonomous +
-  cat-UTXO protection against a live regtest stack + real cat21-indexer
-  backend)
+  `extension:cat21-chain-e2e.yml` (six real-button UI flows — mint /
+  transfer / create-offer / accept-offer / buy / autonomous — against a
+  live regtest stack + real cat21-indexer backend, PLUS a seventh
+  node-side, no-UI cat-UTXO-protection proof against real cat21-ord)
 - `repo:code-checks.yml`, `repo:all-checks-pass.yml`,
   `repo:workflow-checks.yml`
 - `check-locktime-framing.yml` — greps tracked source/tests/docs for

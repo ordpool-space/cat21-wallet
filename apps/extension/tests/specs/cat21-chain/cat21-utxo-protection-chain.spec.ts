@@ -22,6 +22,15 @@ import {
  * CAT-21 UTXO PROTECTION — real-infra proof of the wallet's headline safety
  * promise ("won't spend cat sats", HARD RULE #2).
  *
+ * NOT a real-button flow. Unlike the six click-driven chain specs (mint /
+ * transfer / create-offer / accept-offer / buy / autonomous), this spec drives
+ * NO wallet UI — it has no `page` interaction and clicks nothing. It calls the
+ * wallet's real `fetchCatBearingUtxoIds` + `ordOutputSchema` directly against a
+ * real cat21-ord. The send-form refusal it protects is mainnet-gated and cannot
+ * be driven on regtest (see the honest-limit note below), so this proves the
+ * load-bearing SEAM the gate feeds, at the node level. Do not count it among the
+ * "real-button" flows.
+ *
  * The BTC send flow routes any cat-bearing UTXO into the `protected` bucket so
  * coin-selection can never pick it. The load-bearing seam is
  * `fetchCatBearingUtxoIds`, which probes cat21-ord `/output/<outpoint>` per UTXO
@@ -47,7 +56,7 @@ import {
  *
  * Prereqs/run: see cat21-mint-chain.spec.ts (same stack). No backend needed.
  */
-test.describe('CAT-21 UTXO protection (regtest chain truth)', () => {
+test.describe('CAT-21 UTXO protection (regtest real-infra, node-side — no UI)', () => {
   test('wallet schema + fetchCatBearingUtxoIds flag a real cat, not a plain UTXO', async () => {
     // A real cat UTXO (from a real nLockTime=21 mint) and a real plain UTXO.
     const catAddress = newRegtestAddress('bech32m');

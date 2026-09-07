@@ -1,14 +1,16 @@
 name: extension:cat21-chain-e2e
 
-# Real-button chain-truth E2E for the CAT-21 wallet flows against a live
-# regtest chain (bitcoind + electrs + cat21-ord). The specs drive the wallet's
-# own popup UI, build/sign/broadcast real transactions, and assert on-chain +
-# cat21-ord state. Runs all six chain-truth flows: mint, transfer,
-# accept-offer, autonomous mint (chain stack only) plus create-offer and buy,
-# which additionally publish to / read from a real cat21-indexer backend +
-# MariaDB brought up here against the same regtest stack. Plus a cat-UTXO
-# protection proof: the wallet's real /output schema + fetchCatBearingUtxoIds
-# flag a real minted cat (not a plain UTXO) against real cat21-ord.
+# Chain-truth E2E for the CAT-21 wallet against a live regtest chain (bitcoind +
+# electrs + cat21-ord). SIX of the seven specs are REAL-BUTTON flows: they drive
+# the wallet's own popup UI (real clicks / Path-3 autoconfirm), build/sign/
+# broadcast real transactions, and assert on-chain + cat21-ord state — mint,
+# transfer, accept-offer, autonomous mint (chain stack only), plus create-offer
+# and buy, which additionally publish to / read from a real cat21-indexer backend
+# + MariaDB brought up here against the same regtest stack. The SEVENTH spec
+# (cat21-utxo-protection) is NOT a real-button flow: it drives no UI, calling the
+# wallet's real /output schema + fetchCatBearingUtxoIds directly against real
+# cat21-ord to prove the (mainnet-gated) cat-UTXO protection seam at the node
+# level.
 
 on:
   workflow_dispatch:
