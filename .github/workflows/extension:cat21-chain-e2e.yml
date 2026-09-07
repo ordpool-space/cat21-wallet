@@ -109,27 +109,10 @@ jobs:
             sleep 2
           done
 
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-          run_install: false
-
-      - name: Cache pnpm store
-        uses: actions/cache@v4
-        with:
-          path: ~/.local/share/pnpm/store
-          key: cat21wallet-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: |
-            cat21wallet-pnpm-
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      # Same composite the caps-e2e lane uses: pnpm (version from
+      # packageManager) + Node + salted store cache + `pnpm install`.
+      - name: Provision node + pnpm + install deps
+        uses: ./.github/actions/provision
 
       # Same build sequence the caps-e2e lane uses, minus the test-app (the
       # chain specs drive the extension directly, no dapp on :3000).
