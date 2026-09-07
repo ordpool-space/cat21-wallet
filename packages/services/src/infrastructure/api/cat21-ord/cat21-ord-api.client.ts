@@ -157,43 +157,9 @@ export class Cat21OrdApiClient {
 export type { OrdAddressCat21s, OrdCat21, OrdOutput, OrdStatus };
 export { z };
 
-/**
- * Phase 3.0 safety helper: returns the subset of given UTXOs that hold cats.
- * Used by `UtxosService.getDescriptorProtectedUtxos` to ensure the BTC send
- * flow never picks a cat-bearing UTXO as a payment input.
- *
- * On the wire this is one `/output/<txid>:<vout>` query per UTXO, queued
- * through the cat21-ord rate-limiter. A per-UTXO probe is more conservative
- * than a per-address scan: it tolerates address-reuse, multi-cat outputs,
- * and not-yet-indexed receive addresses correctly.
- *
- * The `out.cats` check reads the wire field as cat21-ord actually emits it:
- * its response-rewriting middleware renames ord's `inscriptions` to `cats` in
- * JSON, so the upstream name never arrives. A non-empty array means the output
- * holds a cat.
- *
- * Failure mode: if cat21-ord cannot be reached or the per-UTXO probe throws,
- * the safe answer is "treat the UTXO as cat-bearing" — i.e. the BTC send
- * flow won't touch it. This is the right default: if we cannot verify a UTXO
- * is cat-free, we don't risk spending a cat by mistake.
- */
-export async function fetchCatBearingUtxoIds(
-  client: Cat21OrdApiClient,
-  utxos: { txid: string; vout: number }[],
-  options: ApiRequestOptions = {}
-): Promise<{ txid: string; vout: number }[]> {
-  if (utxos.length === 0) return [];
-
-  const checks = await Promise.all(
-    utxos.map(async utxo => {
-      try {
-        const out = await client.fetchOutput(`${utxo.txid}:${utxo.vout}`, options);
-        return { utxo, hasCat: out.cats.length > 0 };
-      } catch {
-        return { utxo, hasCat: true };
-      }
-    })
-  );
-
-  return checks.filter(c => c.hasCat).map(c => c.utxo);
-}
+/* HACK -- Cat21: `fetchCatBearingUtxoIds` lives in its own DI-free module so the
+ * flagship send-flow safety helper can be imported + tested against a real
+ * cat21-ord without standing up the inversify client. Re-exported here so
+ * existing importers of this file keep resolving it. */
+export { fetchCatBearingUtxoIds } from './fetch-cat-bearing-utxo-ids';
+export type { Cat21OutputProbe } from './fetch-cat-bearing-utxo-ids';
