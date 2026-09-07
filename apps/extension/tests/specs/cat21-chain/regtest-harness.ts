@@ -32,16 +32,21 @@ import { execFileSync } from 'node:child_process';
  *     rewrites that host -> localhost:8080.
  */
 
-const BITCOIND_CONTAINER = 'ordpool-e2e-bitcoind';
+// Endpoints + container name are env-overridable so the same specs run against
+// the local `docker-compose.regtest.yml` stack (defaults) OR the CI
+// `consumer-environment` stack, which uses identical ports but a
+// `ordpool-e2e-consumer-*` container prefix. Defaults are the local names, so
+// nothing changes for a local run.
+const BITCOIND_CONTAINER = process.env.E2E_BITCOIND_CONTAINER ?? 'ordpool-e2e-bitcoind';
 const MINER_WALLET = 'e2e-miner';
-const ELECTRS_BASE = 'http://localhost:3000';
-const CAT21_ORD_BASE = 'http://localhost:8080';
+const ELECTRS_BASE = process.env.E2E_ELECTRS_URL ?? 'http://localhost:3000';
+const CAT21_ORD_BASE = process.env.E2E_CAT21_ORD_URL ?? 'http://localhost:8080';
 /**
  * The REAL CAT-21 Bazaar backend (cat21-indexer) running locally against the
  * regtest chain (BACKEND_NETWORK=regtest, ORD_API_URL -> local cat21-ord,
  * MariaDB). The create-offer flow publishes a real listing here — no stub.
  */
-const BAZAAR_BACKEND_BASE = 'http://127.0.0.1:3333';
+const BAZAAR_BACKEND_BASE = process.env.E2E_BAZAAR_BACKEND_URL ?? 'http://127.0.0.1:3333';
 
 /**
  * Built-in sBTC-devenv network id (WalletDefaultNetworkConfigurationIds.sbtcDevenv).
