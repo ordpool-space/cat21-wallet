@@ -69,17 +69,15 @@ test.describe('CAT-21 autonomous mint (Path 3 / NMH, regtest chain truth)', () =
     await page.getByTestId('cat21-agent-policy-form').waitFor({ state: 'visible' });
     await page.getByTestId('cat21-agent-policy-save').click();
 
-    // Warm the native-segwit UTXO cache. The Path-3 autoconfirm is single-shot
-    // (no retry), so `spendableUtxos` must be populated when it fires. The bare
-    // confirm route runs the deps hook (which fetches UTXOs) without
-    // auto-confirming — there is no stashed request yet.
-    await page.goto(`chrome-extension://${extensionId}/index.html#/cat21-mint-confirm`);
-    await expect
-      .poll(() => capture.utxoResponses, { timeout: 30_000, message: 'wallet never fetched UTXOs' })
-      .toBeGreaterThan(0);
-
-    // Stash an AUTONOMOUS mint intent exactly as the NMH host does, then open
-    // the Path-3 confirm route. From here the spec issues NO click.
+    // Stash an AUTONOMOUS mint intent exactly as the NMH host does, open the
+    // Path-3 confirm route, then RELOAD so the popup boots with a fresh
+    // React-Query cache — exactly as a real NMH-opened popup does (no
+    // pre-warmed UTXO set). From here the spec issues NO click: the autoconfirm
+    // waits for the in-memory key to re-derive (unlock gate) AND for the
+    // native-segwit UTXO query's first success (funding gate), then silent-signs
+    // a real cat. No warm step: the funding gate in the route is what makes the
+    // single-shot autoconfirm robust, so the test proves that gate rather than
+    // papering over the race with a warm.
     const requestId = 'e2e-autonomous-mint-broadcast';
     await stashCat21Request(page, requestId, {
       recipient: recipientAddress,
@@ -89,6 +87,7 @@ test.describe('CAT-21 autonomous mint (Path 3 / NMH, regtest chain truth)', () =
     await page.goto(
       `chrome-extension://${extensionId}/index.html#/cat21-mint-confirm?cat21RequestId=${requestId}`
     );
+    await page.reload();
 
     // 1. SILENT: the route auto-confirms (transport mcp-nmh + mode autonomous +
     //    wallet unlocked after async key derivation — the Gap-1 fix path) and
