@@ -1,10 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { handleMcpRequest, handleExtensionMessage } from './host.js';
-import {
-  CAT21_MCP_TOOLS,
-  CAT21_MUTATING_TOOLS,
-} from './protocol.js';
+import { handleExtensionMessage, handleMcpRequest } from './host.js';
+import { CAT21_MCP_TOOLS, CAT21_MUTATING_TOOLS } from './protocol.js';
 
 describe('MCP host request handler', () => {
   it('lists the v1 tool surface', async () => {
@@ -152,15 +149,36 @@ describe('MCP host request handler', () => {
   });
 
   it('mutating call times out and surfaces a broadcast-failed denial', async () => {
-    process.env.CAT21_MCP_TIMEOUT_MS = '50';
-    // Re-import the module to pick up the new env var? Vitest cache makes
-    // that awkward; instead we verify via the same constant by running
-    // against the existing host with a small sleep. The host's
-    // MUTATION_TIMEOUT_MS was read at module load. Skip this check if the
-    // module already cached 60_000.
-    // — placeholder: a focused timeout test runs in iter 9 once the
-    //   timeout constant is configurable per-call.
-    delete process.env.CAT21_MCP_TIMEOUT_MS;
-    expect(true).toBe(true);
+    // Drive the real timeout path (host.ts: setTimeout → reject → the `.catch`
+    // that maps to a broadcast-failed denial) with fake timers, so we exercise
+    // it deterministically without waiting the full MUTATION_TIMEOUT_MS and
+    // without changing production. The extension NEVER replies, so only the
+    // timer resolves the pending call.
+    vi.useFakeTimers();
+    try {
+      handleExtensionMessage({ type: 'hello' });
+      const corrId = 'timeout-mint';
+      const callPromise = handleMcpRequest({
+        jsonrpc: '2.0',
+        id: corrId,
+        method: 'tools/call',
+        params: { name: 'cat21_mint', arguments: { mode: 'autonomous' } },
+      });
+      // Advance past the module's MUTATION_TIMEOUT_MS (60_000ms default, read at
+      // load with no CAT21_MCP_TIMEOUT_MS set) to fire the pending timer.
+      await vi.advanceTimersByTimeAsync(60_000);
+      const res = await callPromise;
+      const text = res.result?.content?.[0]?.text;
+      expect(typeof text).toBe('string');
+      const parsed = JSON.parse(text);
+      // Must be a broadcast-failed denial whose detail names the timeout — a
+      // mutation that drops the `.catch`, changes the reason, or never fires the
+      // timer breaks this (no silent placeholder-green).
+      expect(parsed.ok).toBe(false);
+      expect(parsed.value.reason).toBe('broadcast-failed');
+      expect(parsed.value.detail).toMatch(/cat21_mint timed out after \d+ms/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
