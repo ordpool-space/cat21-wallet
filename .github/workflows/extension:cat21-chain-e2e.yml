@@ -6,7 +6,9 @@ name: extension:cat21-chain-e2e
 # cat21-ord state. Runs all six chain-truth flows: mint, transfer,
 # accept-offer, autonomous mint (chain stack only) plus create-offer and buy,
 # which additionally publish to / read from a real cat21-indexer backend +
-# MariaDB brought up here against the same regtest stack.
+# MariaDB brought up here against the same regtest stack. Plus a cat-UTXO
+# protection proof: the wallet's real /output schema + fetchCatBearingUtxoIds
+# flag a real minted cat (not a plain UTXO) against real cat21-ord.
 
 on:
   workflow_dispatch:

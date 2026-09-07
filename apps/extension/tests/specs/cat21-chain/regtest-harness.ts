@@ -360,6 +360,16 @@ export async function getCatNumber(catId: string): Promise<number> {
   return cat.number;
 }
 
+/**
+ * Raw cat21-ord `/output/<outpoint>` JSON, unparsed. Feeds the cat-UTXO
+ * protection proof: the spec parses this with the wallet's REAL `ordOutputSchema`
+ * to prove the schema agrees with what a real cat21-ord actually emits (the
+ * mainnet-gated probe is otherwise never exercised against real infra).
+ */
+export async function getOrdOutputByOutpoint(outpoint: string): Promise<unknown> {
+  return fetchJson<unknown>(`${CAT21_ORD_BASE}/output/${outpoint}`);
+}
+
 export interface BackendBid {
   network: string;
   catTxid: string;
