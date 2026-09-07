@@ -975,8 +975,11 @@ GitHub Actions are partitioned. See the README + the discussion in
 
 Active on push/PR (safety net):
 
-- `extension:code-checks.yml`, `extension:pr-build.yml`,
-  `extension:integration-tests.yml`
+- `extension:code-checks.yml`, `extension:pr-build.yml`
+- `extension:cat21-e2e.yml` (mocked real-extension cat21 flows) +
+  `extension:cat21-chain-e2e.yml` (the six cat21 flows + autonomous +
+  cat-UTXO protection against a live regtest stack + real cat21-indexer
+  backend)
 - `repo:code-checks.yml`, `repo:all-checks-pass.yml`,
   `repo:workflow-checks.yml`
 - `check-locktime-framing.yml` — greps tracked source/tests/docs for
@@ -1005,6 +1008,15 @@ Disabled (`on: workflow_dispatch` only, never auto-fires):
 
 - `extension:publish-extensions.yml` (Chrome Web Store push, dangerous)
 - `web:deploy.yml`, `packages:sanity-studio.yml`
+- `extension:integration-tests.yml` — the inherited Leather integration
+  specs (send / rbf / onboarding / activity). Needs the
+  `EXTENSION_INTEGRATION_TEST_MNEMONIC` repo var; without it every shard
+  fails at boot with "Invalid mnemonic". For beta we rely on the unit
+  suites + per-PR build, and the cat21 flows are covered by the two
+  `extension:cat21-*` lanes above. Also `state: disabled_manually` at the
+  GitHub level so it is excluded from active-workflow audits and cannot
+  leave a stale-red latest run; re-enable steps live in the workflow's
+  header comment.
 
 Fully HACK-disabled (web + release-please + claude-code-review):
 
