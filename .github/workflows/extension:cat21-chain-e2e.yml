@@ -3,9 +3,10 @@ name: extension:cat21-chain-e2e
 # Real-button chain-truth E2E for the CAT-21 wallet flows against a live
 # regtest chain (bitcoind + electrs + cat21-ord). The specs drive the wallet's
 # own popup UI, build/sign/broadcast real transactions, and assert on-chain +
-# cat21-ord state. This lane runs the four flows that need only the chain stack
-# (mint, transfer, accept-offer, autonomous mint); create-offer additionally
-# needs the cat21-indexer backend + MariaDB and lands in a follow-up.
+# cat21-ord state. Runs all five chain-truth flows: mint, transfer,
+# accept-offer, autonomous mint (chain stack only) plus create-offer, which
+# additionally publishes to a real cat21-indexer backend + MariaDB brought up
+# here against the same regtest stack.
 
 on:
   workflow_dispatch:
@@ -129,16 +130,62 @@ jobs:
         working-directory: apps/extension
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run the chain-truth flows (mint, transfer, accept, autonomous)
+      # create-offer publishes to the REAL Bazaar backend. Bring up the
+      # cat21-indexer backend against the consumer stack: MariaDB (cat21 db +
+      # user auto-created by mariadb-init), the REAL cat21-ord for the ownership
+      # cross-check, BACKEND_NETWORK=regtest so the regtest listing passes the
+      # network-mismatch gate. Its pinned ordpool-sdk (712b9a9) carries the
+      # BIP-322 regtest verify fix.
+      - name: Checkout cat21-indexer (Bazaar backend)
+        uses: actions/checkout@v4
+        with:
+          repository: ordpool-space/cat21-indexer
+          ref: main
+          path: cat21-indexer-src
+
+      - name: Install + build the cat21-indexer backend
+        working-directory: cat21-indexer-src/backend
+        run: |
+          # The backend pins ordpool-sdk / ordpool-parser as git+ssh github deps;
+          # rewrite to anonymous HTTPS (both public) since runners have no SSH key.
+          git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+          git config --global url."https://github.com/".insteadOf git@github.com:
+          npm ci
+          npm run build
+
+      - name: Bring up the cat21-indexer backend on :3333 (regtest)
+        working-directory: cat21-indexer-src/backend
+        env:
+          PORT: '3333'
+          HOST: 127.0.0.1
+          NODE_ENV: development
+          DATABASE_URL: mysql://cat21:cat21@127.0.0.1:3306/cat21
+          ORD_API_URL: http://localhost:8080
+          ELECTRS_API_URL: http://localhost:3000
+          BACKEND_NETWORK: regtest
+        run: |
+          nohup node dist/main.js > backend.log 2>&1 &
+          echo $! > backend.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3333/api/health >/dev/null 2>&1; then
+              echo "backend up"; break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "backend never came up"; tail -100 backend.log || true; exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Run all five chain-truth flows (incl. create-offer)
         working-directory: apps/extension
         env:
           # The consumer-environment prefixes containers with -consumer-; ports
           # match the local stack, so only the bitcoind container name differs.
           E2E_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
+          E2E_BAZAAR_BACKEND_URL: http://127.0.0.1:3333
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
-            pnpm exec playwright test --config playwright.config.chain.ts \
-            cat21-mint-chain cat21-transfer-chain cat21-accept-offer-chain cat21-autonomous-mint-chain
+            pnpm exec playwright test --config playwright.config.chain.ts
 
       - name: Upload Playwright artifacts
         if: always()
@@ -154,6 +201,9 @@ jobs:
       - name: Tear down the stack
         if: always()
         run: |
+          if [ -f cat21-indexer-src/backend/backend.pid ]; then
+            kill "$(cat cat21-indexer-src/backend/backend.pid)" 2>/dev/null || true
+          fi
           docker compose \
             -f sdk/e2e/docker-compose.consumer-environment.yml \
             down -v || true
