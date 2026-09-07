@@ -76,6 +76,25 @@ export function Cat21ConfirmRoute() {
   // ever cached. Hard-fail-closed: if locked, send a typed denial
   // back to the agent instead of triggering keychain decryption.
   const isWalletUnlocked = useHasActiveInMemoryWalletSecretKey();
+  // Distinguishes a wallet that is merely DERIVING its in-memory key on popup
+  // boot (the browser session still holds the encryptionKey, so it WILL unlock)
+  // from one that is genuinely logged out (no session key). The Path-3
+  // autoconfirm below must WAIT for derivation rather than false-deny a
+  // legitimately-unlockable wallet; only a truly logged-out wallet earns the
+  // terminal wallet-locked denial. `undefined` while the async read is in
+  // flight (also treated as "wait").
+  const [hasSessionKey, setHasSessionKey] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    void chrome.storage.session.get(['encryptionKey']).then(({ encryptionKey }) => {
+      if (!cancelled) {
+        setHasSessionKey(typeof encryptionKey === 'string' && encryptionKey.length > 0);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // The popup may be reached two ways: Path 2 (intent on react-router
   // `location.state`) or Path 3 (the background's NMH listener stashed
@@ -207,11 +226,18 @@ export function Cat21ConfirmRoute() {
     // `resolveSigningMode` before the manual/autonomous split).
     if (urlRequest.intent.mode !== 'autonomous') return;
     if (autoConfirmedRef.current) return;
-    // Audit H1 — locked-wallet gate. Refuse the autoconfirm before
-    // any service call (and therefore before any keychain access)
-    // when the wallet is locked. Post a typed denial back so the
-    // agent learns explicitly rather than hanging.
+    // Audit H1 — locked-wallet gate. Never let the autoconfirm reach a service
+    // call (and therefore any keychain access) while the wallet is not unlocked.
     if (!isWalletUnlocked) {
+      // But a fresh popup boot derives the in-memory key ASYNC from the session
+      // encryptionKey, so `isWalletUnlocked` is transiently false before the
+      // key lands. If the session still holds the key (or we haven't finished
+      // checking), WAIT: do not latch, do not deny. The effect re-runs when
+      // `isWalletUnlocked` flips true (it is in the dep array) and auto-confirms
+      // then. Latching + denying here is the race that false-denied a
+      // legitimately-unlockable wallet. Only a genuinely logged-out wallet
+      // (no session key) gets the terminal wallet-locked denial.
+      if (hasSessionKey !== false) return;
       autoConfirmedRef.current = true;
       const { requestId } = urlRequest;
       void finalisePath3(requestId, {
@@ -227,7 +253,7 @@ export function Cat21ConfirmRoute() {
     // etc.). The `autoConfirmedRef` guard keeps this at-most-once;
     // intentionally not listing the rest.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlRequest.status, isWalletUnlocked]);
+  }, [urlRequest.status, isWalletUnlocked, hasSessionKey]);
 
   if (urlRequest.status === 'loading') {
     return <div data-testid="cat21-confirm-loading">Loading request…</div>;

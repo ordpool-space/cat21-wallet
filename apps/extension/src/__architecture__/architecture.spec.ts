@@ -1189,8 +1189,12 @@ describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () =>
   // Without this gate, an AFK user (wallet unlocked earlier in
   // session, then walked away) could be silent-signed by an MCP
   // agent: the keychain still holds keys in memory, signBitcoinTx
-  // proceeds. The lock guard refuses the autoconfirm before any
-  // service call (and therefore before any keychain access).
+  // proceeds. The lock guard never lets the autoconfirm reach a
+  // service call while the wallet is not unlocked. On a fresh popup
+  // boot the in-memory key derives ASYNC, so the guard WAITS for
+  // derivation (session encryptionKey present) rather than false-
+  // denying a legitimately-unlockable wallet, and fail-closes with a
+  // terminal wallet-locked denial only when genuinely logged out.
   const ROUTE = 'apps/extension/src/app/pages/cat21-confirm/cat21-confirm-route.tsx';
 
   it('Cat21ConfirmRoute reads useHasActiveInMemoryWalletSecretKey', () => {
@@ -1198,11 +1202,19 @@ describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () =>
     expect(src).toMatch(/useHasActiveInMemoryWalletSecretKey\(\)/);
   });
 
-  it('autoconfirm useEffect fail-closes with reason agent-disabled detail wallet-locked when locked', () => {
+  it('locked branch WAITS while deriving, then fail-closes wallet-locked only when logged out', () => {
     const src = read(join(REPO_ROOT, ROUTE));
+    // Inside `if (!isWalletUnlocked)`: the wait-guard (`hasSessionKey !== false
+    // → return`) precedes the terminal agent-disabled / wallet-locked denial,
+    // so a still-deriving wallet is never denied.
     expect(src).toMatch(
-      /if\s*\(!isWalletUnlocked\)\s*\{[\s\S]{0,400}reason:\s*'agent-disabled'[\s\S]{0,100}detail:\s*'wallet-locked'/
+      /if\s*\(!isWalletUnlocked\)\s*\{[\s\S]{0,1400}if\s*\(hasSessionKey\s*!==\s*false\)\s*return;[\s\S]{0,400}reason:\s*'agent-disabled'[\s\S]{0,120}detail:\s*'wallet-locked'/
     );
+  });
+
+  it('autoconfirm effect re-runs on unlock + session-key state (no false-deny latch)', () => {
+    const src = read(join(REPO_ROOT, ROUTE));
+    expect(src).toMatch(/\}\s*,\s*\[urlRequest\.status,\s*isWalletUnlocked,\s*hasSessionKey\]\)/);
   });
 });
 
