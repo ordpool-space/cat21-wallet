@@ -96,6 +96,15 @@ jobs:
             --with-cat21-ord \
             > stack.json
           cat stack.json
+          # Inherit the electrs host URL from the SDK bootstrap descriptor
+          # rather than hardcoding the port: the SDK owns the host-port mapping
+          # (E2E_ELECTRS_HOST_PORT, default 3010) and we consume whatever it
+          # publishes, so a future SDK port move never breaks this lane. The
+          # `//` fallback pins the current default so a missing field can't
+          # regress it.
+          electrs_url=$(jq -r '.electrs.httpUrl // "http://localhost:3010"' stack.json)
+          echo "E2E_ELECTRS_URL=$electrs_url" >> "$GITHUB_ENV"
+          echo "resolved electrs url: $electrs_url"
 
       - name: wait-for-cat21-ord-ready
         run: |
@@ -113,7 +122,7 @@ jobs:
       - name: wait-for-electrs-ready
         run: |
           for i in $(seq 1 60); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:3010/blocks/tip/height 2>/dev/null || echo 000)
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$E2E_ELECTRS_URL/blocks/tip/height" 2>/dev/null || echo 000)
             if [ "$code" = "200" ]; then echo "electrs up"; break; fi
             if [ "$i" = "60" ]; then echo "electrs never came up (last HTTP $code)"; exit 1; fi
             sleep 2
@@ -171,7 +180,7 @@ jobs:
           NODE_ENV: development
           DATABASE_URL: mysql://cat21:cat21@127.0.0.1:3306/cat21
           ORD_API_URL: http://localhost:8080
-          ELECTRS_API_URL: http://localhost:3010
+          ELECTRS_API_URL: ${{ env.E2E_ELECTRS_URL }}
           BACKEND_NETWORK: regtest
         run: |
           nohup node dist/main.js > backend.log 2>&1 &
@@ -193,6 +202,9 @@ jobs:
           # match the local stack, so only the bitcoind container name differs.
           E2E_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
           E2E_BAZAAR_BACKEND_URL: http://127.0.0.1:3333
+          # The harness's ELECTRS_BASE reads this (falls back to :3010 if unset);
+          # sourced from the SDK descriptor so it tracks the SDK's host port.
+          E2E_ELECTRS_URL: ${{ env.E2E_ELECTRS_URL }}
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             pnpm exec playwright test --config playwright.config.chain.ts
