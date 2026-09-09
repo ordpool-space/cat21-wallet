@@ -78,7 +78,7 @@ describe('makeCat21ConfirmationCopy', () => {
       });
       expect(copy.title).toBe('List your cat for sale');
       expect(copy.approveButtonLabel).toBe('List cat');
-      expect(copy.rows[1]).toEqual({ label: 'Price', value: '21,000 sats' });
+      expect(copy.rows[1]).toEqual({ label: 'Price', value: '21 000 sats' });
       expect(copy.rows[2]).toEqual({
         label: 'Paid to',
         value: 'bc1q paym entt osel ler',
@@ -112,7 +112,7 @@ describe('makeCat21ConfirmationCopy', () => {
       // The user's decision input is the money they receive, not a byte count.
       expect(copy.rows).toEqual([
         { label: 'Cat', value: 'cat-bein…i3' },
-        { label: 'You get', value: '21,000 sats' },
+        { label: 'You get', value: '21 000 sats' },
       ]);
     });
   });
@@ -131,7 +131,7 @@ describe('makeCat21ConfirmationCopy', () => {
       expect(copy.approveButtonLabel).toBe('Place bid');
       expect(copy.rows).toEqual([
         { label: 'Cat', value: '#42' },
-        { label: 'You pay', value: '50,000 sats' },
+        { label: 'You pay', value: '50 000 sats' },
         { label: "Seller's address", value: 'bc1q sell erpa ymen tadd r', verify: true },
         { label: 'Fee rate', value: '5 sat/vB' },
       ]);
@@ -160,15 +160,37 @@ describe('makeCat21ConfirmationCopy', () => {
     });
 
     it('buy: the amount is "You pay" (money leaves), never "You get"', () => {
-      expect(buy.rows.find(r => r.label === 'You pay')?.value).toBe('50,000 sats');
+      expect(buy.rows.find(r => r.label === 'You pay')?.value).toBe('50 000 sats');
       expect(buy.rows.some(r => r.label === 'You get')).toBe(false);
       expect(buy.paragraphs.join(' ')).toMatch(/you pay/i);
     });
 
     it('sell/accept: the amount is "You get" (money arrives), never "You pay"', () => {
-      expect(sell.rows.find(r => r.label === 'You get')?.value).toBe('21,000 sats');
+      expect(sell.rows.find(r => r.label === 'You get')?.value).toBe('21 000 sats');
       expect(sell.rows.some(r => r.label === 'You pay')).toBe(false);
       expect(sell.paragraphs.join(' ')).toMatch(/you are paid|you get/i);
+    });
+  });
+
+  describe('sats amounts are locale-independent', () => {
+    // A bare `.toLocaleString()` groups by the browser locale: "1,234,567"
+    // in en-US, "1.234.567" in de-DE. On a spending prompt "21.000" reads as
+    // twenty-one. Amounts must group with a plain space regardless of locale.
+    // Reverting `formatSats` to `n.toLocaleString()` makes this red on any
+    // runner: en-US emits commas, de-DE emits dots, neither is a space.
+    it('groups thousands with a space, never a locale comma or dot', () => {
+      const copy = makeCat21ConfirmationCopy({
+        catId: 'aaai0',
+        catNumber: 7,
+        bidSats: 1_234_567,
+        sellerPaymentAddress: 'bc1qseller',
+        feeRate: 5,
+        mode: 'manual',
+      });
+      const amount = copy.rows.find(r => r.label === 'You pay')?.value;
+      expect(amount).toBe('1 234 567 sats');
+      expect(amount).not.toContain(',');
+      expect(amount).not.toContain('.');
     });
   });
 

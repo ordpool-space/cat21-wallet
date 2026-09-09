@@ -82,7 +82,7 @@ function mintCopy(intent: Cat21MintIntent): Cat21ConfirmationCopy {
   ];
   if (tip && tip.value > 0) {
     paragraphs.push(
-      `This also sends a ${tip.value.toLocaleString()} sats tip to ${formatAddress(tip.address)}.`
+      `This also sends a ${formatSats(tip.value)} sats tip to ${formatAddress(tip.address)}.`
     );
   }
   return {
@@ -122,7 +122,7 @@ function createOfferCopy(intent: Cat21CreateOfferIntent): Cat21ConfirmationCopy 
     ],
     rows: [
       { label: 'Cat', value: formatCatId(intent.catId) },
-      { label: 'Price', value: `${intent.priceSats.toLocaleString()} sats` },
+      { label: 'Price', value: `${formatSats(intent.priceSats)} sats` },
       verifyAddressRow('Paid to', intent.paymentAddress),
     ],
     approveButtonLabel: 'List cat',
@@ -139,7 +139,7 @@ function acceptOfferCopy(intent: Cat21AcceptOfferIntent): Cat21ConfirmationCopy 
     ],
     rows: [
       { label: 'Cat', value: formatCatId(intent.expectedCatId) },
-      { label: 'You get', value: `${intent.expectedPriceSats.toLocaleString()} sats` },
+      { label: 'You get', value: `${formatSats(intent.expectedPriceSats)} sats` },
     ],
     approveButtonLabel: 'Sell cat',
     rejectButtonLabel: 'Reject offer',
@@ -155,7 +155,7 @@ function buyCopy(intent: Cat21BuyIntent): Cat21ConfirmationCopy {
     ],
     rows: [
       { label: 'Cat', value: `#${intent.catNumber}` },
-      { label: 'You pay', value: `${intent.bidSats.toLocaleString()} sats` },
+      { label: 'You pay', value: `${formatSats(intent.bidSats)} sats` },
       verifyAddressRow("Seller's address", intent.sellerPaymentAddress),
       { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
     ],
@@ -182,6 +182,18 @@ function verifyAddressRow(label: string, address: string): {
 /** Space-group a string in fours: "bc1qw508…" -> "bc1q w508 …". */
 function groupAddress(addr: string): string {
   return addr.replace(/(.{4})/gu, '$1 ').trim();
+}
+
+/**
+ * Group a sats amount in threes with a space: 21000 -> "21 000".
+ * Locale-independent on purpose: a bare `.toLocaleString()` follows the
+ * browser locale, so the same value renders "21,000" in en-US but "21.000"
+ * in de-DE, and "21.000" reads as twenty-one on a spending prompt. The
+ * fixed 'en-US' grouping is rewritten to a space so every browser shows
+ * the same thing. Matches the "21 000 sats" house style.
+ */
+function formatSats(n: number): string {
+  return n.toLocaleString('en-US').replace(/,/gu, ' ');
 }
 
 function formatAddress(addr: string): string {
