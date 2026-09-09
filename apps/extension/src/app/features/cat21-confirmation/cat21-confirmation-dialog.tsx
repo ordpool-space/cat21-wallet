@@ -63,21 +63,46 @@ export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
           pt="space.04"
           data-testid="cat21-confirmation-rows"
         >
-          {copy.rows.map((row, idx) => (
-            <Flex key={idx} justifyContent="space-between" gap="space.05">
-              <styled.span textStyle="label.02" color="ink.text-subdued">
-                {row.label}
-              </styled.span>
-              <styled.span
-                textStyle="mono.02"
-                fontFamily="monospace"
-                textAlign="right"
-                data-testid={`cat21-confirmation-row-${row.label.toLowerCase().replace(/\s+/u, '-')}`}
-              >
-                {row.value}
-              </styled.span>
-            </Flex>
-          ))}
+          {copy.rows.map((row, idx) => {
+            const testId = `cat21-confirmation-row-${row.label.toLowerCase().replace(/\s+/u, '-')}`;
+            // A `verify` row is a destination address the person commits
+            // value to. It renders on its own line, full and left-aligned,
+            // wrapping at the 4-char group boundaries so every character is
+            // on screen: address poisoning forges only the head and tail,
+            // and a truncated head…tail rendering hides the swapped middle.
+            if (row.verify) {
+              return (
+                <Flex key={idx} direction="column" gap="space.01">
+                  <styled.span textStyle="label.02" color="ink.text-subdued">
+                    {row.label}
+                  </styled.span>
+                  <styled.span
+                    textStyle="mono.02"
+                    fontFamily="monospace"
+                    wordBreak="break-word"
+                    data-testid={testId}
+                  >
+                    {row.value}
+                  </styled.span>
+                </Flex>
+              );
+            }
+            return (
+              <Flex key={idx} justifyContent="space-between" gap="space.05">
+                <styled.span textStyle="label.02" color="ink.text-subdued">
+                  {row.label}
+                </styled.span>
+                <styled.span
+                  textStyle="mono.02"
+                  fontFamily="monospace"
+                  textAlign="right"
+                  data-testid={testId}
+                >
+                  {row.value}
+                </styled.span>
+              </Flex>
+            );
+          })}
         </Flex>
         {submitError ? (
           <ErrorLabel data-testid="cat21-confirmation-error">{submitError}</ErrorLabel>

@@ -47,6 +47,20 @@ describe('cat21-confirmation-dialog (structural contract)', () => {
     expect(src).toMatch(/copy\.rejectButtonLabel/);
   });
 
+  it('renders a verify (destination-address) row full-width and wrapping, not right-aligned (§7.14)', async () => {
+    const src = await import('node:fs').then(fs =>
+      fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')
+    );
+    // A destination address the person commits value to must render in
+    // full and wrap, so address poisoning (which forges only the head and
+    // tail) can't hide the swapped middle behind a right-aligned truncation.
+    // The dialog branches on `row.verify` and renders that value with word
+    // wrapping. Removing the branch — folding verify rows back into the
+    // `textAlign="right"` path — makes this red.
+    expect(src).toMatch(/row\.verify/);
+    expect(src).toMatch(/wordBreak/);
+  });
+
   it('disables both buttons when isSubmitting=true', async () => {
     const src = await import('node:fs').then(fs =>
       fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')

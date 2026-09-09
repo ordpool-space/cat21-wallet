@@ -15,7 +15,11 @@ describe('makeCat21ConfirmationCopy', () => {
       expect(copy.title).toBe('Mint a cat');
       expect(copy.approveButtonLabel).toBe('Mint cat');
       expect(copy.rows).toEqual([
-        { label: 'Goes to', value: 'bc1qw508…7kv8f3t4' },
+        {
+          label: 'Goes to',
+          value: 'bc1q w508 d6qe jxtd g4y5 r3za rvar y0c5 xw7k v8f3 t4',
+          verify: true,
+        },
         { label: 'Fee rate', value: '5 sat/vB' },
       ]);
     });
@@ -55,7 +59,11 @@ describe('makeCat21ConfirmationCopy', () => {
       expect(copy.title).toBe('Send your cat');
       expect(copy.approveButtonLabel).toBe('Send cat');
       expect(copy.rows[0]).toEqual({ label: 'Cat', value: '98316dcb…i0' });
-      expect(copy.rows[1]).toEqual({ label: 'Goes to', value: 'bc1qw508…7kv8f3t4' });
+      expect(copy.rows[1]).toEqual({
+        label: 'Goes to',
+        value: 'bc1q w508 d6qe jxtd g4y5 r3za rvar y0c5 xw7k v8f3 t4',
+        verify: true,
+      });
       expect(copy.rows[2]).toEqual({ label: 'Fee rate', value: '5 sat/vB' });
     });
   });
@@ -71,7 +79,11 @@ describe('makeCat21ConfirmationCopy', () => {
       expect(copy.title).toBe('List your cat for sale');
       expect(copy.approveButtonLabel).toBe('List cat');
       expect(copy.rows[1]).toEqual({ label: 'Price', value: '21,000 sats' });
-      expect(copy.rows[2]).toEqual({ label: 'Paid to', value: 'bc1qpaym…toseller' });
+      expect(copy.rows[2]).toEqual({
+        label: 'Paid to',
+        value: 'bc1q paym entt osel ler',
+        verify: true,
+      });
     });
 
     it('emphasises that nothing moves on-chain yet', () => {
@@ -120,7 +132,7 @@ describe('makeCat21ConfirmationCopy', () => {
       expect(copy.rows).toEqual([
         { label: 'Cat', value: '#42' },
         { label: 'You pay', value: '50,000 sats' },
-        { label: "Seller's address", value: 'bc1qsell…mentaddr' },
+        { label: "Seller's address", value: 'bc1q sell erpa ymen tadd r', verify: true },
         { label: 'Fee rate', value: '5 sat/vB' },
       ]);
     });
@@ -222,26 +234,74 @@ describe('makeCat21ConfirmationCopy', () => {
     });
   });
 
-  describe('address formatting', () => {
-    it('truncates long bitcoin addresses to head…tail', () => {
+  describe('destination-address verification (§7.14)', () => {
+    // The security property: a destination address the person commits value
+    // to is rendered in FULL, never head…tail-truncated. Address poisoning
+    // forges a lookalike that matches only the head and tail, so truncation
+    // hides the swapped middle. Reverting `verifyAddressRow` to truncate
+    // (the pre-§7.14 behaviour) makes the "no character is lost" assertions
+    // below red on every verify row.
+    const FULL = 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4';
+
+    it('marks the destination row as a verify row', () => {
       const copy = makeCat21ConfirmationCopy({
-        recipient: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+        recipient: FULL,
         feeRate: 5,
         mode: 'manual',
       });
-      expect(copy.rows[0].value).toBe('bc1qw508…7kv8f3t4');
+      const dest = copy.rows.find(r => r.label === 'Goes to');
+      expect(dest?.verify).toBe(true);
     });
 
-    it('passes through short addresses untouched', () => {
+    it('loses no character of the address (stripping the grouping spaces restores it exactly)', () => {
+      const intents: Cat21Intent[] = [
+        { recipient: FULL, feeRate: 5, mode: 'manual' },
+        { catId: 'aaai0', recipient: FULL, feeRate: 5, mode: 'manual' },
+        { catId: 'aaai0', priceSats: 21_000, paymentAddress: FULL, mode: 'manual' },
+        {
+          catId: 'aaai0',
+          catNumber: 42,
+          bidSats: 50_000,
+          sellerPaymentAddress: FULL,
+          feeRate: 5,
+          mode: 'manual',
+        },
+      ];
+      for (const intent of intents) {
+        const copy = makeCat21ConfirmationCopy(intent);
+        const verifyRows = copy.rows.filter(r => r.verify);
+        expect(verifyRows.length).toBe(1);
+        // Full address present, byte-for-byte, once the display grouping is removed.
+        expect(verifyRows[0].value.replace(/ /gu, '')).toBe(FULL);
+      }
+    });
+
+    it('groups the address in four-character chunks so a mid-string swap is visible', () => {
       const copy = makeCat21ConfirmationCopy({
-        recipient: 'bc1qabc',
+        recipient: FULL,
         feeRate: 5,
         mode: 'manual',
       });
-      expect(copy.rows[0].value).toBe('bc1qabc');
+      const dest = copy.rows.find(r => r.label === 'Goes to');
+      const value = dest?.value ?? '';
+      expect(value).toBe('bc1q w508 d6qe jxtd g4y5 r3za rvar y0c5 xw7k v8f3 t4');
+      // No chunk longer than four characters.
+      for (const chunk of value.split(' ')) {
+        expect(chunk.length).toBeLessThanOrEqual(4);
+      }
     });
 
-    it('formats catId as `<8 chars>…<i suffix>`', () => {
+    it('still truncates the optional tip address in the paragraph (not a value the flow commits to a destination row)', () => {
+      const copy = makeCat21ConfirmationCopy({
+        recipient: FULL,
+        feeRate: 5,
+        mode: 'manual',
+        tip: { address: 'bc1qrecipientttippp', value: 21 },
+      });
+      expect(copy.paragraphs[1]).toMatch(/bc1qreci…ntttippp/);
+    });
+
+    it('formats catId as `<8 chars>…<i suffix>` (compact, not a verify row)', () => {
       const copy = makeCat21ConfirmationCopy({
         catId: 'abcdef0123456789xxxxi42',
         recipient: 'bc1qrcp',
@@ -249,6 +309,7 @@ describe('makeCat21ConfirmationCopy', () => {
         mode: 'manual',
       });
       expect(copy.rows[0].value).toBe('abcdef01…i42');
+      expect(copy.rows[0].verify).toBeUndefined();
     });
   });
 });

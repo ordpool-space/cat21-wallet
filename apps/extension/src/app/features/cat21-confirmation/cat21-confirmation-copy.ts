@@ -39,9 +39,13 @@ export interface Cat21ConfirmationCopy {
   /**
    * Up to four `{ label, value }` summary rows ("Goes to: bc1q…",
    * "Fee rate: 5 sat/vB"). Renders as a definition list, monospaced
-   * value, address-trimmed where the value looks like an address.
+   * value. A `verify` row is a destination address the person is
+   * committing value to: it renders in FULL (never truncated) and
+   * space-grouped, so an address-poisoning forgery — which matches only
+   * the head and tail — is actually visible (§7.14). Compact rows
+   * (amounts, fee, cat id) stay on one line.
    */
-  rows: { label: string; value: string }[];
+  rows: { label: string; value: string; verify?: boolean }[];
   /** Label on the "yes, do it" button. */
   approveButtonLabel: string;
   /** Label on the "no, cancel" button. */
@@ -72,20 +76,20 @@ export function makeCat21ConfirmationCopy(intent: Cat21Intent): Cat21Confirmatio
 }
 
 function mintCopy(intent: Cat21MintIntent): Cat21ConfirmationCopy {
-  const tipValue = intent.tip?.value ?? 0;
+  const { tip } = intent;
   const paragraphs = [
     'You create a brand-new cat. It goes to the address below and is yours as soon as the transaction confirms.',
   ];
-  if (tipValue > 0) {
+  if (tip && tip.value > 0) {
     paragraphs.push(
-      `This also sends a ${tipValue.toLocaleString()} sats tip to ${formatAddress(intent.tip!.address)}.`
+      `This also sends a ${tip.value.toLocaleString()} sats tip to ${formatAddress(tip.address)}.`
     );
   }
   return {
     title: 'Mint a cat',
     paragraphs,
     rows: [
-      { label: 'Goes to', value: formatAddress(intent.recipient) },
+      verifyAddressRow('Goes to', intent.recipient),
       { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
     ],
     approveButtonLabel: 'Mint cat',
@@ -101,7 +105,7 @@ function transferCopy(intent: Cat21TransferIntent): Cat21ConfirmationCopy {
     ],
     rows: [
       { label: 'Cat', value: formatCatId(intent.catId) },
-      { label: 'Goes to', value: formatAddress(intent.recipient) },
+      verifyAddressRow('Goes to', intent.recipient),
       { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
     ],
     approveButtonLabel: 'Send cat',
@@ -119,7 +123,7 @@ function createOfferCopy(intent: Cat21CreateOfferIntent): Cat21ConfirmationCopy 
     rows: [
       { label: 'Cat', value: formatCatId(intent.catId) },
       { label: 'Price', value: `${intent.priceSats.toLocaleString()} sats` },
-      { label: 'Paid to', value: formatAddress(intent.paymentAddress) },
+      verifyAddressRow('Paid to', intent.paymentAddress),
     ],
     approveButtonLabel: 'List cat',
     rejectButtonLabel: 'Cancel',
@@ -152,12 +156,32 @@ function buyCopy(intent: Cat21BuyIntent): Cat21ConfirmationCopy {
     rows: [
       { label: 'Cat', value: `#${intent.catNumber}` },
       { label: 'You pay', value: `${intent.bidSats.toLocaleString()} sats` },
-      { label: "Seller's address", value: formatAddress(intent.sellerPaymentAddress) },
+      verifyAddressRow("Seller's address", intent.sellerPaymentAddress),
       { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
     ],
     approveButtonLabel: 'Place bid',
     rejectButtonLabel: 'Cancel',
   };
+}
+
+/**
+ * A destination-address row the person must be able to VERIFY: the full
+ * address (never truncated), space-grouped in fours. Address poisoning
+ * forges a lookalike whose head and tail match the real one, so a
+ * head…tail rendering hides the attack; the full grouped string is what
+ * makes a middle mismatch visible. §7.14.
+ */
+function verifyAddressRow(label: string, address: string): {
+  label: string;
+  value: string;
+  verify: true;
+} {
+  return { label, value: groupAddress(address), verify: true };
+}
+
+/** Space-group a string in fours: "bc1qw508…" -> "bc1q w508 …". */
+function groupAddress(addr: string): string {
+  return addr.replace(/(.{4})/gu, '$1 ').trim();
 }
 
 function formatAddress(addr: string): string {
