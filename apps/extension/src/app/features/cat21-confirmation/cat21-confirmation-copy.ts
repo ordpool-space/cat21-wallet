@@ -37,15 +37,24 @@ export interface Cat21ConfirmationCopy {
    */
   paragraphs: string[];
   /**
-   * Up to four `{ label, value }` summary rows ("Goes to: bc1q…",
-   * "Fee rate: 5 sat/vB"). Renders as a definition list, monospaced
-   * value. A `verify` row is a destination address the person is
-   * committing value to: it renders in FULL (never truncated) and
-   * space-grouped, so an address-poisoning forgery — which matches only
-   * the head and tail — is actually visible (§7.14). Compact rows
-   * (amounts, fee, cat id) stay on one line.
+   * Up to four summary rows ("Goes to: bc1q…", "Fee rate: 5 sat/vB").
+   * Renders as a definition list, monospaced value. Compact rows (amounts,
+   * fee, cat id) stay on one line.
+   *
+   * Addresses split by COMPARABILITY, which is what actually defends against
+   * poisoning (§7.14 / §7.19):
+   *   - `verify` — a destination the person CHOSE or that is their OWN
+   *     (mint / transfer recipient, offer payout). They can compare it to
+   *     what they intended, so it renders in FULL, space-grouped, never
+   *     truncated — a forgery that matches only the head and tail is then
+   *     visible. `value` is the full grouped address.
+   *   - `reveal` — a counterparty address that arrived from an offer
+   *     (buy's seller payout). The person has nothing to compare it
+   *     against, and the bytes are sighash-committed, so full display buys
+   *     little; it renders truncated with `value`, and `reveal` holds the
+   *     full grouped form shown on demand.
    */
-  rows: { label: string; value: string; verify?: boolean }[];
+  rows: { label: string; value: string; verify?: boolean; reveal?: string }[];
   /** Label on the "yes, do it" button. */
   approveButtonLabel: string;
   /** Label on the "no, cancel" button. */
@@ -156,7 +165,7 @@ function buyCopy(intent: Cat21BuyIntent): Cat21ConfirmationCopy {
     rows: [
       { label: 'Cat', value: `#${intent.catNumber}` },
       { label: 'You pay', value: `${formatSats(intent.bidSats)} sats` },
-      verifyAddressRow("Seller's address", intent.sellerPaymentAddress),
+      revealAddressRow("Seller's address", intent.sellerPaymentAddress),
       { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
     ],
     approveButtonLabel: 'Place bid',
@@ -177,6 +186,21 @@ function verifyAddressRow(label: string, address: string): {
   verify: true;
 } {
   return { label, value: groupAddress(address), verify: true };
+}
+
+/**
+ * A counterparty address that arrived from an offer (buy's seller payout).
+ * The person never chose it and has nothing to compare it against, so it
+ * shows truncated by default with the full grouped form (`reveal`) available
+ * on demand. `reveal` still carries the full, byte-complete address so the
+ * revealed form remains verifiable, never a second truncation.
+ */
+function revealAddressRow(label: string, address: string): {
+  label: string;
+  value: string;
+  reveal: string;
+} {
+  return { label, value: formatAddress(address), reveal: groupAddress(address) };
 }
 
 /** Space-group a string in fours: "bc1qw508…" -> "bc1q w508 …". */

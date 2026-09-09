@@ -126,6 +126,16 @@ test.describe('CAT-21 approval dialogs (UX round 2 capture)', () => {
       feeRate: 5,
     });
 
+    // Buy's seller address is a reveal row (offer-derived, non-comparable):
+    // truncated by default, full grouped form on "Show full". Capture the
+    // revealed state too, so the reviewer sees the address is still fully
+    // verifiable on demand. The buy dialog is open from the shot above.
+    const revealBtn = page.getByTestId("cat21-confirmation-row-seller's-address-reveal");
+    await revealBtn.waitFor({ state: 'visible' });
+    await revealBtn.click();
+    await page.getByTestId('cat21-confirmation-rows').waitFor({ state: 'visible' });
+    await page.screenshot({ path: path.join(OUT_DIR, 'buy-revealed-popup-390.png') });
+
     // Finding #1 (focus): on a spending prompt, focus must never land on the
     // Approve/money button (an accidental Enter would sign). Report where it
     // actually lands. The buy dialog is still open from the shot above.

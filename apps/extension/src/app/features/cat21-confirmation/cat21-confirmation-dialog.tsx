@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { Flex, styled } from 'leather-styles/jsx';
 
 import { Button } from '@leather.io/ui';
@@ -6,6 +8,51 @@ import { ErrorLabel } from '@app/components/error-label';
 import { ButtonRow, Content } from '@app/components/layout';
 
 import type { Cat21ConfirmationCopy } from './cat21-confirmation-copy';
+
+/**
+ * A counterparty address (buy's seller payout) that arrived from an offer.
+ * The person has nothing to compare it against, so it shows truncated by
+ * default; "Show full" reveals the full grouped form, wrapping, still
+ * byte-complete. Local state only — never touches the signed intent.
+ */
+function RevealAddressRow(props: { label: string; truncated: string; full: string; testId: string }) {
+  const { label, truncated, full, testId } = props;
+  const [shown, setShown] = useState(false);
+  return (
+    <Flex direction="column" gap="space.01">
+      <styled.span textStyle="label.02" color="ink.text-subdued">
+        {label}
+      </styled.span>
+      {shown ? (
+        <styled.span
+          textStyle="mono.02"
+          fontFamily="monospace"
+          wordBreak="break-word"
+          data-testid={testId}
+        >
+          {full}
+        </styled.span>
+      ) : (
+        <Flex justifyContent="space-between" gap="space.04" alignItems="baseline">
+          <styled.span textStyle="mono.02" fontFamily="monospace" data-testid={testId}>
+            {truncated}
+          </styled.span>
+          <styled.button
+            type="button"
+            onClick={() => setShown(true)}
+            textStyle="label.02"
+            textDecoration="underline"
+            cursor="pointer"
+            flexShrink={0}
+            data-testid={`${testId}-reveal`}
+          >
+            Show full
+          </styled.button>
+        </Flex>
+      )}
+    </Flex>
+  );
+}
 
 interface Cat21ConfirmationDialogProps {
   /** Result of `makeCat21ConfirmationCopy(intent)`. */
@@ -85,6 +132,19 @@ export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
                     {row.value}
                   </styled.span>
                 </Flex>
+              );
+            }
+            // A `reveal` row is a counterparty address from an offer: truncated
+            // by default (nothing to compare it against), full form on demand.
+            if (row.reveal) {
+              return (
+                <RevealAddressRow
+                  key={idx}
+                  label={row.label}
+                  truncated={row.value}
+                  full={row.reveal}
+                  testId={testId}
+                />
               );
             }
             return (

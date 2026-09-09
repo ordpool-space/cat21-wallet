@@ -132,7 +132,13 @@ describe('makeCat21ConfirmationCopy', () => {
       expect(copy.rows).toEqual([
         { label: 'Cat', value: '#42' },
         { label: 'You pay', value: '50 000 sats' },
-        { label: "Seller's address", value: 'bc1q sell erpa ymen tadd r', verify: true },
+        // Seller payout arrived from the offer: truncated by default, full
+        // grouped form on demand (the person has nothing to compare it to).
+        {
+          label: "Seller's address",
+          value: 'bc1qsell…mentaddr',
+          reveal: 'bc1q sell erpa ymen tadd r',
+        },
         { label: 'Fee rate', value: '5 sat/vB' },
       ]);
     });
@@ -243,7 +249,7 @@ describe('makeCat21ConfirmationCopy', () => {
         const surface = [
           copy.title,
           ...copy.paragraphs,
-          ...copy.rows.flatMap(r => [r.label, r.value]),
+          ...copy.rows.flatMap(r => [r.label, r.value, r.reveal ?? '']),
           copy.approveButtonLabel,
           copy.rejectButtonLabel,
         ]
@@ -275,27 +281,45 @@ describe('makeCat21ConfirmationCopy', () => {
       expect(dest?.verify).toBe(true);
     });
 
-    it('loses no character of the address (stripping the grouping spaces restores it exactly)', () => {
+    it('comparable destinations (mint / transfer / create-offer) render the FULL address as a verify row', () => {
+      // These are addresses the person chose or that are their own, so the
+      // full grouped form is on screen with no action needed. Reverting
+      // `verifyAddressRow` to truncate makes the strip-restores assertion red.
       const intents: Cat21Intent[] = [
         { recipient: FULL, feeRate: 5, mode: 'manual' },
         { catId: 'aaai0', recipient: FULL, feeRate: 5, mode: 'manual' },
         { catId: 'aaai0', priceSats: 21_000, paymentAddress: FULL, mode: 'manual' },
-        {
-          catId: 'aaai0',
-          catNumber: 42,
-          bidSats: 50_000,
-          sellerPaymentAddress: FULL,
-          feeRate: 5,
-          mode: 'manual',
-        },
       ];
       for (const intent of intents) {
         const copy = makeCat21ConfirmationCopy(intent);
         const verifyRows = copy.rows.filter(r => r.verify);
         expect(verifyRows.length).toBe(1);
+        expect(verifyRows[0].reveal).toBeUndefined();
         // Full address present, byte-for-byte, once the display grouping is removed.
         expect(verifyRows[0].value.replace(/ /gu, '')).toBe(FULL);
       }
+    });
+
+    it("buy's seller address is a reveal row: truncated by default, FULL grouped form still byte-complete", () => {
+      // The seller payout arrived from the offer; the person has nothing to
+      // compare it against, so it is truncated by default. The full grouped
+      // form must still be present and byte-complete in `reveal` — never a
+      // second truncation. Dropping the full form (e.g. reveal === value)
+      // makes the strip-restores assertion red.
+      const copy = makeCat21ConfirmationCopy({
+        catId: 'aaai0',
+        catNumber: 42,
+        bidSats: 50_000,
+        sellerPaymentAddress: FULL,
+        feeRate: 5,
+        mode: 'manual',
+      });
+      const seller = copy.rows.find(r => r.label === "Seller's address");
+      expect(seller?.verify).toBeUndefined();
+      // Default display is truncated head…tail (that's the whole point of reveal).
+      expect(seller?.value).toBe('bc1qw508…7kv8f3t4');
+      // The revealed form is the full address, byte-for-byte, once grouping is stripped.
+      expect(seller?.reveal?.replace(/ /gu, '')).toBe(FULL);
     });
 
     it('groups the address in four-character chunks so a mid-string swap is visible', () => {

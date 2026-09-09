@@ -61,6 +61,21 @@ describe('cat21-confirmation-dialog (structural contract)', () => {
     expect(src).toMatch(/wordBreak/);
   });
 
+  it('renders a reveal (counterparty-address) row truncated with a "Show full" affordance', async () => {
+    const src = await import('node:fs').then(fs =>
+      fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')
+    );
+    // A counterparty address from an offer (buy's seller payout) shows
+    // truncated by default with a control to reveal the full grouped form.
+    // The dialog branches on `row.reveal` into RevealAddressRow, whose reveal
+    // control carries a `-reveal` testid. Dropping the branch or the control
+    // makes this red.
+    expect(src).toMatch(/row\.reveal/);
+    expect(src).toMatch(/RevealAddressRow/);
+    expect(src).toMatch(/-reveal/);
+    expect(src).toMatch(/Show full/);
+  });
+
   it('disables both buttons when isSubmitting=true', async () => {
     const src = await import('node:fs').then(fs =>
       fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')
