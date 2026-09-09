@@ -180,7 +180,10 @@ function buyCopy(intent: Cat21BuyIntent): Cat21ConfirmationCopy {
  * head…tail rendering hides the attack; the full grouped string is what
  * makes a middle mismatch visible. §7.14.
  */
-function verifyAddressRow(label: string, address: string): {
+function verifyAddressRow(
+  label: string,
+  address: string
+): {
   label: string;
   value: string;
   verify: true;
@@ -195,7 +198,10 @@ function verifyAddressRow(label: string, address: string): {
  * on demand. `reveal` still carries the full, byte-complete address so the
  * revealed form remains verifiable, never a second truncation.
  */
-function revealAddressRow(label: string, address: string): {
+function revealAddressRow(
+  label: string,
+  address: string
+): {
   label: string;
   value: string;
   reveal: string;

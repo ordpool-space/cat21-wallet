@@ -83,7 +83,10 @@ test.describe('CAT-21 approval dialogs (UX round 2 capture)', () => {
         async ([id, value]) => {
           await chrome.storage.session.set({ [`cat21-request-${id}`]: value });
         },
-        [requestId, { intent: { ...intent, mode: 'manual' }, transport: 'popup', stashedAt: Date.now() }] as const
+        [
+          requestId,
+          { intent: { ...intent, mode: 'manual' }, transport: 'popup', stashedAt: Date.now() },
+        ] as const
       );
       // Render through action-popup.html, whose `.mode__action-popup` class
       // locks the body to the real 390px popup width and applies the popup
@@ -140,7 +143,10 @@ test.describe('CAT-21 approval dialogs (UX round 2 capture)', () => {
     // Approve/money button (an accidental Enter would sign). Report where it
     // actually lands. The buy dialog is still open from the shot above.
     const focusTestId = await page.evaluate(
-      () => document.activeElement?.getAttribute('data-testid') ?? document.activeElement?.tagName ?? 'none'
+      () =>
+        document.activeElement?.getAttribute('data-testid') ??
+        document.activeElement?.tagName ??
+        'none'
     );
     // eslint-disable-next-line no-console
     console.log(`[capture] focus lands on: ${focusTestId}`);

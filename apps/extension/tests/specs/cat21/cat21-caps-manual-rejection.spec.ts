@@ -16,7 +16,7 @@ import { test } from '../../fixtures/fixtures';
  *   3. clicking approve runs the real Cat21RpcService pipeline
  *      (validateCat21Operation -> resolveSigningMode -> the cap gate),
  *   4. the cap fires (spend 546 > cap) BEFORE any build/sign/broadcast,
- *      and the running extension surfaces `spend-above-action-cap`.
+ *      and the running extension surfaces the humanised cap message.
  *
  * "A cap is a cap": manual mode is not a cap-free path. No chain is
  * needed because the rejection happens before the PSBT is built.
@@ -58,11 +58,13 @@ test.describe('CAT-21 caps bind the real manual (Path 2) pipeline', () => {
     await page.getByTestId('cat21-confirmation-approve').click();
 
     // 4. The cap fires in the running extension: 546 > 200. The denial is
-    //    surfaced, and nothing was signed or broadcast (the reject happens
+    //    surfaced as a humanised sentence (§7.6: no raw code reaches the
+    //    user), and nothing was signed or broadcast (the reject happens
     //    before the builder runs).
     const error = page.getByTestId('cat21-confirmation-error');
     await expect(error).toBeVisible();
-    await expect(error).toContainText('spend-above-action-cap');
+    await expect(error).toContainText('per-action spending limit');
+    await expect(error).not.toContainText('spend-above-action-cap');
   });
 
   test('control: the SAME mint with a cap ABOVE the spend is NOT cap-rejected (passes the gate)', async ({
@@ -73,8 +75,8 @@ test.describe('CAT-21 caps bind the real manual (Path 2) pipeline', () => {
     // per-action cap of 10 000 (ABOVE the 546-sat spend). This proves the
     // cap VALUE is the discriminator, not a blanket "any policy rejects".
     // The mint clears the cap gate and reaches funding selection, which
-    // fails with a DIFFERENT reason (no funds for the test account, no
-    // chain in this env) — never `spend-above-action-cap`.
+    // fails with a DIFFERENT, humanised reason ("Add funds…", from
+    // funding-pick-failed) — never the cap message.
     await page.goto(`chrome-extension://${extensionId}/index.html#/cat21-agent-policy`);
     await page.getByTestId('cat21-agent-policy-form').waitFor();
     await page.locator('[name="maxSpendPerActionSats"]').fill('10000');
@@ -88,9 +90,13 @@ test.describe('CAT-21 caps bind the real manual (Path 2) pipeline', () => {
 
     await page.getByTestId('cat21-confirmation-approve').click();
 
-    // Passed the cap gate: the failure is funding, not the cap.
+    // Passed the cap gate: the failure is funding, not the cap. The humanised
+    // funding message ("Add funds…") is distinct from the cap message, so this
+    // still discriminates cap-rejection from funding-failure (§7.6: no raw
+    // code reaches the user).
     const error = page.getByTestId('cat21-confirmation-error');
     await expect(error).toBeVisible();
-    await expect(error).toContainText('funding-pick-failed');
+    await expect(error).toContainText('Add funds');
+    await expect(error).not.toContainText('funding-pick-failed');
   });
 });

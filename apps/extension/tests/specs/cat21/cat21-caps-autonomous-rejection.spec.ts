@@ -71,9 +71,11 @@ test.describe('CAT-21 caps bind the real autonomous (Path 3 / NMH) pipeline', ()
     //    'autonomous', wallet unlocked) — no human click. The cap gate in
     //    resolveSigningMode runs FIRST (before the autonomous grant), so the
     //    over-cap autonomous mint is rejected, never signed. The running
-    //    extension surfaces the cap denial.
+    //    extension surfaces the cap denial as a humanised sentence (§7.6:
+    //    the raw `spend-above-action-cap` code never reaches the user).
     const error = page.getByTestId('cat21-confirmation-error');
     await expect(error).toBeVisible();
-    await expect(error).toContainText('spend-above-action-cap');
+    await expect(error).toContainText('per-action spending limit');
+    await expect(error).not.toContainText('spend-above-action-cap');
   });
 });

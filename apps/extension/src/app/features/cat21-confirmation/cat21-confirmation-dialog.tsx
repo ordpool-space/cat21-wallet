@@ -15,7 +15,12 @@ import type { Cat21ConfirmationCopy } from './cat21-confirmation-copy';
  * default; "Show full" reveals the full grouped form, wrapping, still
  * byte-complete. Local state only — never touches the signed intent.
  */
-function RevealAddressRow(props: { label: string; truncated: string; full: string; testId: string }) {
+function RevealAddressRow(props: {
+  label: string;
+  truncated: string;
+  full: string;
+  testId: string;
+}) {
   const { label, truncated, full, testId } = props;
   const [shown, setShown] = useState(false);
   return (
