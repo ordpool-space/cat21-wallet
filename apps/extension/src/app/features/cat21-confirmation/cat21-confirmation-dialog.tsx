@@ -179,7 +179,14 @@ export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
             {copy.rejectButtonLabel}
           </Button>
           <Button
-            variant="solid"
+            // De-emphasise the primary action once an error is showing. It
+            // stays LIVE on purpose (a policy block can clear if the user
+            // raises the cap in another window, then this retry succeeds —
+            // the caps gate re-reads current policy), but a solid button under
+            // a red "you can't continue" message reads as a confident "go" it
+            // is not. Outline signals "not the confident action" while keeping
+            // the retry path open.
+            variant={submitError ? 'outline' : 'solid'}
             flexGrow={1}
             onClick={onApprove}
             disabled={isSubmitting}

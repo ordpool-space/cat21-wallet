@@ -76,6 +76,22 @@ describe('cat21-confirmation-dialog (structural contract)', () => {
     expect(src).toMatch(/Show full/);
   });
 
+  it('de-emphasises the approve button while an error is showing, but keeps it live', async () => {
+    const src = await import('node:fs').then(fs =>
+      fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')
+    );
+    // Under a red denial/error, the primary action must not read as a
+    // confident solid "go" identical to the allowed state (three reviewers
+    // read it as tappable-and-fine). It stays enabled (retry can succeed once
+    // the block clears) but its variant flips to outline on error. Removing
+    // the conditional — hardcoding variant="solid" — makes this red.
+    const approveBlock =
+      src.match(/[\s\S]{0,400}data-testid="cat21-confirmation-approve"/u)?.[0] ?? '';
+    expect(approveBlock).toMatch(/variant=\{submitError \? 'outline' : 'solid'\}/);
+    // Still gated only by isSubmitting, never disabled by the error itself.
+    expect(approveBlock).toMatch(/disabled=\{isSubmitting\}/);
+  });
+
   it('disables both buttons when isSubmitting=true', async () => {
     const src = await import('node:fs').then(fs =>
       fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')
