@@ -3,7 +3,7 @@ import { Flex, styled } from 'leather-styles/jsx';
 import { Button } from '@leather.io/ui';
 
 import { ErrorLabel } from '@app/components/error-label';
-import { Content } from '@app/components/layout';
+import { ButtonRow, Content } from '@app/components/layout';
 
 import type { Cat21ConfirmationCopy } from './cat21-confirmation-copy';
 
@@ -107,10 +107,10 @@ export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
         {submitError ? (
           <ErrorLabel data-testid="cat21-confirmation-error">{submitError}</ErrorLabel>
         ) : null}
-        <Flex gap="space.03" pt="space.05">
+        <ButtonRow flexDirection="row" pt="space.05">
           <Button
             variant="outline"
-            fullWidth
+            flexGrow={1}
             onClick={onReject}
             disabled={isSubmitting}
             type="button"
@@ -120,7 +120,7 @@ export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
           </Button>
           <Button
             variant="solid"
-            fullWidth
+            flexGrow={1}
             onClick={onApprove}
             disabled={isSubmitting}
             type="button"
@@ -128,7 +128,7 @@ export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
           >
             {copy.approveButtonLabel}
           </Button>
-        </Flex>
+        </ButtonRow>
       </Flex>
     </Content>
   );
