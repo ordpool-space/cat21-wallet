@@ -136,4 +136,68 @@ test.describe('CAT-21 approval dialogs (UX round 2 capture)', () => {
     console.log(`[capture] focus lands on: ${focusTestId}`);
     expect(focusTestId).not.toBe('cat21-confirmation-approve');
   });
+
+  test('captures a REAL per-action cap denial in the error slot', async ({
+    page,
+    extensionId,
+    onboardingPage,
+  }) => {
+    fs.mkdirSync(OUT_DIR, { recursive: true });
+
+    await page.goto(`chrome-extension://${extensionId}/index.html`);
+    await onboardingPage.signInWithTestAccount(extensionId);
+    const taproot = await readReceiveAddress(page, extensionId, 'btc-taproot');
+
+    // Set a low per-action cap through the REAL agent-policy wizard, so the
+    // denial below comes from the actual caps gate, not an injected error.
+    // The cap applies to manual actions regardless of `enabled` (HARD RULE #6).
+    await page.goto(`chrome-extension://${extensionId}/index.html#/cat21-agent-policy`);
+    await page.getByTestId('cat21-agent-policy-form').waitFor({ state: 'visible' });
+    await page.locator('input[name="maxSpendPerActionSats"]').fill('1000');
+    await page.getByTestId('cat21-agent-policy-save').click();
+    // Saving navigates away from the wizard; wait for the form to detach.
+    await page.getByTestId('cat21-agent-policy-form').waitFor({ state: 'detached' });
+
+    // Stash a buy far over the 1000-sat cap and approve it. The caps gate runs
+    // at mode-resolution (before build/funding), so the denial surfaces as the
+    // humanised sentence in the error slot without any on-chain setup.
+    const requestId = `denial-${Date.now()}`;
+    await page.evaluate(
+      async ([id, value]) => {
+        await chrome.storage.session.set({ [`cat21-request-${id}`]: value });
+      },
+      [
+        requestId,
+        {
+          intent: {
+            catId: CAT_ID,
+            catNumber: CAT_NUMBER,
+            bidSats: BID_SATS,
+            sellerPaymentAddress: taproot,
+            feeRate: 5,
+            mode: 'manual',
+          },
+          transport: 'popup',
+          stashedAt: Date.now(),
+        },
+      ] as const
+    );
+    await page.setViewportSize({ width: 420, height: 860 });
+    await page.goto(
+      `chrome-extension://${extensionId}/action-popup.html#${ROUTE.buy}?cat21RequestId=${requestId}`
+    );
+    await page.getByTestId('cat21-confirmation-approve').waitFor({ state: 'visible' });
+    await page.getByTestId('cat21-confirmation-approve').click();
+
+    const errorLabel = page.getByTestId('cat21-confirmation-error');
+    await errorLabel.waitFor({ state: 'visible' });
+    const errorText = (await errorLabel.textContent()) ?? '';
+    // eslint-disable-next-line no-console
+    console.log(`[capture] denial error slot reads: ${errorText}`);
+    // A humanised sentence, never the raw reason code.
+    expect(errorText).not.toContain('spend-above-action-cap');
+    expect(errorText.endsWith('.')).toBeTruthy();
+
+    await page.screenshot({ path: path.join(OUT_DIR, 'buy-denied-popup-390.png') });
+  });
 });
