@@ -12,7 +12,9 @@
  */
 export function humanizeCat21Error(reason: string, detail?: string): string {
   const haystack = `${reason} ${detail ?? ''}`.toLowerCase();
-  const has = (...needles: string[]): boolean => needles.some(n => haystack.includes(n));
+  function has(...needles: string[]): boolean {
+    return needles.some(n => haystack.includes(n));
+  }
 
   // Money first: the most common blocker.
   if (has('insufficient', 'funding-pick-failed', 'nothing covers', 'only asset coins')) {
