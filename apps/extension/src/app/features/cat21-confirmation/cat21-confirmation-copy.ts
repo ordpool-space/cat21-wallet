@@ -10,28 +10,34 @@ import type {
 /**
  * The human-readable copy a Cat21 confirmation dialog shows the user.
  *
+ * Every approval answers three things and nothing else: what happens,
+ * what it costs, and who gets what. No protocol vocabulary (no
+ * "nLockTime", no "PSBT", no "first sat of the first output") and no
+ * engineering-confidence claims reach the user. Binding rule: §7.6 of
+ * `ordpool-sdk/docs/wallet-ux-round2.md`.
+ *
  * Why split this out from the React component:
  *   - the logic is the testable risk surface (wrong title, wrong cap
  *     number, wrong recipient address) — easy to unit-test without
  *     mounting a tree
- *   - the four dialog variants (mint / transfer / create-offer /
- *     accept-offer) collapse to a single switch over `intent.type` (the
- *     existing union has no discriminator field; structural detection
+ *   - the five dialog variants (mint / transfer / create-offer /
+ *     accept-offer / buy) collapse to a single switch over the intent's
+ *     shape (the union has no discriminator field; structural detection
  *     mirrors `cat21IntentToAgentContext`)
  *   - the React layer becomes a thin presentational shell that just
- *     renders the title / paragraphs / buttons from this struct
+ *     renders the title / paragraphs / rows / buttons from this struct
  */
 export interface Cat21ConfirmationCopy {
-  /** Dialog title shown at the top, e.g. "Mint a CAT-21 cat?". */
+  /** Dialog title shown at the top, e.g. "Mint a cat". */
   title: string;
   /**
-   * One paragraph each, displayed in order. Each is short (under ~120
-   * chars) so the dialog stays scannable without scrolling on the
-   * extension's narrow popup width.
+   * One paragraph each, displayed in order. Each is short so the dialog
+   * stays scannable without scrolling on the extension's narrow popup
+   * width.
    */
   paragraphs: string[];
   /**
-   * Up to four `{ label, value }` summary rows ("Recipient: bc1q…",
+   * Up to four `{ label, value }` summary rows ("Goes to: bc1q…",
    * "Fee rate: 5 sat/vB"). Renders as a definition list, monospaced
    * value, address-trimmed where the value looks like an address.
    */
@@ -50,17 +56,12 @@ export interface Cat21ConfirmationCopy {
  * else mint. `bidSats` is checked first because the buy intent also
  * carries `catId`.
  *
- * The five variants below are intentionally distinct in voice:
- *   - mint: celebratory ("Mint a CAT-21 cat!") — minting is the most
- *     common cat-flow and the one users tend to do impulsively
- *   - transfer: neutral ("Send your cat to ...") — most likely a
- *     gift / sale-settlement, no need to dramatise
- *   - create-offer: market-ish ("List Cat for sale") — emphasises that
- *     this just emits a listing; nothing on-chain happens yet
- *   - accept-offer: careful ("Sell Cat #N to a buyer") — buyer-supplied
- *     PSBT bytes need to be reviewed; voice should make the user pause
- *   - buy: committing ("Bid on Cat #N") — the buyer commits funds via a
- *     signed offer; make clear it's a bid the seller must accept
+ * The five variants say, in the user's words:
+ *   - mint: you get a brand-new cat
+ *   - transfer: you send a cat to an address
+ *   - create-offer: you list a cat for sale; nothing moves yet
+ *   - accept-offer: a buyer offered; you sell and get paid
+ *   - buy: you bid on a cat; the seller must accept
  */
 export function makeCat21ConfirmationCopy(intent: Cat21Intent): Cat21ConfirmationCopy {
   if ('bidSats' in intent) return buyCopy(intent);
@@ -73,18 +74,18 @@ export function makeCat21ConfirmationCopy(intent: Cat21Intent): Cat21Confirmatio
 function mintCopy(intent: Cat21MintIntent): Cat21ConfirmationCopy {
   const tipValue = intent.tip?.value ?? 0;
   const paragraphs = [
-    'Sign this transaction to mint a fresh CAT-21 cat onto the first sat of the first output. The cat lands at the recipient address and is yours immediately on confirmation.',
+    'You create a brand-new cat. It goes to the address below and is yours as soon as the transaction confirms.',
   ];
   if (tipValue > 0) {
     paragraphs.push(
-      `Includes a developer tip of ${tipValue} sats to ${formatAddress(intent.tip!.address)}.`
+      `This also sends a ${tipValue.toLocaleString()} sats tip to ${formatAddress(intent.tip!.address)}.`
     );
   }
   return {
-    title: 'Mint a CAT-21 cat',
+    title: 'Mint a cat',
     paragraphs,
     rows: [
-      { label: 'Recipient', value: formatAddress(intent.recipient) },
+      { label: 'Goes to', value: formatAddress(intent.recipient) },
       { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
     ],
     approveButtonLabel: 'Mint cat',
@@ -94,13 +95,13 @@ function mintCopy(intent: Cat21MintIntent): Cat21ConfirmationCopy {
 
 function transferCopy(intent: Cat21TransferIntent): Cat21ConfirmationCopy {
   return {
-    title: 'Send your CAT-21 cat',
+    title: 'Send your cat',
     paragraphs: [
-      'Sign this transaction to send your cat to a new address. nLockTime=21 is preserved, so the same sat receives a fresh cat in the process.',
+      'You send this cat to the address below. You pay a network fee; the cat itself travels intact.',
     ],
     rows: [
       { label: 'Cat', value: formatCatId(intent.catId) },
-      { label: 'Recipient', value: formatAddress(intent.recipient) },
+      { label: 'Goes to', value: formatAddress(intent.recipient) },
       { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
     ],
     approveButtonLabel: 'Send cat',
@@ -110,15 +111,15 @@ function transferCopy(intent: Cat21TransferIntent): Cat21ConfirmationCopy {
 
 function createOfferCopy(intent: Cat21CreateOfferIntent): Cat21ConfirmationCopy {
   return {
-    title: 'List your CAT-21 cat for sale',
+    title: 'List your cat for sale',
     paragraphs: [
-      'This publishes your ask to the CAT-21 Bazaar. Nothing moves on-chain yet — a buyer must submit a buy-offer PSBT before the cat changes hands.',
-      'You sign once to prove you own the cat, then it appears on the orderbook. You can re-price by listing again, or take it down any time.',
+      'You list this cat for sale at the price below. Nothing moves on-chain yet: a buyer has to accept your price before the cat changes hands.',
+      'You sign once to prove the cat is yours, then it appears on the marketplace. You can re-list at a new price or take it down any time.',
     ],
     rows: [
       { label: 'Cat', value: formatCatId(intent.catId) },
-      { label: 'Asking price', value: `${intent.priceSats.toLocaleString()} sats` },
-      { label: 'Payment to', value: formatAddress(intent.paymentAddress) },
+      { label: 'Price', value: `${intent.priceSats.toLocaleString()} sats` },
+      { label: 'Paid to', value: formatAddress(intent.paymentAddress) },
     ],
     approveButtonLabel: 'List cat',
     rejectButtonLabel: 'Cancel',
@@ -127,14 +128,14 @@ function createOfferCopy(intent: Cat21CreateOfferIntent): Cat21ConfirmationCopy 
 
 function acceptOfferCopy(intent: Cat21AcceptOfferIntent): Cat21ConfirmationCopy {
   return {
-    title: 'Accept a buy offer for your CAT-21 cat',
+    title: 'Sell your cat',
     paragraphs: [
-      `A buyer submitted a PSBT that — when you sign — sends ${formatCatId(intent.expectedCatId)} to them and pays you the listed sats.`,
-      'Review the cat id below carefully. Once you approve, the transaction broadcasts immediately.',
+      'A buyer offered to buy this cat. When you approve, the cat goes to them and you are paid the amount below.',
+      'Check the cat and the amount, then approve. It goes through right away.',
     ],
     rows: [
       { label: 'Cat', value: formatCatId(intent.expectedCatId) },
-      { label: 'PSBT bytes', value: `${intent.offerPsbt.length} chars` },
+      { label: 'You get', value: `${intent.expectedPriceSats.toLocaleString()} sats` },
     ],
     approveButtonLabel: 'Sell cat',
     rejectButtonLabel: 'Reject offer',
@@ -145,13 +146,13 @@ function buyCopy(intent: Cat21BuyIntent): Cat21ConfirmationCopy {
   return {
     title: `Bid on Cat #${intent.catNumber}`,
     paragraphs: [
-      `Sign a buy-offer that pays the seller ${intent.bidSats.toLocaleString()} sats and lands Cat #${intent.catNumber} in your wallet. You commit your funds now; nothing moves until the seller accepts.`,
-      'Your bid is posted to the CAT-21 Bazaar. The seller (or their bot) can accept it any time — or another buyer can outbid you.',
+      `You offer to buy Cat #${intent.catNumber} for the amount below. If the seller accepts, you pay them and the cat lands in your wallet.`,
+      'Your funds are committed to this bid now. Nothing moves until the seller accepts, and another buyer could outbid you first.',
     ],
     rows: [
       { label: 'Cat', value: `#${intent.catNumber}` },
-      { label: 'Your bid', value: `${intent.bidSats.toLocaleString()} sats` },
-      { label: 'Pays seller', value: formatAddress(intent.sellerPaymentAddress) },
+      { label: 'You pay', value: `${intent.bidSats.toLocaleString()} sats` },
+      { label: "Seller's address", value: formatAddress(intent.sellerPaymentAddress) },
       { label: 'Fee rate', value: `${intent.feeRate} sat/vB` },
     ],
     approveButtonLabel: 'Place bid',

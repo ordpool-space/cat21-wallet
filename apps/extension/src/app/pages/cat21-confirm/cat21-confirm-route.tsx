@@ -8,6 +8,7 @@ import { Button } from '@leather.io/ui';
 import { Content } from '@app/components/layout';
 import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat21-confirmation-copy';
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
+import { humanizeCat21Error } from '@app/features/cat21-confirmation/cat21-error-copy';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { useHasActiveInMemoryWalletSecretKey } from '@app/store/in-memory-key/in-memory-key.selectors';
 import { postCat21Result } from '@background/cat21/cat21-result-bus';
@@ -212,7 +213,10 @@ export function Cat21ConfirmRoute() {
         return;
       }
       const { reason, detail } = result.value;
-      setError(detail ? `${reason}: ${detail}` : reason);
+      // The user reads an actionable, second-person sentence, never the raw
+      // `reason: detail` code (§7.4 / §7.6). "Add funds..." reads as a step,
+      // not a crash, so the Approve button stays live for a retry.
+      setError(humanizeCat21Error(reason, detail));
     })();
   }
 
