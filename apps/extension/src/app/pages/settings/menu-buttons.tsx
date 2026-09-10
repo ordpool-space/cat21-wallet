@@ -2,6 +2,9 @@ import { useNavigate } from 'react-router';
 
 import { SettingsSelectors } from '@tests/selectors/settings.selectors';
 import { Flex, styled } from 'leather-styles/jsx';
+// HACK -- Cat21: the wallet's positioning line, imported verbatim from the SDK
+// so it stays identical to the Ordpool family footer (single source, no drift).
+import { CAT21_WALLET_POSITIONING } from 'ordpool-sdk/core';
 
 import { LEATHER_GITBOOK_DEVS, LEATHER_GUIDES_URL } from '@leather.io/constants';
 /* HACK -- Cat21: GlobeTiltedIcon import dropped — only consumer was the Network
@@ -129,9 +132,14 @@ export function MenuButtons() {
         icon={<MegaphoneIcon />}
       />
 
-      <Flex pt="space.03" pb="space.05" direction="column" gap="space.01">
-        <styled.p textStyle="label.02">Version</styled.p>
-        <AppVersion />
+      <Flex pt="space.03" pb="space.05" direction="column" gap="space.03">
+        <styled.p textStyle="body.02" color="ink.text-subdued">
+          {CAT21_WALLET_POSITIONING}
+        </styled.p>
+        <Flex direction="column" gap="space.01">
+          <styled.p textStyle="label.02">Version</styled.p>
+          <AppVersion />
+        </Flex>
       </Flex>
     </Flex>
   );
