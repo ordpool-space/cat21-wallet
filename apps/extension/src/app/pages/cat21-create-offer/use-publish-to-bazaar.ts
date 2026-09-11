@@ -35,19 +35,7 @@ import { clearCat21Session, getOrCreateCat21Session } from '@app/common/cat21-ba
 import { useCat21SessionSigner } from '@app/common/cat21-bazaar/use-cat21-session-signer';
 import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 
-/**
- * Map the wallet's active bitcoin network mode to the listing's network tag,
- * which the backend validates against its deployment. Production is 'mainnet'
- * (ADR-7); the E2E chain-truth suite drives 'regtest' against a real regtest
- * Bazaar backend. Non-mainnet, non-regtest modes collapse to 'testnet3'.
- */
-function toListingNetwork(
-  mode: string
-): 'mainnet' | 'testnet3' | 'testnet4' | 'signet' | 'regtest' {
-  if (mode === 'mainnet') return 'mainnet';
-  if (mode === 'regtest') return 'regtest';
-  return 'testnet3';
-}
+import { resolveListingBundle, toListingNetwork } from './publish-to-bazaar.helper';
 
 interface PublishToBazaarArgs {
   /** Inscription id of the headline cat (from the confirmed intent). */
@@ -81,17 +69,13 @@ export function usePublishToBazaar(): UsePublishToBazaarResult {
         // ─── resolve: headline number + live bundle numbers ───
         setState({ step: 'resolving' });
         const ord = getCat21OrdApiClient();
-        const headline = await ord.fetchCat21(args.catId);
-        const outpoint = `${args.sellerUtxo.txid}:${args.sellerUtxo.vout}`;
-        const output = await ord.fetchOutput(outpoint, { skipCache: true });
-        const bundleCatNumbers = await Promise.all(
-          output.cats.map(async id =>
-            id === args.catId ? headline.number : (await ord.fetchCat21(id)).number
-          )
-        );
+        const { headlineNumber, bundleCatNumbers } = await resolveListingBundle(ord, {
+          catId: args.catId,
+          sellerUtxo: args.sellerUtxo,
+        });
 
         const request = buildCreateListingRequest({
-          catNumber: headline.number,
+          catNumber: headlineNumber,
           bundleCatNumbers,
           askSats: args.askSats,
           paymentAddress: args.paymentAddress,
