@@ -4,7 +4,7 @@ import { SettingsSelectors } from '@tests/selectors/settings.selectors';
 import { Flex, styled } from 'leather-styles/jsx';
 // HACK -- Cat21: the wallet's positioning line, imported verbatim from the SDK
 // so it stays identical to the Ordpool family footer (single source, no drift).
-import { CAT21_WALLET_POSITIONING } from 'ordpool-sdk/core';
+import { CAT21_LORE_POINTER, CAT21_WALLET_POSITIONING } from 'ordpool-sdk/core';
 
 import { LEATHER_GITBOOK_DEVS, LEATHER_GUIDES_URL } from '@leather.io/constants';
 /* HACK -- Cat21: GlobeTiltedIcon import dropped — only consumer was the Network
@@ -133,9 +133,36 @@ export function MenuButtons() {
       />
 
       <Flex pt="space.03" pb="space.05" direction="column" gap="space.03">
-        <styled.p textStyle="body.02" color="ink.text-subdued">
-          {CAT21_WALLET_POSITIONING}
-        </styled.p>
+        <Flex direction="column" gap="space.01">
+          <styled.p textStyle="body.02" color="ink.text-primary">
+            {CAT21_WALLET_POSITIONING}
+          </styled.p>
+          {/* HACK -- Cat21: lore pointer imported verbatim from the SDK
+              (CAT21_LORE_POINTER); the cat21.space domain in it is linked. It
+              names a SITE, not a wallet, so §7.10 (no shipped string names a
+              wallet) is not engaged. Split-and-link is fault-tolerant: if the
+              domain isn't in the constant, the whole line renders as text. */}
+          <styled.p textStyle="body.02" color="ink.text-primary">
+            {(() => {
+              const [before, after] = CAT21_LORE_POINTER.split('cat21.space');
+              if (after === undefined) return CAT21_LORE_POINTER;
+              return (
+                <>
+                  {before}
+                  <styled.a
+                    href="https://cat21.space"
+                    target="_blank"
+                    rel="noreferrer"
+                    textDecoration="underline"
+                  >
+                    cat21.space
+                  </styled.a>
+                  {after}
+                </>
+              );
+            })()}
+          </styled.p>
+        </Flex>
         <Flex direction="column" gap="space.01">
           <styled.p textStyle="label.02">Version</styled.p>
           <AppVersion />
