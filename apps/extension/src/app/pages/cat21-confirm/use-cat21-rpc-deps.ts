@@ -5,7 +5,6 @@ import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import { useQuery } from '@tanstack/react-query';
 import {
-  type AgentActionKind,
   type CoreFundingUtxo,
   type UtxoClassification,
   broadcastCat21,
@@ -37,6 +36,7 @@ import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 import { makeAgentPolicyDeps } from '@background/cat21/agent-policy-deps';
 import { type Cat21RpcDeps, walletNetworkToSdkNetwork } from '@background/cat21/cat21-rpc.service';
 
+import { stripCat21Prefix, toBidNetwork, toNetworkLabel } from './cat21-rpc-deps.helper';
 import { resolveCatFundingUtxo } from './resolve-cat-funding-utxo';
 
 /**
@@ -363,48 +363,4 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
     catQuery.data,
     catQuery.error,
   ]);
-}
-
-/**
- * Collapse the wallet's bitcoin network mode to the coarse label the cat-flow
- * pipeline uses. Regtest is threaded through so the E2E chain-truth harness can
- * drive the real pipeline against a local regtest chain (bcrt addresses); inert
- * in production, where the wallet is mainnet and any other mode is testnet.
- */
-function toNetworkLabel(mode: string): 'mainnet' | 'testnet' | 'regtest' {
-  if (mode === 'mainnet') return 'mainnet';
-  if (mode === 'regtest') return 'regtest';
-  return 'testnet';
-}
-
-/**
- * Map the wallet's network label to the Bazaar bid DTO's network enum. Production
- * is 'mainnet'; the E2E chain-truth suite drives 'regtest' against a real regtest
- * backend. Any other non-mainnet label collapses to 'testnet3'.
- */
-function toBidNetwork(net: string): 'mainnet' | 'testnet3' | 'regtest' {
-  if (net === 'mainnet') return 'mainnet';
-  if (net === 'regtest') return 'regtest';
-  return 'testnet3';
-}
-
-/**
- * Translate the agent-policy's `cat21_*` operation kinds to the bare
- * names the SDK structural gate's `Cat21OperationGateConfig.allowedOperations`
- * uses (`'mint' | 'transfer' | 'create_offer' | 'accept_offer'`). The
- * two layers of the SDK chose different conventions; this is the
- * single seam where the prefix is stripped.
- *
- * Returns `undefined` (not an empty array) when the source field is
- * missing OR empty so `gateConfig` can spread-conditionally and omit
- * the `allowedOperations` key entirely (the SDK treats unset and
- * empty array as equivalently permissive, but omitting reads cleaner).
- */
-type SdkGateOperationKind = 'mint' | 'transfer' | 'create_offer' | 'accept_offer';
-
-function stripCat21Prefix(
-  source: readonly AgentActionKind[] | undefined
-): readonly SdkGateOperationKind[] | undefined {
-  if (!source || source.length === 0) return undefined;
-  return source.map(k => k.slice('cat21_'.length) as SdkGateOperationKind);
 }
