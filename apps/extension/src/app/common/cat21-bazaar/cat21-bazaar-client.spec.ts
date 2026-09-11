@@ -96,6 +96,71 @@ describe('publishCat21Listing', () => {
   });
 });
 
+/**
+ * The NestJS ValidationPipe returns `message` as a string[] on a bad DTO. This
+ * is the real 400 body captured live from backend2.cat21.space
+ * (POST /api/v1/listings with an invalid catNumber), not a hand-written mock —
+ * the array branch in mapHttpError only exists because the server emits this.
+ */
+const REAL_VALIDATION_ARRAY_BODY = {
+  message: [
+    'catNumber must not be less than 0',
+    'catNumber must be an integer number',
+    'askSats must be a positive integer',
+  ],
+  error: 'Bad Request',
+  statusCode: 400,
+};
+
+describe('publishCat21Listing error mapping — shapes verified against the real backend', () => {
+  it('maps a NestJS validation array body to rejected with the first message as detail', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(400, REAL_VALIDATION_ARRAY_BODY));
+
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+
+    expect(res).toEqual({
+      ok: false,
+      error: { code: 'rejected', detail: 'catNumber must not be less than 0' },
+    });
+  });
+
+  it('finds a known ownership code even when it arrives inside a message array', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(
+      axiosError(422, { message: ['some-preamble', 'outpoint-mismatch'] })
+    );
+
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+
+    expect(res).toEqual({ ok: false, error: { code: 'outpoint-mismatch' } });
+  });
+
+  it('falls back to http-<status> in detail when the error body is empty', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(500, undefined));
+
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+
+    expect(res).toEqual({ ok: false, error: { code: 'rejected', detail: 'http-500' } });
+  });
+
+  it.each([
+    'not-current-owner',
+    'cats-bundle-drift',
+    'outpoint-mismatch',
+    'network-mismatch',
+    'cat-not-found',
+  ] as const)('passes through the ownership code %s verbatim', async code => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(422, { code }));
+
+    const res = await publishCat21Listing({ request: REQUEST, headers: HEADERS });
+
+    expect(res).toEqual({ ok: false, error: { code } });
+  });
+});
+
 describe('unlistCat21', () => {
   it('DELETEs <base>/api/v1/listings/cat/<catNumber> with the session headers', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
@@ -128,6 +193,22 @@ describe('fetchCat21ListingForCat', () => {
     vi.mocked(axios.get).mockRejectedValueOnce(axiosError(404));
     const res = await fetchCat21ListingForCat({ catNumber: 42 });
     expect(res).toEqual({ ok: true, value: null });
+  });
+
+  it('a non-404 server error is a real failure, not a silent "no listing"', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.get).mockRejectedValueOnce(axiosError(500, undefined));
+    const res = await fetchCat21ListingForCat({ catNumber: 42 });
+    // Must NOT collapse to value:null — that would hide an outage as "unlisted".
+    expect(res).toEqual({ ok: false, error: { code: 'rejected', detail: 'http-500' } });
+  });
+
+  it('a network failure (no response) surfaces as network-error, not null', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(false);
+    vi.mocked(axios.get).mockRejectedValueOnce(new Error('ECONNREFUSED'));
+    const res = await fetchCat21ListingForCat({ catNumber: 42 });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('network-error');
   });
 });
 
@@ -193,5 +274,51 @@ describe('postBidToCat21Bazaar', () => {
     const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.code).toBe('network-error');
+  });
+
+  it('maps a NestJS validation array body to rejected with the first message as detail', async () => {
+    // The real 400 shape from POST /api/v1/bids with a bad body: message is a
+    // string[] of class-validator failures (captured live from the backend).
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(
+      axiosError(400, {
+        message: ['catTxid must be 64-char lowercase hex', 'bidSats must not be less than 1'],
+        error: 'Bad Request',
+        statusCode: 400,
+      })
+    );
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    expect(res).toEqual({
+      ok: false,
+      error: { code: 'rejected', detail: 'catTxid must be 64-char lowercase hex' },
+    });
+  });
+
+  it.each([
+    'network-mismatch',
+    'headline-not-in-bundle',
+    'bid-below-marketplace-floor',
+    'psbt-malformed',
+    'psbt-shape-invalid',
+    'psbt-input0-mismatch',
+    'psbt-output0-mismatch',
+    'psbt-output1-mismatch',
+    'psbt-output2-mismatch',
+    'psbt-price-mismatch',
+    'ord-lookup-failed',
+    'cat-not-found',
+    'cats-bundle-drift',
+  ] as const)('passes through the bid rejection code %s verbatim', async code => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(400, { code }));
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    expect(res).toEqual({ ok: false, error: { code } });
+  });
+
+  it('falls back to http-<status> when the bid error body is empty', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(400, undefined));
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    expect(res).toEqual({ ok: false, error: { code: 'rejected', detail: 'http-400' } });
   });
 });
