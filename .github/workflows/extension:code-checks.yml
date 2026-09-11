@@ -34,7 +34,7 @@ jobs:
         run: pnpm lint:unused-exports
 
   # HACK -- Cat21: lint-firefox-build job disabled — CAT-21 wallet ships
-  # Chrome-only (see CHROME-WEB-STORE-LISTING.md). Firefox is not on the
+  # Chrome-only (see docs/pending/CHROME-WEB-STORE-LISTING.md). Firefox is not on the
   # support matrix; the inherited Leather firefox build pulls in
   # upstream packages (@leather.io/query symbols we don't re-export)
   # and web-ext lint flags inherited innerHTML usage we don't touch.

@@ -46,7 +46,7 @@ See `CLAUDE.md` for the upstream Leather developer guide; the workflow conventio
   agent-policy unbypassability, NMH origin pinning) with file:line citations.
 - [`PRIVACY-POLICY.md`](./PRIVACY-POLICY.md) — what data the wallet stores,
   what it sends, and what it does not do.
-- [`CHROME-WEB-STORE-LISTING.md`](./CHROME-WEB-STORE-LISTING.md) — store
+- [`docs/pending/CHROME-WEB-STORE-LISTING.md`](./docs/pending/CHROME-WEB-STORE-LISTING.md) — store
   listing copy + permissions justification.
 
 ## Components and where they live

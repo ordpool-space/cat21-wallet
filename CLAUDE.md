@@ -349,8 +349,39 @@ detect regular inscriptions / runes / rare sats, because cat21-ord only
 indexes cats. (A broader scan is the port's job, not the core's — the core
 would honour it if the wallet ever supplied one.) The wallet owns the ports.
 `Cat21RpcService` no longer hand-rolls coin-selection or fee-simulation
-(the old `pickFundingUtxo` + `cat21-fee-simulation.ts` are deleted). See
-`CORE-ADOPTION-HANDOVER.md`.**
+(the old `pickFundingUtxo` + `cat21-fee-simulation.ts` are deleted).**
+
+### The SDK core API the wallet consumes (`import … from 'ordpool-sdk/core'`)
+
+| Function | Returns | Notes |
+|---|---|---|
+| `executeMint(params, ports)` | `{ txid, channel, feeSats }` | fresh 546 cat; funding covers postage+tip+fee |
+| `executeTransfer(params, ports)` | `{ txid, channel, feeSats }` | preserves the cat UTXO size |
+| `createOffer(params, ports)` | `CreateOfferArtifact { offerPsbt, buyerFundingUtxo, feeSats, changeSats }` | buyer-signed bid PSBT; **no broadcast** — this is `cat21_buy` |
+| `acceptOffer(params, ports)` | `{ txid, channel }` | validate → sign input 0 → broadcast |
+| `validateOffer(params)` | `Cat21OfferValidation` | pure, for the accept preview |
+| `simulateMint/Transfer/CreateOffer/Inscribe(params, {utxos,scan})` | preview | select + fee, no signing |
+
+**Ports** (all Promise-based; the wallet builds these from `Cat21RpcDeps`):
+- `UtxosPort.spendableUtxos(addr) → CoreFundingUtxo[]` where `CoreFundingUtxo = { txid, vout, value, transactionHex? }`
+- `ContentScanPort.classify(outpoint) → 'clean' | 'has-assets'`
+- `SignPort.sign(psbt, 'all' | number[]) → { hex, weight }`
+- `BroadcastPort.broadcast(hex) → { txid, channel }`
+- `OfferCreateSignPort.signBuyerInputs(psbt, number[]) → Uint8Array` (for `cat21_buy`)
+
+### Port mapping (`Cat21RpcDeps` → core ports)
+
+| Core port | Built from |
+|---|---|
+| `UtxosPort` | `spendableUtxos(addr)` — the spendable bucket as a list (replaced `pickFundingUtxo`) |
+| `ContentScanPort` | `classifyOutpoint(op)` — cat-only (the cat21-ord query in `utxos.service`; **cat-only is intentional per the maintainer**) |
+| `SignPort` | **mode-aware, built per call:** `mode==='manual' ? signWithConfirmation(psbt, intent, idx) : signSilently(psbt, idx)` (both return `{hex, weight}`) |
+| `BroadcastPort` | `deps.broadcast({ hex, weight })`; **re-derive `weight` from the hex** (`btc.Transaction.fromHex(hex).weight`) — the core's port passes hex only |
+| `OfferCreateSignPort` | `deps.signBuyOfferInputs(psbt, idx)` |
+
+The input adapter derives the input shape from `paymentPublicKey + paymentAddress`
+(handling legacy P2PKH via `nonWitnessUtxo`), so `Cat21AccountContext` carries
+`paymentPublicKey` (hex), wired from the keychain in `use-cat21-rpc-deps.ts`.
 
 **`accept_offer` is the one exception: it stays keychain-based (validate
 via the SDK's `validateCat21BuyOfferPsbt`, then the wallet signs input 0
@@ -904,7 +935,7 @@ Files to know:
 | `SECURITY-REVIEW.md` | Phase 7 audit walking the safety invariants with file:line citations |
 | `PRIVACY-POLICY.md` | data the wallet stores and sends, no-analytics posture |
 | `INTEGRATION-ORDPOOL-SDK.md` | the SDK ⇄ wallet contract (Cat21Provider discovery, RPC surface) |
-| `CHROME-WEB-STORE-LISTING.md` | store listing copy + permissions justification |
+| `docs/pending/CHROME-WEB-STORE-LISTING.md` | store listing copy + permissions justification (not yet submitted) |
 
 ---
 
