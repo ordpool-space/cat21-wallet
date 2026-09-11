@@ -8,6 +8,49 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const OUT_DIR =
   process.env.CAT21_UX_CAPTURE_DIR ?? path.join(here, '../../../playwright-report/ux-capture');
 
+/** WCAG relative luminance of an "r,g,b" triple. */
+function luminance([r, g, b]: number[]): number {
+  const lin = (c: number) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+/** WCAG contrast ratio between two "r,g,b" triples, rounded to 2 dp. */
+function contrastRatio(a: number[], b: number[]): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return Math.round(((hi + 0.05) / (lo + 0.05)) * 100) / 100;
+}
+
+/**
+ * Measure an element's text colour against its nearest painted background and
+ * log the WCAG ratio. Same discipline as the SDK's published receive-note
+ * number: measure against the GROUND the element sits on, not a sibling.
+ */
+async function logContrast(locator: import('@playwright/test').Locator, label: string) {
+  const colours = await locator.first().evaluate(el => {
+    const parse = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number);
+    const color = parse(getComputedStyle(el as Element).color).slice(0, 3);
+    let node: Element | null = el as Element;
+    let bg = [255, 255, 255];
+    while (node) {
+      const raw = getComputedStyle(node).backgroundColor;
+      const parts = parse(raw);
+      if (parts.length >= 3 && parts[3] !== 0) {
+        bg = parts.slice(0, 3);
+        break;
+      }
+      node = node.parentElement;
+    }
+    return { color, bg };
+  });
+  // eslint-disable-next-line no-console
+  console.log(
+    `[contrast] ${label}: color=rgb(${colours.color}) bg=rgb(${colours.bg}) ratio=${contrastRatio(colours.color, colours.bg)}`
+  );
+}
+
 /**
  * UX-round-3 capture: the "only cats are safe here" safety disclosure on the
  * BTC receive screen, rendered in the real 390px action-popup host. This is
@@ -33,6 +76,11 @@ test.describe('Receive-screen cats-only safety disclosure (UX round 3)', () => {
     // deposit. Waiting on it IS the assertion.
     await page.getByText('This wallet only indexes cats').waitFor({ state: 'visible' });
     await page.screenshot({ path: path.join(OUT_DIR, 'receive-cats-only-taproot-390.png') });
+
+    // Note title == body colour (both ink text-primary on the info ground);
+    // measuring the body is enough, the SDK published the title at the same value.
+    await logContrast(page.getByText('So it can', { exact: false }), 'note body');
+    await logContrast(page.getByText('a CAT-21 cat', { exact: false }), 'receive heading');
 
     // §13: the displayed receive address is grouped in fours. Its whole
     // purpose is to be copied and handed to a sender, so a drag-selection must
@@ -79,5 +127,6 @@ test.describe('Receive-screen cats-only safety disclosure (UX round 3)', () => {
     await positioning.waitFor({ state: 'visible' });
     await positioning.scrollIntoViewIfNeeded();
     await page.screenshot({ path: path.join(OUT_DIR, 'settings-positioning-390.png') });
+    await logContrast(positioning, 'settings positioning line');
   });
 });
