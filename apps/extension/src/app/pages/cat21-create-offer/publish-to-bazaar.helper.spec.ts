@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-  BundleCatNumberResolver,
-  resolveListingBundle,
-  toListingNetwork,
-} from './publish-to-bazaar.helper';
+import { resolveListingBundle, toListingNetwork } from './publish-to-bazaar.helper';
 
 /**
  * The bundle resolver is the one place the wallet turns cat21-ord's
@@ -23,11 +19,7 @@ const HEADLINE_ID = 'aa'.repeat(32) + 'i0';
 const SIBLING_ID = 'bb'.repeat(32) + 'i0';
 const SELLER_UTXO = { txid: 'aa'.repeat(32), vout: 0 };
 
-function resolver(opts: { numbersById: Record<string, number>; outputCats: string[] }): {
-  ord: BundleCatNumberResolver;
-  fetchCat21: ReturnType<typeof vi.fn>;
-  fetchOutput: ReturnType<typeof vi.fn>;
-} {
+function resolver(opts: { numbersById: Record<string, number>; outputCats: string[] }) {
   const fetchCat21 = vi.fn((id: string): Promise<{ number: number }> => {
     const number = opts.numbersById[id];
     if (number === undefined) return Promise.reject(new Error(`no cat for id ${id}`));
@@ -36,6 +28,7 @@ function resolver(opts: { numbersById: Record<string, number>; outputCats: strin
   const fetchOutput = vi.fn(
     (): Promise<{ cats: string[] }> => Promise.resolve({ cats: opts.outputCats })
   );
+  // Structurally satisfies the resolver contract resolveListingBundle expects.
   return { ord: { fetchCat21, fetchOutput }, fetchCat21, fetchOutput };
 }
 

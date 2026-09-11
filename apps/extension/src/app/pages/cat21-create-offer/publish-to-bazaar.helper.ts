@@ -18,12 +18,12 @@ interface OrdReadOptions {
 }
 
 /** The two cat21-ord reads the bundle resolution needs, typed structurally. */
-export interface BundleCatNumberResolver {
+interface BundleCatNumberResolver {
   fetchCat21(id: string, options?: OrdReadOptions): Promise<{ number: number }>;
   fetchOutput(outpoint: string, options?: OrdReadOptions): Promise<{ cats: string[] }>;
 }
 
-export type ListingNetwork = 'mainnet' | 'testnet3' | 'testnet4' | 'signet' | 'regtest';
+type ListingNetwork = 'mainnet' | 'testnet3' | 'testnet4' | 'signet' | 'regtest';
 
 /**
  * Map the wallet's active bitcoin network mode to the listing's network tag,
@@ -37,7 +37,7 @@ export function toListingNetwork(mode: string): ListingNetwork {
   return 'testnet3';
 }
 
-export interface ResolvedListingBundle {
+interface ResolvedListingBundle {
   headlineNumber: number;
   /** Every cat number on the UTXO, in the order ord returned the ids. */
   bundleCatNumbers: number[];
