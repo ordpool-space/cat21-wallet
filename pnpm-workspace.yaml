@@ -1,6 +1,15 @@
 minimumReleaseAge: 4320
 minimumReleaseAgeExclude:
   - axios
+# Mirror of package.json's pnpm.auditConfig — pnpm 11.x warns that
+# the package.json `pnpm` field is being retired in favor of this
+# file. The audit CI job runs pnpm 11.17.0 (see repo:code-checks.yml)
+# while the repo's own packageManager is still 10.x, so the ignore
+# list lives in BOTH places until the repo-wide pnpm catches up.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-xv26-6w52-cph6
+    - GHSA-23hp-3jrh-7fpw
 packages:
   - 'apps/*'
   - 'packages/*'

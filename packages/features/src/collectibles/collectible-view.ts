@@ -11,24 +11,19 @@ export interface CollectibleView {
   isBns?: boolean;
 }
 
+/* HACK -- Cat21: branched form per ADR-12. The cat protocol branch renders
+ * cats with a "Cat #N" title and a "CAT-21" subtitle so the existing
+ * collectibles grid surfaces them without a cat-specific UI path. */
 export function createCollectibleView(asset: NonFungibleCryptoAsset): CollectibleView {
   const key = serializeAssetId(getAssetId(asset));
 
   switch (asset.protocol) {
-    case 'inscription':
+    case 'cat21':
       return {
         key,
         protocol: asset.protocol,
-        title: `# ${asset.number}`,
-        subtitle: 'Ordinal inscription',
-        asset,
-      };
-    case 'stamp':
-      return {
-        key,
-        protocol: asset.protocol,
-        title: `# ${asset.stamp}`,
-        subtitle: 'Bitcoin Stamp',
+        title: `Cat #${asset.number}`,
+        subtitle: 'CAT-21',
         asset,
       };
     case 'sip9': {

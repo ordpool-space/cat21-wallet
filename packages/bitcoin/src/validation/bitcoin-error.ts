@@ -18,3 +18,6 @@ export type BitcoinErrorKey =
   | 'NoInputsToSign'
   | 'NoOutputsToSign'
   | 'InscribedUtxos';
+/* HACK -- Cat21: cat-specific error keys lived here for the mint/offer
+ * builders (Cat21Mint*, Cat21Offer*). Builders moved to ordpool-sdk per
+ * CLAUDE.md scope cut (2026-06-14); errors moved with them. */

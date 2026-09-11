@@ -5,10 +5,16 @@ export * from './activity/blockchain-activity.service';
 export * from './activity/blockchain-activity.types';
 export * from './assets/sip10-asset.service';
 export * from './balances/btc-balances.service';
-export * from './balances/runes-balances.service';
 export * from './balances/sip10-balances.service';
 export * from './balances/stx-balances.service';
 export * from './bns/bns.service';
+/* HACK -- Cat21: cat-asset collectibles surface per ADR-12. */
+export * from './collectibles/cat21-asset.service';
+export * from './infrastructure/api/cat21-ord/cat21-ord-api.client';
+export * from './infrastructure/api/cat21-ord/cat21-ord-api.schema';
+export * from './infrastructure/api/cat21-ord/cat21-ord-api.utils';
+/* HACK -- Cat21: Slipstream, broadcast dispatcher, and agent-mode policy
+ * moved to ordpool-sdk per CLAUDE.md scope cut (2026-06-14). */
 export * from './coin-selection/bitcoin-coin-selection.service';
 export * from './fees/bitcoin-transaction-fees.service';
 export * from './fees/stacks-transaction-fees.service';
@@ -19,8 +25,11 @@ export * from './infrastructure/cache/http-cache.utils';
 export * from './infrastructure/api/leather/leather-auth-api.client';
 export * from './infrastructure/api/leather/leather-auth-api.utils';
 export * from './infrastructure/environment';
+export * from './infrastructure/auth/auth-session.service';
+export * from './infrastructure/auth/sign-in.types';
+export * from './infrastructure/auth/sign-in.utils';
+export * from './infrastructure/auth/sign-in.service';
 export * from './infrastructure/settings/settings.service';
-export * from './infrastructure/token-auth.service';
 export * from './inversify.config';
 export * from './market/market-data.service';
 export * from './market/market-stats.service';

@@ -22,7 +22,10 @@ chrome.tabs.onRemoved.addListener(tabId => removeFormState(tabId));
 
 function logInternalMessage(message: { method: string }) {
   if (['persist/REHYDRATE', 'persist/PERSIST'].includes(message.method)) return;
-  logger.debug('Internal message', message);
+  // HACK -- Cat21 (audit H3): log the method name only; the full message
+  // can carry payloads (seed, PSBT, signing material) that should NOT
+  // land in the persisted log ring buffer.
+  logger.debug(`Internal message ${message.method}`);
 }
 
 export async function internalBackgroundMessageHandler(

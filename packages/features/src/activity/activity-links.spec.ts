@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { HIRO_EXPLORER_URL, MEMPOOL_BASE_URL } from '@leather.io/constants';
+import { HIRO_EXPLORER_URL, MEMPOOL_BASE_URL, ORDPOOL_BASE_URL } from '@leather.io/constants';
 import { HIRO_API_BASE_URL_NAKAMOTO_TESTNET, defaultCurrentNetwork } from '@leather.io/models';
 
 import { getBitcoinExplorerLink, getStacksExplorerLink, makeActivityLink } from './activity-links';
@@ -22,7 +22,7 @@ describe('activity-links', () => {
         },
       });
 
-      expect(result).toBe(`${MEMPOOL_BASE_URL}/tx/abc123`);
+      expect(result).toBe(`${ORDPOOL_BASE_URL}/tx/abc123`);
     });
 
     it('returns Stacks explorer link for Stacks asset', () => {
@@ -79,7 +79,7 @@ describe('activity-links', () => {
         networkPreference: 'mainnet',
       });
 
-      expect(result).toBe(`${MEMPOOL_BASE_URL}/tx/tx123`);
+      expect(result).toBe(`${ORDPOOL_BASE_URL}/tx/tx123`);
     });
 
     it('returns testnet link for testnet3 network', () => {
@@ -119,7 +119,7 @@ describe('activity-links', () => {
         networkPreference: 'mainnet',
       });
 
-      expect(result).toBe(`${MEMPOOL_BASE_URL}/block/block123`);
+      expect(result).toBe(`${ORDPOOL_BASE_URL}/block/block123`);
     });
 
     it('returns null for unknown network', () => {

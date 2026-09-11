@@ -11,6 +11,7 @@ import type { BitcoinNetworkModes } from '@leather.io/models';
 
 import { LEDGER_APPS_MAP, promptOpenAppOnDevice } from './generic-ledger-utils';
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export interface BitcoinLedgerAccountDetails {
   id: string;
   path: string;
@@ -40,6 +41,7 @@ export async function getBitcoinAppVersion(app: BitcoinApp): Promise<BitcoinAppV
   return { chain: 'bitcoin' as const, ...appVersion };
 }
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export interface WalletPolicyDetails {
   fingerprint: string;
   network: BitcoinNetworkModes;

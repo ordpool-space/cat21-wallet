@@ -24,7 +24,22 @@ export default tseslint.config(
       '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
       '@typescript-eslint/array-type': 'error',
       '@typescript-eslint/no-meaningless-void-operator': 'error',
-      '@typescript-eslint/no-unused-vars': ['error', { destructuredArrayIgnorePattern: '^_' }],
+      // HACK -- Cat21: also honor the conventional `_argName` marker
+      // on positional args + variables. The original rule only honored
+      // destructured-array elements; the C1 telemetry stubs use the
+      // same convention on the noop functions' signature args
+      // (e.g. `function captureMessage(_message, _level)`) so they
+      // match the upstream `@sentry/react` API surface byte-for-byte.
+      // Without `args`/`varsIgnorePattern` the stubs trip
+      // `@typescript-eslint/no-unused-vars` on every signature.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          destructuredArrayIgnorePattern: '^_',
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+        },
+      ],
       '@typescript-eslint/no-base-to-string': ['error', { ignoredTypeNames: ['To'] }],
       '@typescript-eslint/no-empty-object-type': 'error',
       '@typescript-eslint/no-unsafe-function-type': 'error',

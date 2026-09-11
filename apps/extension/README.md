@@ -12,7 +12,7 @@ Leather is the most popular and trusted wallet for apps built on Bitcoin. Connec
 
 ### Contibuting
 
-Please see our [contribution guide](.github/CONTRIBUTING.md)
+Please see [`CLAUDE.md`](../../CLAUDE.md) at the repository root.
 
 ## Development
 

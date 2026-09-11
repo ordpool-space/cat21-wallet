@@ -3,20 +3,23 @@ import { inject, injectable } from 'inversify';
 import { OwnedUtxo } from '@leather.io/models';
 import { hasBitcoinAddress } from '@leather.io/utils';
 
-import { BestInSlotApiClient } from '../infrastructure/api/best-in-slot/best-in-slot-api.client';
+/* HACK -- Cat21: Cat21OrdApiClient + fetchCatBearingUtxoIds imports per
+ * Phase 3.0 safety. Without these, BtcBalancesService cannot route cat-bearing
+ * UTXOs out of the `available` bucket. */
+import {
+  Cat21OrdApiClient,
+  fetchCatBearingUtxoIds,
+} from '../infrastructure/api/cat21-ord/cat21-ord-api.client';
 import { LeatherApiClient } from '../infrastructure/api/leather/leather-api.client';
 import { MempoolApiClient } from '../infrastructure/api/mempool/mempool-api.client';
 import { selectBitcoinNetworkMode } from '../infrastructure/settings/settings.selectors';
 import type { SettingsService } from '../infrastructure/settings/settings.service';
 import { Types } from '../inversify.types';
 import { BitcoinTransactionsService } from '../transactions/bitcoin-transactions.service';
-import { AccountRequest, AccountRequestUtxoProtectionOptions } from '../types/request.types';
+import { AccountRequest } from '../types/request.types';
 import {
   createOwnedUtxoFromLeather,
   createOwnedUtxoFromMempool,
-  filterMatchesAnyUtxoId,
-  getInscriptionProtectedUtxoIds,
-  getRuneProtectedUtxoIds,
   getUtxoTotals,
 } from './utxos.utils';
 
@@ -24,6 +27,9 @@ export interface UtxoTotals {
   confirmed: OwnedUtxo[];
   inbound: OwnedUtxo[];
   outbound: OwnedUtxo[];
+  /* HACK -- Cat21: `protected` bucket re-added per ADR-12. Holds cat-bearing
+   * UTXOs that must not be spent by the BTC send flow. Currently always empty
+   * — cat21-ord-driven UTXO classification is a coin-control phase task. */
   protected: OwnedUtxo[];
   dust: OwnedUtxo[];
   unspendable: OwnedUtxo[];
@@ -44,18 +50,18 @@ export const emptyUtxos: UtxoTotals = {
 export class UtxosService {
   constructor(
     private readonly leatherApiClient: LeatherApiClient,
-    private readonly bisApiClient: BestInSlotApiClient,
     private readonly mempoolApiClient: MempoolApiClient,
     private readonly bitcoinTransactionsService: BitcoinTransactionsService,
-    @inject(Types.SettingsService) private readonly settings: SettingsService
+    @inject(Types.SettingsService) private readonly settings: SettingsService,
+    /* HACK -- Cat21: Cat21OrdApiClient injected for per-UTXO cat probing per
+     * Phase 3.0 safety. Skipped on regtest (no cat21-ord there). */
+    private readonly cat21OrdClient: Cat21OrdApiClient
   ) {}
   /**
    * Retrieve categorized UTXO lists for given Bitcoin account.
-   *
-   * An optional list of unprotected UTXOs can be provided on request to selectively move UTXO values from protected to available.
    */
   public async getAccountUtxos(
-    { account, protections, exclusions }: AccountRequest,
+    { account, exclusions }: AccountRequest,
     signal?: AbortSignal
   ): Promise<UtxoTotals> {
     if (!hasBitcoinAddress(account)) return emptyUtxos;
@@ -65,17 +71,11 @@ export class UtxosService {
         ? this.getDescriptorUtxos(
             account.id.fingerprint,
             account.bitcoin.nativeSegwitDescriptor,
-            protections,
             signal
           )
         : Promise.resolve(emptyUtxos),
       !exclusions?.taprootAddresses
-        ? this.getDescriptorUtxos(
-            account.id.fingerprint,
-            account.bitcoin.taprootDescriptor,
-            protections,
-            signal
-          )
+        ? this.getDescriptorUtxos(account.id.fingerprint, account.bitcoin.taprootDescriptor, signal)
         : Promise.resolve(emptyUtxos),
     ]);
     return {
@@ -91,55 +91,26 @@ export class UtxosService {
 
   /**
    * Retrieve categorized UTXO lists for given Bitcoin xpub descriptor.
-   *
-   * An optional list of unprotected UTXOs can be provided on request to selectively move UTXO values from protected to available.
    */
   public async getDescriptorUtxos(
     fingerprint: string,
     descriptor: string,
-    protections: AccountRequestUtxoProtectionOptions = {},
     signal?: AbortSignal
   ): Promise<UtxoTotals> {
-    const [totalUtxos, protectedUtxos, btcTxs] = await Promise.all([
+    const [totalUtxos, btcTxs] = await Promise.all([
       this.getDescriptorTotalUtxos(descriptor, fingerprint, signal),
-      this.getDescriptorProtectedUtxos(fingerprint, descriptor, protections, signal),
       this.bitcoinTransactionsService.getDescriptorTransactions(descriptor, signal),
     ]);
-    return getUtxoTotals(fingerprint, totalUtxos, protectedUtxos, btcTxs);
-  }
-
-  private async getDescriptorProtectedUtxos(
-    fingerprint: string,
-    descriptor: string,
-    {
-      discardedInscriptions = [],
-      discardRunes = false,
-      isRunesActive = false,
-      isOrdinalsActive = false,
-    }: AccountRequestUtxoProtectionOptions,
-    signal?: AbortSignal
-  ): Promise<OwnedUtxo[]> {
+    /* HACK -- Cat21: cat-bearing UTXO probe per Phase 3.0 safety. Per-output
+     * /output query on cat21-ord, rate-limited. Failure mode is "assume cat
+     * present" (see fetchCatBearingUtxoIds doc); the resulting UTXOs land in
+     * the `protected` bucket and never reach `available`. */
     const networkMode = selectBitcoinNetworkMode(this.settings.getSettings());
-    if (networkMode === 'regtest') {
-      return []; // short-circuit on regtest mode
-    }
-    const [utxos, inscriptions, runeOutputs] = await Promise.all([
-      this.getDescriptorTotalUtxos(descriptor, fingerprint, signal),
-      isOrdinalsActive
-        ? this.bisApiClient.fetchInscriptions(descriptor, { signal, isOrdinalsActive })
-        : Promise.resolve([]),
-      isRunesActive
-        ? this.bisApiClient.fetchRunesValidOutputs(descriptor, { signal, isRunesActive })
-        : Promise.resolve([]),
-    ]);
-    const inscriptionProtectedUtxoIds = getInscriptionProtectedUtxoIds(
-      inscriptions,
-      discardedInscriptions
-    );
-    const runesProtectedUtxoIds = getRuneProtectedUtxoIds(runeOutputs, discardRunes);
-    return utxos.filter(
-      filterMatchesAnyUtxoId([...inscriptionProtectedUtxoIds, ...runesProtectedUtxoIds])
-    );
+    const catBearingUtxoIds =
+      networkMode === 'mainnet'
+        ? await fetchCatBearingUtxoIds(this.cat21OrdClient, totalUtxos, { signal })
+        : [];
+    return getUtxoTotals(fingerprint, totalUtxos, btcTxs, catBearingUtxoIds);
   }
 
   private async getDescriptorTotalUtxos(

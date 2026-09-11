@@ -1,0 +1,231 @@
+name: extension:cat21-chain-e2e
+
+# Chain-truth E2E for the CAT-21 wallet against a live regtest chain (bitcoind +
+# electrs + cat21-ord). SIX of the seven specs are REAL-BUTTON flows: they drive
+# the wallet's own popup UI (real clicks / Path-3 autoconfirm), build/sign/
+# broadcast real transactions, and assert on-chain + cat21-ord state — mint,
+# transfer, accept-offer, autonomous mint (chain stack only), plus create-offer
+# and buy, which additionally publish to / read from a real cat21-indexer backend
+# + MariaDB brought up here against the same regtest stack. The SEVENTH spec
+# (cat21-utxo-protection) is NOT a real-button flow: it drives no UI, calling the
+# wallet's real /output schema + fetchCatBearingUtxoIds directly against real
+# cat21-ord to prove the (mainnet-gated) cat-UTXO protection seam at the node
+# level.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/extension/tests/specs/cat21-chain/**'
+      - 'apps/extension/playwright.config.chain.ts'
+      - 'apps/extension/src/**'
+      - 'apps/extension/package.json'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/extension:cat21-chain-e2e.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cat21-wallet-chain-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  chain-e2e:
+    name: cat21-chain-truth-flows-on-regtest
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: checkout-cat21-wallet
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      # ordpool-sdk ships the regtest consumer-environment (compose + bootstrap)
+      # + the electrs/cat21-ord build contexts. Check it out for those scripts.
+      - name: checkout-ordpool-sdk-bootstrap
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: ordpool-space/ordpool-sdk
+          ref: main
+          path: sdk
+          persist-credentials: false
+
+      # electrs is built from the ordpool-electrs fork (not upstream), and
+      # cat21-ord from the index-cat21 branch — both compiled by the
+      # consumer-environment compose from these checkouts.
+      - name: checkout-ordpool-electrs
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: ordpool-space/ordpool-electrs
+          ref: ordpool
+          path: ordpool-electrs
+          persist-credentials: false
+
+      - name: checkout-cat21-ord
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: ordpool-space/cat21-ord
+          ref: index-cat21
+          path: cat21-ord
+          persist-credentials: false
+
+      - name: set-up-docker-buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: export-actions-runtime-for-gha-cache
+        uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3
+
+      - name: stabilise-build-contexts-for-layer-caching
+        run: |
+          printf '.git\ntarget\n' > ordpool-electrs/.dockerignore
+          printf '.git\ntarget\n' > cat21-ord/.dockerignore
+
+      - name: make-bootstrap-executable
+        run: chmod +x sdk/e2e/consumer-environment-bootstrap.sh
+
+      - name: bring-up-consumer-environment
+        env:
+          ELECTRS_SRC: ${{ github.workspace }}/ordpool-electrs
+          CAT21_ORD_SRC: ${{ github.workspace }}/cat21-ord
+        run: |
+          sdk/e2e/consumer-environment-bootstrap.sh \
+            --buildx-cache \
+            --with-cat21-ord \
+            > stack.json
+          cat stack.json
+          # Inherit the electrs host URL from the SDK bootstrap descriptor
+          # rather than hardcoding the port: the SDK owns the host-port mapping
+          # (E2E_ELECTRS_HOST_PORT, default 3010) and we consume whatever it
+          # publishes, so a future SDK port move never breaks this lane. The
+          # `//` fallback pins the current default so a missing field can't
+          # regress it.
+          electrs_url=$(jq -r '.electrs.httpUrl // "http://localhost:3010"' stack.json)
+          echo "E2E_ELECTRS_URL=$electrs_url" >> "$GITHUB_ENV"
+          echo "resolved electrs url: $electrs_url"
+
+      - name: wait-for-cat21-ord-ready
+        run: |
+          for i in $(seq 1 120); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/json' http://localhost:8080/status 2>/dev/null || echo 000)
+            if [ "$code" = "200" ]; then echo "cat21-ord up"; break; fi
+            if [ "$i" = "120" ]; then
+              echo "cat21-ord never came up (last HTTP $code)"
+              docker logs ordpool-e2e-consumer-cat21-ord --tail 100 || true
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: wait-for-electrs-ready
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "$E2E_ELECTRS_URL/blocks/tip/height" 2>/dev/null || echo 000)
+            if [ "$code" = "200" ]; then echo "electrs up"; break; fi
+            if [ "$i" = "60" ]; then echo "electrs never came up (last HTTP $code)"; exit 1; fi
+            sleep 2
+          done
+
+      # Same composite the caps-e2e lane uses: pnpm (version from
+      # packageManager) + Node + salted store cache + `pnpm install`.
+      - name: provision-node-pnpm-install-deps
+        uses: ./.github/actions/provision
+
+      # Same build sequence the caps-e2e lane uses, minus the test-app (the
+      # chain specs drive the extension directly, no dapp on :3000).
+      - name: build-extension-dependency-packages
+        run: pnpm turbo build --filter=@leather.io/extension^...
+
+      - name: build-styles
+        run: pnpm --filter @leather.io/extension run prepare:build
+
+      - name: build-test-extension
+        run: pnpm --filter @leather.io/extension run build:ext:test
+
+      - name: install-playwright-chromium
+        working-directory: apps/extension
+        run: pnpm exec playwright install --with-deps chromium
+
+      # create-offer publishes to the REAL Bazaar backend. Bring up the
+      # cat21-indexer backend against the consumer stack: MariaDB (cat21 db +
+      # user auto-created by mariadb-init), the REAL cat21-ord for the ownership
+      # cross-check, BACKEND_NETWORK=regtest so the regtest listing passes the
+      # network-mismatch gate. Its pinned ordpool-sdk (712b9a9) carries the
+      # BIP-322 regtest verify fix.
+      - name: checkout-cat21-indexer-backend
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: ordpool-space/cat21-indexer
+          ref: main
+          path: cat21-indexer-src
+          persist-credentials: false
+
+      - name: install-build-cat21-indexer-backend
+        working-directory: cat21-indexer-src/backend
+        run: |
+          # The backend pins ordpool-sdk / ordpool-parser as git+ssh github deps;
+          # rewrite to anonymous HTTPS (both public) since runners have no SSH key.
+          git config --global url."https://github.com/".insteadOf ssh://git@github.com/
+          git config --global url."https://github.com/".insteadOf git@github.com:
+          npm ci
+          npm run build
+
+      - name: bring-up-cat21-indexer-backend
+        working-directory: cat21-indexer-src/backend
+        env:
+          PORT: '3333'
+          HOST: 127.0.0.1
+          NODE_ENV: development
+          DATABASE_URL: mysql://cat21:cat21@127.0.0.1:3306/cat21
+          ORD_API_URL: http://localhost:8080
+          ELECTRS_API_URL: ${{ env.E2E_ELECTRS_URL }}
+          BACKEND_NETWORK: regtest
+        run: |
+          nohup node dist/main.js > backend.log 2>&1 &
+          echo $! > backend.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:3333/api/health >/dev/null 2>&1; then
+              echo "backend up"; break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "backend never came up"; tail -100 backend.log || true; exit 1
+            fi
+            sleep 1
+          done
+
+      - name: run-chain-truth-flows
+        working-directory: apps/extension
+        env:
+          # The consumer-environment prefixes containers with -consumer-; ports
+          # match the local stack, so only the bitcoind container name differs.
+          E2E_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
+          E2E_BAZAAR_BACKEND_URL: http://127.0.0.1:3333
+          # The harness's ELECTRS_BASE reads this (falls back to :3010 if unset);
+          # sourced from the SDK descriptor so it tracks the SDK's host port.
+          E2E_ELECTRS_URL: ${{ env.E2E_ELECTRS_URL }}
+        run: |
+          xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
+            pnpm exec playwright test --config playwright.config.chain.ts
+
+      - name: upload-playwright-artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cat21-chain-e2e-${{ github.run_id }}
+          path: |
+            apps/extension/test-results
+            stack.json
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: tear-down-the-stack
+        if: always()
+        run: |
+          if [ -f cat21-indexer-src/backend/backend.pid ]; then
+            kill "$(cat cat21-indexer-src/backend/backend.pid)" 2>/dev/null || true
+          fi
+          docker compose \
+            -f sdk/e2e/docker-compose.consumer-environment.yml \
+            down -v || true

@@ -24,7 +24,10 @@ async function handleRequest(
   responseStatusCode: number,
   responseHeaders: Headers,
   routerContext: EntryContext,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // HACK -- Cat21: directive removed; the shared `argsIgnorePattern: ^_`
+  // rule now honors `_loadContext` natively (see
+  // packages/eslint-config/index.js). `reportUnusedDisableDirectives`
+  // flagged the now-redundant inline disable.
   _loadContext: AppLoadContext
 ) {
   let shellRendered = false;

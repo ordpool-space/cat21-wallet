@@ -55,6 +55,7 @@ export const selectCurrentNetwork = createSelector(
     networks[appRequestedNetworkId || currentNetworkId] ?? defaultCurrentNetwork
 );
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export function useNetworks(): Record<string, NetworkConfiguration> {
   return useSelector(selectNetworks);
 }
