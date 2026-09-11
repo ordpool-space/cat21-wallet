@@ -1391,7 +1391,12 @@ describe('iter 16 — SDK validateCat21Operation is the single gate (no consumer
     const src = read(join(EXTENSION_ROOT, 'src/app/pages/cat21-confirm/use-cat21-rpc-deps.ts'));
     expect(src).toMatch(/selectAgentPolicyForAccount/);
     expect(src).toMatch(/stripCat21Prefix\(/);
-    expect(src).toMatch(/'cat21_'\.length/);
+    // The prefix-strip implementation lives in the sibling helper (unit-tested
+    // in cat21-rpc-deps.helper.spec.ts); the hook imports and calls it.
+    const helper = read(
+      join(EXTENSION_ROOT, 'src/app/pages/cat21-confirm/cat21-rpc-deps.helper.ts')
+    );
+    expect(helper).toMatch(/'cat21_'\.length/);
   });
 });
 
