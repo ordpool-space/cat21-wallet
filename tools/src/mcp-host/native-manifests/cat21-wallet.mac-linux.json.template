@@ -1,6 +1,6 @@
 {
   "name": "space.cat21.wallet",
-  "description": "Cat21 Wallet — Native Messaging + MCP bridge for autonomous CAT-21 trading.",
+  "description": "CAT-21 wallet — Native Messaging + MCP bridge for autonomous CAT-21 trading.",
   "path": "REPLACE_ME_ABSOLUTE_PATH_TO_HOST_BINARY",
   "type": "stdio",
   "allowed_origins": [

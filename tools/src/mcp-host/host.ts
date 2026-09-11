@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Cat21 Wallet Native Messaging Host.
+ * CAT-21 wallet Native Messaging Host.
  *
  * Chrome spawns this binary when the extension calls
  * `chrome.runtime.connectNative('space.cat21.wallet')`. Chrome writes
@@ -14,7 +14,7 @@
  * Mutating tools wait until the agent-mode policy gate has a UX path.
  *
  * Auth: the NMH manifest pins our extension ID, so only Chrome processes
- * running the Cat21 Wallet extension can connect over NMH. Any other
+ * running the CAT-21 wallet extension can connect over NMH. Any other
  * spawned instance is treated as a pure MCP server (no extension peer)
  * and the cat-data tools return "extension not connected".
  */

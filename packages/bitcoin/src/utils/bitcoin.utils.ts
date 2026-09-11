@@ -56,7 +56,7 @@ export function whenBitcoinNetwork(mode: BitcoinNetworkModes) {
  * @example
  * `m/86'/1'/0'/0/0`
  */
-// HACK -- Cat21: ADR-7 makes Cat21 Wallet mainnet-only. We deviate from
+// HACK -- Cat21: ADR-7 makes CAT-21 wallet mainnet-only. We deviate from
 // BIP-44's testnet=1 convention and pin coin-type=0 for EVERY network.
 // Rationale: a consumer (cat21.space, regtest e2e harness, …) that
 // calls `signPsbt({network: 'regtest', ...})` with a PSBT whose scripts

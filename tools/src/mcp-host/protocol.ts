@@ -1,5 +1,5 @@
 /**
- * Wire format between the Cat21 Wallet NMH (this binary) and:
+ * Wire format between the CAT-21 wallet NMH (this binary) and:
  *   - Chrome extension (over stdin/stdout, length-prefixed JSON)
  *   - MCP client (over stdin/stdout, MCP JSON-RPC framing)
  *
@@ -98,12 +98,12 @@ export interface McpJsonRpcResponse {
 export const CAT21_MCP_TOOLS = [
   {
     name: 'list_cats',
-    description: 'List cats held by the active Cat21 Wallet account.',
+    description: 'List cats held by the active CAT-21 wallet account.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'wallet_status',
-    description: 'Report whether the Cat21 Wallet extension is reachable.',
+    description: 'Report whether the CAT-21 wallet extension is reachable.',
     inputSchema: { type: 'object', properties: {} },
   },
   {

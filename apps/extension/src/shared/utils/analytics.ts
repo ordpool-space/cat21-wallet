@@ -1,6 +1,6 @@
 /*
  * HACK -- Cat21 (audit C1): every code path in this file is a no-op.
- * Cat21 Wallet ships zero telemetry per PRIVACY-POLICY.md. The
+ * CAT-21 wallet ships zero telemetry per PRIVACY-POLICY.md. The
  * upstream Leather analytics surface (Mixpanel, Sentry, the
  * deriveAnalyticsIdentifier(publicKey) per-user fingerprint) was
  * leaking BTC-balance reports, route history, and an xpub-derived

@@ -1,4 +1,4 @@
-# Chrome Web Store Listing — Cat21 Wallet
+# Chrome Web Store Listing — CAT-21 wallet
 
 Reference copy + assets index for the eventual submission. Not all
 fields below are required by the Chrome Web Store; included so future
@@ -6,7 +6,7 @@ maintainers can re-submit confidently.
 
 ## Title
 
-Cat21 Wallet
+CAT-21 wallet
 
 ## Short summary (132 chars max)
 
@@ -15,7 +15,7 @@ Local-only. Mint, trade, agent-mode automation via MCP.
 
 ## Detailed description
 
-Cat21 Wallet is a Bitcoin-L1-only browser-extension wallet built for
+CAT-21 wallet is a Bitcoin-L1-only browser-extension wallet built for
 people who hold and trade CAT-21 cats. It is a fork of Leather Wallet,
 hidden down to BTC + cats only, with three features Leather does not
 have:
@@ -43,7 +43,7 @@ What it is not:
 - Not a Stacks wallet. Not a Lightning wallet. Not a Runes wallet.
   Stacks-specific code in the Leather fork is hidden, not deleted, so
   upstream merges stay clean.
-- Not a hardware-wallet companion. Cat21 Wallet is a hot wallet by
+- Not a hardware-wallet companion. CAT-21 wallet is a hot wallet by
   design. Hardware-wallet flows are incompatible with the agent-mode
   auto-confirm path. Hold your valuable cats elsewhere; transfer in
   when you want to trade, transfer out when done.

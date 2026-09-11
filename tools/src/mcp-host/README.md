@@ -1,8 +1,8 @@
-# Cat21 Wallet MCP Host
+# CAT-21 wallet MCP Host
 
 The Native Messaging Host (NMH) binary that bridges:
 
-- the Cat21 Wallet Chrome extension (over Chrome's NMH stdio framing), and
+- the CAT-21 wallet Chrome extension (over Chrome's NMH stdio framing), and
 - MCP clients (Claude Desktop, Cursor, custom) over MCP JSON-RPC.
 
 ## Install (macOS / Linux)
@@ -26,7 +26,7 @@ The Native Messaging Host (NMH) binary that bridges:
    - `path`: absolute path to the built `dist/mcp-host/host.js` (must be
      executable; add a shebang or wrap in a shell script).
    - `allowed_origins`: replace `REPLACE_ME_EXTENSION_ID` with the
-     deterministic Cat21 Wallet extension ID (`nbooeiaddbkoiekkahgekialhahgpboe`
+     deterministic CAT-21 wallet extension ID (`nbooeiaddbkoiekkahgekialhahgpboe`
      for the dev key pinned in `apps/extension/scripts/generate-manifest.js`).
 
 ## Install (Windows)
@@ -53,7 +53,7 @@ The cat-data tools degrade gracefully.
 **Read-only probes** — answered inline by the extension background, no
 popup involvement, no keychain access:
 
-- `list_cats` — cats held by the active Cat21 Wallet account.
+- `list_cats` — cats held by the active CAT-21 wallet account.
 - `wallet_status` — `{ network, accountId, agentMode.enabled }`.
 - `cat21_ord_status` — forwarded `GET /status` from cat21-ord.
 

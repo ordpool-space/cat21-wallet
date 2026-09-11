@@ -11,7 +11,7 @@ import { LoadingSpinner } from '@app/components/loading-spinner';
 import { Container } from '@app/features/container/container';
 import { HomeHeader } from '@app/features/container/headers/home.header';
 /* HACK -- Cat21: Stacks + Ledger imports hidden per ADR-1 + ADR-7.
- * Stacks routes are non-BTC-L1. Ledger routes are hidden because Cat21 Wallet is a
+ * Stacks routes are non-BTC-L1. Ledger routes are hidden because CAT-21 wallet is a
  * hot wallet by design — hardware wallet flows are incompatible with agent-mode
  * auto-confirm. Original imports preserved here for upstream-merge sanity:
  * import { CancelStacksTransactionSheet } from '@app/features/dialogs/transaction-action-dialog/cancel-stacks-transaction-sheet';
@@ -39,7 +39,7 @@ import { FundPage } from '@app/pages/fund/fund';
 import { Home } from '@app/pages/home/home';
 import { LegacyAccountAuth } from '@app/pages/legacy-account-auth/legacy-account-auth';
 import { ManageTokensPage } from '@app/pages/manage-tokens/manage-tokens';
-/* HACK -- Cat21: Network management imports hidden per ADR-7. Cat21 Wallet is
+/* HACK -- Cat21: Network management imports hidden per ADR-7. CAT-21 wallet is
  * mainnet-only; users do not add or switch networks. Originals:
  * import { AddNetwork as CurrentAddNetwork } from '@app/pages/network/add-network';
  * import { EditNetwork as CurrentEditNetwork } from '@app/pages/network/edit-network';

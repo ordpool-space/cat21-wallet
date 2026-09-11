@@ -1,5 +1,5 @@
 /**
- * Per ADR-7, Cat21 Wallet is mainnet-only. There is no testnet/signet/regtest
+ * Per ADR-7, CAT-21 wallet is mainnet-only. There is no testnet/signet/regtest
  * cat21-ord. This function intentionally collapses the network-selection logic
  * that the upstream BIS helper had into a single constant.
  *

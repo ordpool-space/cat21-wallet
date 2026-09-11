@@ -3,7 +3,7 @@ import webpack from 'webpack';
 import { config } from './webpack.config.base.js';
 
 // HACK -- Cat21 (audit C1): the @sentry/webpack-plugin block has
-// been removed. Cat21 Wallet ships zero telemetry per
+// been removed. CAT-21 wallet ships zero telemetry per
 // PRIVACY-POLICY.md; we do not upload source maps or attach a
 // `release` identifier to any Sentry org. The SENTRY_AUTH_TOKEN
 // env var is no longer read here.

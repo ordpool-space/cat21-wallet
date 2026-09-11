@@ -12,7 +12,7 @@ function Cat21MetaTags() {
   const suffix = process.env.WALLET_ENVIRONMENT === 'development' ? '-dev' : '';
   return (
     <>
-      <Title>Cat21 Wallet</Title>
+      <Title>CAT-21 wallet</Title>
       <Link rel="icon" href={`/assets/icons/cat21-icon-128${suffix}.png`} />
     </>
   );

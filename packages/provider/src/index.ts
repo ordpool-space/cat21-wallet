@@ -27,7 +27,7 @@ export function initInpageProvider({ onDispatch, env }: initInpageProviderArgs) 
     /* HACK -- Cat21: kept for dapps that key off the Leather identity when
      * we're filling the LeatherProvider slot in real Leather's absence. */
     isLeather: true;
-    /* HACK -- Cat21: positive identification of the Cat21 Wallet provider.
+    /* HACK -- Cat21: positive identification of the CAT-21 wallet provider.
      * Dapps should branch on this rather than `isLeather` to disambiguate. */
     isCat21: true;
   }
@@ -41,7 +41,7 @@ export function initInpageProvider({ onDispatch, env }: initInpageProviderArgs) 
     getProductInfo() {
       return {
         version: env.version,
-        name: 'Cat21 Wallet',
+        name: 'CAT-21 wallet',
         meta: {
           tag: env.branch,
           commit: env.commitSha,

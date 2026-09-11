@@ -19,7 +19,7 @@ export const SECRET_KEY =
 // signer, BIP-86 at m/86'/0'/0'/<change>/<addressIndex>, encoded under
 // `btc.TEST_NETWORK` (tb1p HRP). The original Sparrow-generated
 // fixtures were under BIP-44's testnet=1 path (`m/86'/1'/...`); after
-// the Cat21 Wallet ADR-7 fix (coinTypeMap → coin-type=0 universal),
+// the CAT-21 wallet ADR-7 fix (coinTypeMap → coin-type=0 universal),
 // testnet derives at m/86'/0' just like mainnet — different private
 // keys, different addresses. Regenerated to match the new derivation.
 const addresses = {

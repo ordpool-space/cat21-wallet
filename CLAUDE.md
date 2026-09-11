@@ -1,6 +1,6 @@
 # Claude Code — cat21-wallet onboarding
 
-This file is the single source of truth for working on the Cat21 Wallet
+This file is the single source of truth for working on the CAT-21 wallet
 repo. Read it before touching anything. The rules at the top are not
 suggestions; the rest is map + history.
 
@@ -112,7 +112,7 @@ lower until cat21-ord recovers. That is the right default.
 
 ## HARD RULE #3: We do not auto-update from upstream Leather
 
-Cat21 Wallet is a non-fork clone of `leather-io/mono@a6460b4d`. Upstream
+CAT-21 wallet is a non-fork clone of `leather-io/mono@a6460b4d`. Upstream
 sync is **manual**, on a quarterly cadence, by the maintainer. Reasons:
 
 - Dependabot is org-wide banned (see `/Work/ordpool/CLAUDE.md`).
@@ -546,7 +546,7 @@ accept offer, buy):
 
   cat21-wallet exposes typed `cat21_*` RPC methods. The user invokes
   them either via the in-extension UI (popup-driven action buttons)
-  or via a dapp that knows about Cat21 Wallet. Cat21-themed
+  or via a dapp that knows about CAT-21 wallet. Cat21-themed
   confirmation dialogs show the parsed intent — cat preview, price,
   counterparty — and ask for a click before signing. **The path the
   maintainer uses for any deal big enough to deserve human attention.**
@@ -883,7 +883,7 @@ identifier is `@leather.io/*` so upstream sync keeps working.
 apps/
   extension/        # the Chrome extension (this is what ships)
   mobile/           # bonus shipping target — would be cool to land
-  web/              # NOT shipped by Cat21 Wallet
+  web/              # NOT shipped by CAT-21 wallet
 packages/
   bitcoin/          # PSBT builders incl. cat21-mint + buy-offer
   models/           # InscriptionAsset became Cat21Asset; CryptoAsset union
@@ -1040,7 +1040,7 @@ update this section.
 The provider package exposes:
 
 - `window.Cat21Provider` — always present. `isCat21: true`, `isLeather:
-  true`, `getProductInfo().name === 'Cat21 Wallet'`.
+  true`, `getProductInfo().name === 'CAT-21 wallet'`.
 - `window.LeatherProvider` — only when real Leather is NOT installed.
 - `window.btc_providers` — WBIP004 discovery array; always contains a
   Cat21 entry, contains a Leather entry only when no other Leather entry

@@ -65,7 +65,7 @@ describe(getAssumedZeroIndexSigningConfig.name, () => {
       network: 'testnet',
     }).forAccountIndex(0);
 
-    // HACK -- Cat21: ADR-7 makes Cat21 Wallet mainnet-only and we pin
+    // HACK -- Cat21: ADR-7 makes CAT-21 wallet mainnet-only and we pin
     // coin-type=0 across every network (see `coinTypeMap` in
     // `packages/bitcoin/src/utils/bitcoin.utils.ts`). Even when the
     // signer receives `network: 'testnet'`, BIP-86 still derives at

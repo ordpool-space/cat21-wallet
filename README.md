@@ -1,20 +1,20 @@
-# Cat21 Wallet
+# CAT-21 wallet
 
 > Hot wallet for active CAT-21 cat trading. Bitcoin L1 mainnet only.
 
-Cat21 Wallet is a fork of [Leather](https://github.com/leather-io/mono) that has been hidden-down to BTC L1 only and rebranded around the CAT-21 protocol. It mints cats, accepts ord-style buyer-initiated offers in both directions, and exposes an MCP server so AI agents can autonomously trade cats within user-configured policy.
+CAT-21 wallet is a fork of [Leather](https://github.com/leather-io/mono) that has been hidden-down to BTC L1 only and rebranded around the CAT-21 protocol. It mints cats, accepts ord-style buyer-initiated offers in both directions, and exposes an MCP server so AI agents can autonomously trade cats within user-configured policy.
 
-This is a hot wallet, not a vault. Valuable cats stay in your existing wallet (Xverse, hardware wallet, multisig). Transfer cats into Cat21 Wallet when you want to trade them; transfer them back to cold storage when you are done.
+This is a hot wallet, not a vault. Valuable cats stay in your existing wallet (Xverse, hardware wallet, multisig). Transfer cats into CAT-21 wallet when you want to trade them; transfer them back to cold storage when you are done.
 
 ## Lineage
 
-Cat21 Wallet is a non-fork clone of [`leather-io/mono`](https://github.com/leather-io/mono) at `a6460b4d` (the parent of [PR #2358](https://github.com/leather-io/mono/pull/2358), the last upstream commit where the inscription stack was alive). Upstream sync is via the `upstream` remote on a quarterly cadence. Original Leather commits retain their original authors; the rebranding and CAT-21 additions are authored under hans-crypto.
+CAT-21 wallet is a non-fork clone of [`leather-io/mono`](https://github.com/leather-io/mono) at `a6460b4d` (the parent of [PR #2358](https://github.com/leather-io/mono/pull/2358), the last upstream commit where the inscription stack was alive). Upstream sync is via the `upstream` remote on a quarterly cadence. Original Leather commits retain their original authors; the rebranding and CAT-21 additions are authored under hans-crypto.
 
 The plan that drives this fork lives in the workspace at [`CAT21-WALLET-FORK-PLAN.md`](https://github.com/ordpool-space/headquarter). See ADR-14 for the repo setup that keeps this repo independent of upstream Leather on GitHub's fork graph.
 
 ## Installation (beta testers — side-load)
 
-Cat21 Wallet isn't on the Chrome Web Store yet. To run the first beta:
+CAT-21 wallet isn't on the Chrome Web Store yet. To run the first beta:
 
 1. Grab the trusted-build zip from the latest [Release](https://github.com/ordpool-space/cat21-wallet/releases) (tag prefix `cat21-v`).
 2. Verify the build provenance:
@@ -24,7 +24,7 @@ Cat21 Wallet isn't on the Chrome Web Store yet. To run the first beta:
    ```
    A pass means GitHub's OIDC identity for this repo signed a sigstore attestation saying this exact zip was built from the tagged commit on a GitHub-hosted runner.
 3. Unzip and load into Chrome: `chrome://extensions` → toggle **Developer mode** on → **Load unpacked** → pick the unzipped folder.
-4. The extension shows as **Cat21 Wallet**. Open it, create a fresh wallet (do NOT use your main seed), fund a few thousand sats to the wallet's BTC address, then:
+4. The extension shows as **CAT-21 wallet**. Open it, create a fresh wallet (do NOT use your main seed), fund a few thousand sats to the wallet's BTC address, then:
    - **Home → Mint cat** to mint your first CAT-21 cat (Path 2 manual flow).
    - **Home → My cats** to list the cats your account holds; per-row Transfer / List for sale buttons deep-link the forms.
    - **Settings → Cat21 Agent Mode** to configure per-account caps for the MCP agent surface (Path 3 autonomous flow).

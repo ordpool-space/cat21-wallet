@@ -1,6 +1,6 @@
 name: extension:trusted-build
 
-# Purpose: produce the canonical Cat21 Wallet extension ZIP exclusively on
+# Purpose: produce the canonical CAT-21 wallet extension ZIP exclusively on
 # GitHub-hosted runners, with a verifiable provenance attestation. The threat
 # model assumes the maintainer's local machine could be compromised; this
 # workflow defends against that by:

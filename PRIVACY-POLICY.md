@@ -1,14 +1,14 @@
-# Cat21 Wallet — Privacy Policy
+# CAT-21 wallet — Privacy Policy
 
 Effective: 2026-06-14
 
-Cat21 Wallet is a Bitcoin-L1 browser-extension wallet for active CAT-21
+CAT-21 wallet is a Bitcoin-L1 browser-extension wallet for active CAT-21
 cat trading. It is a fork of [Leather](https://github.com/leather-io/mono)
 and follows the same minimum-data posture. This document is the canonical
 statement of what data the extension touches, where it goes, and what it
 does **not** do.
 
-## Data Cat21 Wallet stores locally
+## Data CAT-21 wallet stores locally
 
 All wallet data lives inside the Chrome extension's local storage on
 your machine. It never leaves that storage except where you explicitly
@@ -24,9 +24,9 @@ Stored locally:
 - Your **agent-mode policy** (per-action cap, daily cap, fee-rate
   ceiling, floor price, counterparty allowlist).
 
-## Data Cat21 Wallet sends to remote services
+## Data CAT-21 wallet sends to remote services
 
-Cat21 Wallet connects to a small, fixed set of services. Each connection
+CAT-21 wallet connects to a small, fixed set of services. Each connection
 is described below.
 
 | Service | What we send | Why |
@@ -39,7 +39,7 @@ is described below.
 You can replace the default cat21-ord endpoint with your own
 self-hosted instance in settings. No other service is contacted.
 
-## What Cat21 Wallet does NOT do
+## What CAT-21 wallet does NOT do
 
 - **No analytics.** No Mixpanel, no Segment, no Google Analytics. No
   click tracking, no error-reporting beacon. The audit of Xverse
@@ -55,7 +55,7 @@ self-hosted instance in settings. No other service is contacted.
 
 ## Native Messaging Host / MCP integration
 
-If you install the Cat21 Wallet MCP host
+If you install the CAT-21 wallet MCP host
 (`tools/src/mcp-host/`), the host runs as a local binary on your
 machine. It bridges:
 
@@ -64,7 +64,7 @@ machine. It bridges:
 
 The MCP host runs locally. It does not contact any remote service. It
 is sandboxed at the Chrome layer by `allowed_origins` pinned to your
-specific Cat21 Wallet extension ID. An MCP client connecting to the
+specific CAT-21 wallet extension ID. An MCP client connecting to the
 host can only invoke the read-only tool surface in v1 (`list_cats`,
 `wallet_status`, `cat21_ord_status`); the host cannot sign or
 broadcast.
@@ -76,7 +76,7 @@ share — your wallet lives only on your machine.
 
 ## Open source
 
-The Cat21 Wallet source is public at
+The CAT-21 wallet source is public at
 `https://github.com/ordpool-space/cat21-wallet`. Every line of the
 extension, the PSBT builders, the agent policy, and the MCP host is
 inspectable. The security review at

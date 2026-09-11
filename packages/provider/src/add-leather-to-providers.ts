@@ -50,7 +50,7 @@ const LEATHER_PROVIDER: WalletProvider = {
  * is the Bitcoin-only subset Cat21 ships. */
 const CAT21_PROVIDER: WalletProvider = {
   id: 'Cat21Provider',
-  name: 'Cat21 Wallet',
+  name: 'CAT-21 wallet',
   // Cat #0 (Genesis Cat) — the 128 px PNG from apps/extension/public/assets/icons.
   // Encoded inline so the WBIP004 entry is self-contained for dapp wallet
   // selectors. ~5.8 kB; comparable to Leather's own SVG data URI.

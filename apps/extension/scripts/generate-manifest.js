@@ -79,13 +79,13 @@ const browserSpecificConfig = {
   },
 };
 
-/* HACK -- Cat21: all brand strings + identity in this manifest are Cat21 Wallet.
+/* HACK -- Cat21: all brand strings + identity in this manifest are CAT-21 wallet.
  * Do not merge from upstream blindly. Conflicts on author/description/name/action.default_title/commands._execute_browser_action.description are expected and intentional.
  * `nativeMessaging` permission is required by ADR-5 (MCP server bridge via Chrome NMH). */
 const manifest = {
   manifest_version: 3,
   author: 'ordpool-space',
-  description: 'Cat21 Wallet — hot wallet for active CAT-21 cat trading. BTC L1 mainnet only.',
+  description: 'CAT-21 wallet — hot wallet for active CAT-21 cat trading. BTC L1 mainnet only.',
   permissions: ['contextMenus', 'storage', 'unlimitedStorage', 'notifications', 'nativeMessaging'],
   commands: {
     _execute_browser_action: {
@@ -93,7 +93,7 @@ const manifest = {
         default: 'Ctrl+Shift+B',
         mac: 'MacCtrl+Shift+B',
       },
-      description: 'Opens Cat21 Wallet',
+      description: 'Opens CAT-21 wallet',
     },
   },
   /* HACK -- Cat21: narrowed host_permissions per SECURITY-REVIEW.md Phase 8.
@@ -140,7 +140,7 @@ const manifest = {
   },
   web_accessible_resources: [{ resources: ['inpage.js'], matches: ['*://*/*'] }],
   action: {
-    default_title: 'Cat21 Wallet',
+    default_title: 'CAT-21 wallet',
     default_popup: 'action-popup.html',
     default_icon: defaultIconEnvironment[WALLET_ENVIRONMENT],
   },
@@ -159,11 +159,11 @@ const manifest = {
 };
 
 const devManifest = {
-  name: 'Cat21 Wallet Dev',
+  name: 'CAT-21 wallet Dev',
   ...(DEV_EXTENSION_KEY ? { key: DEV_EXTENSION_KEY } : {}),
 };
 
-const name = PREVIEW_RELEASE ? 'Cat21 Wallet Preview' : 'Cat21 Wallet';
+const name = PREVIEW_RELEASE ? 'CAT-21 wallet Preview' : 'CAT-21 wallet';
 
 const prodManifest = {
   name,

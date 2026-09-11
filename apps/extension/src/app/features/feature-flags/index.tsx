@@ -1,5 +1,5 @@
 /*
- * HACK -- Cat21 (audit C1): LaunchDarkly is stripped. Cat21 Wallet
+ * HACK -- Cat21 (audit C1): LaunchDarkly is stripped. CAT-21 wallet
  * ships zero telemetry per PRIVACY-POLICY.md. The upstream Leather
  * surface shipped a clientId-derived identifier + app version to
  * LaunchDarkly on every popup open; the returned flags were

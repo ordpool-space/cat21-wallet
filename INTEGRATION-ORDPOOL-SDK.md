@@ -1,37 +1,37 @@
-# Integration contract: ordpool-sdk ⇄ Cat21 Wallet
+# Integration contract: ordpool-sdk ⇄ CAT-21 wallet
 
-This file describes the surface Cat21 Wallet exposes for `ordpool-sdk` (and
+This file describes the surface CAT-21 wallet exposes for `ordpool-sdk` (and
 any other consumer) to discover and talk to the extension. It is the source
 of truth ordpool-sdk should code against. Changes here are coordinated with
 the SDK side via the workspace's `PROTOCOL.md`.
 
 ## Discovery
 
-Two namespaces live on `window` when Cat21 Wallet is installed:
+Two namespaces live on `window` when CAT-21 wallet is installed:
 
 | Slot | When | Purpose |
 |---|---|---|
-| `window.Cat21Provider` | Always | Canonical Cat21 Wallet provider. Use this. |
+| `window.Cat21Provider` | Always | Canonical CAT-21 wallet provider. Use this. |
 | `window.LeatherProvider` | Only when real Leather is NOT installed | Backwards-compat shim. We do not claim this slot if real Leather is on the page. See "Politeness model" below. |
-| `window.btc_providers[]` | Always | WBIP004 array. Cat21 Wallet pushes a `{ id: 'Cat21Provider', name: 'Cat21 Wallet', ... }` entry. Leather entry only pushed if no other Leather entry exists. |
+| `window.btc_providers[]` | Always | WBIP004 array. CAT-21 wallet pushes a `{ id: 'Cat21Provider', name: 'CAT-21 wallet', ... }` entry. Leather entry only pushed if no other Leather entry exists. |
 
 ### Recommended SDK detection (read this carefully)
 
 ```ts
 function getCat21Wallet(): Provider | undefined {
   if (typeof window === 'undefined') return undefined;
-  // 1. Direct slot. Always present when Cat21 Wallet is installed.
+  // 1. Direct slot. Always present when CAT-21 wallet is installed.
   const direct = (window as any).Cat21Provider;
   if (direct?.isCat21) return direct;
-  // 2. WBIP004 lookup. Survives Cat21 Wallet sharing a page with other
+  // 2. WBIP004 lookup. Survives CAT-21 wallet sharing a page with other
   //    Bitcoin extensions.
   const list = (window as any).btc_providers as { id: string }[] | undefined;
   return list?.find(p => p.id === 'Cat21Provider') as any;
 }
 ```
 
-Do NOT assume `window.LeatherProvider === Cat21 Wallet`. If real Leather is
-co-installed, `LeatherProvider` is real Leather. Cat21 Wallet always lives
+Do NOT assume `window.LeatherProvider === CAT-21 wallet`. If real Leather is
+co-installed, `LeatherProvider` is real Leather. CAT-21 wallet always lives
 at `window.Cat21Provider` and identifies itself with `isCat21: true`.
 
 ## Politeness model
@@ -48,11 +48,11 @@ extension implements this in two places:
   exists in `window.btc_providers`.
 
 The same logic guards `window.StacksProvider` and `window.HiroWalletProvider`
-since Cat21 Wallet doesn't ship a Stacks surface anyway.
+since CAT-21 wallet doesn't ship a Stacks surface anyway.
 
 ## API surface
 
-Cat21 Wallet's provider implements the same JSON-RPC contract as Leather
+CAT-21 wallet's provider implements the same JSON-RPC contract as Leather
 for the Bitcoin subset, minus Stacks methods. The relevant `RpcMethodNames`
 that the wallet handles (see `packages/services/src/index.ts` and
 `add-leather-to-providers.ts`):
@@ -70,7 +70,7 @@ Stacks RPCs are NOT registered. Calls to `stx_*` methods get a typed
 
 ## MCP host tools
 
-The Cat21 Wallet's MCP host at `tools/src/mcp-host/` exposes seven
+The CAT-21 wallet's MCP host at `tools/src/mcp-host/` exposes seven
 tools to local MCP clients (Claude Desktop, Cursor): three read-only
 probes plus the four cat-flow mutating actions.
 
@@ -126,7 +126,7 @@ the SDK delivers; dapps and bots integrate against the SDK directly.
 
 | SDK module | Exports | Purpose |
 |---|---|---|
-| `src/cat21-mint/cat21.service.helper.ts` | `createInput`, `createTransaction` | Per-wallet sequence (Cat21 Wallet → 0xfffffffd RBF-signaling, others → 0xfffffffe non-RBF), lockTime=21 |
+| `src/cat21-mint/cat21.service.helper.ts` | `createInput`, `createTransaction` | Per-wallet sequence (CAT-21 wallet → 0xfffffffd RBF-signaling, others → 0xfffffffe non-RBF), lockTime=21 |
 | `src/cat21-offer/cat21-offer.helper.ts` | `buildCat21BuyOfferPsbt`, `validateCat21BuyOfferPsbt`, `CAT21_OFFER_POSTAGE_SATS` | ord-style buyer-initiated offer + seller-side validator (defence in depth) |
 | `src/cat21-broadcast/broadcast.helper.ts` | `broadcastCat21`, `decideBroadcastChannel`, `STANDARD_TX_WEIGHT_LIMIT` | Weight-based mempool/Slipstream dispatcher |
 | `src/cat21-broadcast/slipstream.helper.ts` | `submitToSlipstream`, `SLIPSTREAM_DEFAULT_BASE_URL` | Marathon direct-to-miner submission with `fetch + AbortController` |
@@ -162,20 +162,20 @@ What the wallet IS responsible for (NOT intent inference):
 ```ts
 {
   version: string;
-  name: 'Cat21 Wallet';
+  name: 'CAT-21 wallet';
   meta: { tag: string; commit: string };
 }
 ```
 
-The provider object carries `isCat21: true` and (because Cat21 Wallet is
+The provider object carries `isCat21: true` and (because CAT-21 wallet is
 forked from Leather and reuses the Leather RPC contract for the Bitcoin
 methods) also `isLeather: true`. SDKs should key off `isCat21` for
 positive identification, not `isLeather` — `isLeather: true` would also
 match real Leather, while `isCat21: true` would not.
 
-## Verifying a Cat21 Wallet build
+## Verifying a CAT-21 wallet build
 
-When ordpool-sdk wants to confirm a Cat21 Wallet build is the trusted CI
+When ordpool-sdk wants to confirm a CAT-21 wallet build is the trusted CI
 output rather than a side-loaded development copy:
 
 ```sh
@@ -191,5 +191,5 @@ in this exact repository on a GitHub-hosted runner.
 ## Workspace cross-reference
 
 - ordpool-sdk integration code: `ordpool-sdk/` in the workspace
-- Cat21 Wallet plan: `CAT21-WALLET-FORK-PLAN.md` in the workspace
+- CAT-21 wallet plan: `CAT21-WALLET-FORK-PLAN.md` in the workspace
 - This file: lives in the wallet repo because the wallet owns the contract

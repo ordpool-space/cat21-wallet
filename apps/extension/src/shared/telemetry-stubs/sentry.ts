@@ -1,6 +1,6 @@
 /**
  * HACK -- Cat21 (audit C1): no-op replacement for `@sentry/react`
- * and `@sentry/browser`. Cat21 Wallet ships zero telemetry per
+ * and `@sentry/browser`. CAT-21 wallet ships zero telemetry per
  * PRIVACY-POLICY.md.
  *
  * Wired via webpack's `resolve.alias` so every `import ... from

@@ -71,7 +71,7 @@ export function WelcomeLayout({
             >
               Use existing key
             </Button>
-            {/* HACK -- Cat21: Ledger entry hidden per ADR-7. Cat21 Wallet is a hot
+            {/* HACK -- Cat21: Ledger entry hidden per ADR-7. CAT-21 wallet is a hot
                 wallet by design; hardware-wallet flows are incompatible with the
                 agent-mode auto-confirm path. Prop kept on the layout so callers
                 (welcome.tsx) compile unchanged. Original:

@@ -1,4 +1,4 @@
-# Cat21 Wallet — Security Review
+# CAT-21 wallet — Security Review
 
 This audit walks each invariant the wallet is responsible for. Every
 claim cites file + line.

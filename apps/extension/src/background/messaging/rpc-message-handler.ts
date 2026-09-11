@@ -74,7 +74,7 @@ export async function rpcMessageHandler(request: RpcRequests, port: chrome.runti
       id: request.id,
       error: {
         code: RpcErrorCode.METHOD_NOT_FOUND,
-        message: `"${request.method}" is not supported. Try running \`.request('supportedMethods')\` to see what Cat21 Wallet can do.`,
+        message: `"${request.method}" is not supported. Try running \`.request('supportedMethods')\` to see what CAT-21 wallet can do.`,
       },
     })
   );

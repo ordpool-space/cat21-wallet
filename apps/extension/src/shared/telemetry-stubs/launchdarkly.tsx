@@ -1,6 +1,6 @@
 /**
  * HACK -- Cat21 (audit C1): no-op replacement for
- * `launchdarkly-react-client-sdk`. Cat21 Wallet ships zero telemetry
+ * `launchdarkly-react-client-sdk`. CAT-21 wallet ships zero telemetry
  * per PRIVACY-POLICY.md.
  *
  * Wired via webpack's `resolve.alias`. Zero bytes from the real

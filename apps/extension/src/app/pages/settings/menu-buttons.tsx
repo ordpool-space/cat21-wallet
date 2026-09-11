@@ -66,7 +66,7 @@ export function MenuButtons() {
         icon={<SunInCloudIcon />}
       />
 
-      {/* HACK -- Cat21: Network settings button hidden per ADR-7. Cat21 Wallet
+      {/* HACK -- Cat21: Network settings button hidden per ADR-7. CAT-21 wallet
           is mainnet only; users do not switch networks. Original:
           <SettingsButton
             data-testid={SettingsSelectors.ChangeNetworkAction}
