@@ -10,10 +10,10 @@ const OUT_DIR =
 
 /** WCAG relative luminance of an "r,g,b" triple. */
 function luminance([r, g, b]: number[]): number {
-  const lin = (c: number) => {
+  function lin(c: number) {
     const s = c / 255;
     return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  };
+  }
   return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
 }
 
@@ -30,7 +30,9 @@ function contrastRatio(a: number[], b: number[]): number {
  */
 async function logContrast(locator: import('@playwright/test').Locator, label: string) {
   const colours = await locator.first().evaluate(el => {
-    const parse = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number);
+    function parse(c: string) {
+      return (c.match(/[\d.]+/g) ?? []).map(Number);
+    }
     const color = parse(getComputedStyle(el as Element).color).slice(0, 3);
     let node: Element | null = el as Element;
     let bg = [255, 255, 255];
