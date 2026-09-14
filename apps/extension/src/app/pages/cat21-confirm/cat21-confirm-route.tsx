@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 
+import { useQuery } from '@tanstack/react-query';
 import { Flex, styled } from 'leather-styles/jsx';
 
+import { getCat21OrdApiClient } from '@leather.io/services';
 import { Button } from '@leather.io/ui';
 
 import { Content } from '@app/components/layout';
@@ -127,6 +129,20 @@ export function Cat21ConfirmRoute() {
     urlRequest.status === 'ready' &&
     !('priceSats' in urlRequest.intent) &&
     !('offerPsbt' in urlRequest.intent);
+
+  // Path-3 cat-resolution gate. transfer / acceptOffer resolve a cat UTXO
+  // synchronously in the deps' `resolveCatUtxo`, backed by the cached
+  // `/cat/<id>` fetch keyed on `catIdHint`. On a cold NMH boot that fetch may
+  // not have landed when the funding gate opens, so a funding-gated autoconfirm
+  // would fire early and the service would reject with `cat-data-not-loaded`.
+  // WAIT for it too (same query key as the deps hook — this dedupes, no extra
+  // fetch). Intents with no cat (mint) pass `catIdHint === undefined`, are not
+  // enabled, and skip the gate.
+  const catQueryLoading = useQuery({
+    queryKey: ['cat21-ord-cat', catIdHint],
+    queryFn: () => getCat21OrdApiClient().fetchCat21(catIdHint as string),
+    enabled: catIdHint != null,
+  }).isLoading;
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
@@ -272,6 +288,12 @@ export function Cat21ConfirmRoute() {
     // dep array), and a genuinely unfunded wallet still reaches a real
     // insufficient-funds rejection once the query settles.
     if (intentNeedsFunding && fundingQueryLoading) return;
+    // Cat-bearing autonomous actions (transfer / acceptOffer) must not fire
+    // before the cat UTXO is resolvable; otherwise the service rejects with
+    // `cat-data-not-loaded`. WAIT, do not deny: the effect re-runs when
+    // `catQueryLoading` flips (it is in the dep array). A genuinely bad cat id
+    // still reaches a real rejection once the query settles with an error.
+    if (catIdHint != null && catQueryLoading) return;
     autoConfirmedRef.current = true;
     confirm(urlRequest.intent);
     // `deps` and `confirm` close over many things that re-render-thrash
@@ -279,7 +301,15 @@ export function Cat21ConfirmRoute() {
     // etc.). The `autoConfirmedRef` guard keeps this at-most-once;
     // intentionally not listing the rest.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlRequest.status, isWalletUnlocked, hasSessionKey, intentNeedsFunding, fundingQueryLoading]);
+  }, [
+    urlRequest.status,
+    isWalletUnlocked,
+    hasSessionKey,
+    intentNeedsFunding,
+    fundingQueryLoading,
+    catIdHint,
+    catQueryLoading,
+  ]);
 
   if (urlRequest.status === 'loading') {
     return <div data-testid="cat21-confirm-loading">Loading request…</div>;

@@ -1212,10 +1212,10 @@ describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () =>
     );
   });
 
-  it('autoconfirm effect re-runs on unlock + session-key + funding-query state (no false-deny/false-reject latch)', () => {
+  it('autoconfirm effect re-runs on unlock + session-key + funding-query + cat-query state (no false-deny/false-reject latch)', () => {
     const src = read(join(REPO_ROOT, ROUTE));
     expect(src).toMatch(
-      /\}\s*,\s*\[urlRequest\.status,\s*isWalletUnlocked,\s*hasSessionKey,\s*intentNeedsFunding,\s*fundingQueryLoading\]\)/
+      /\}\s*,\s*\[\s*urlRequest\.status,\s*isWalletUnlocked,\s*hasSessionKey,\s*intentNeedsFunding,\s*fundingQueryLoading,\s*catIdHint,\s*catQueryLoading,?\s*\]\)/
     );
   });
 
@@ -1228,6 +1228,18 @@ describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () =>
     expect(src).toMatch(
       /const\s+fundingQueryLoading\s*=\s*useCurrentNativeSegwitUtxos\(\)\.isLoading/
     );
+  });
+
+  it('waits for the cat-metadata query before a cat-bearing autoconfirm (no cat-data-not-loaded false-reject)', () => {
+    const src = read(join(REPO_ROOT, ROUTE));
+    // transfer / acceptOffer resolve a cat UTXO synchronously in the deps'
+    // resolveCatUtxo (backed by the cached /cat/<id> fetch). On a cold NMH boot
+    // that fetch may not have landed when the funding gate opens, so the
+    // autoconfirm must WAIT for it too — otherwise it fires early and the
+    // service rejects with `cat-data-not-loaded`. Regression guard for the bug
+    // the autonomous transfer/accept chain-truth specs caught on regtest.
+    expect(src).toMatch(/if\s*\(catIdHint\s*!=\s*null\s*&&\s*catQueryLoading\)\s*return;/);
+    expect(src).toMatch(/const\s+catQueryLoading\s*=\s*useQuery\(/);
   });
 });
 
