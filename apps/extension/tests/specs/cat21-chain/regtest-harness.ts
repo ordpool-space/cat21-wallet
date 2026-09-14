@@ -649,3 +649,58 @@ export async function readReceiveAddress(
   if (!address) throw new Error(`empty ${kind} address in Receive UI`);
   return address;
 }
+
+/**
+ * Capture the Path-3 result envelope the popup posts on
+ * `chrome.runtime.sendMessage` (source `cat21-result-bus`) when the autoconfirm
+ * finalises. This is how payload-returning actions (create-offer -> a listing,
+ * buy -> a bid) surface their outcome to the agent; unlike mint/transfer/accept
+ * they do not broadcast, so there is no txid to capture.
+ *
+ * NO MOCK: this installs a real `chrome.runtime.onMessage` listener in the
+ * extension's own MV3 service worker and reads back the real envelope the
+ * production `postCat21Result` emits. Call it BEFORE opening the confirm route so
+ * the listener is armed when the autoconfirm fires.
+ */
+export async function captureCat21Result(
+  context: BrowserContext,
+  requestId: string,
+  { timeoutMs = 90_000 }: { timeoutMs?: number } = {}
+): Promise<{ ok: boolean; value?: Record<string, unknown> }> {
+  let [sw] = context.serviceWorkers();
+  if (!sw) sw = await context.waitForEvent('serviceworker');
+
+  await sw.evaluate(() => {
+    const g = self as unknown as {
+      __cat21Results?: Record<string, unknown>;
+      __cat21ResultListenerInstalled?: boolean;
+    };
+    g.__cat21Results = g.__cat21Results ?? {};
+    if (!g.__cat21ResultListenerInstalled) {
+      g.__cat21ResultListenerInstalled = true;
+      chrome.runtime.onMessage.addListener((msg: unknown) => {
+        const m = msg as { source?: string; requestId?: string; result?: unknown };
+        if (m && m.source === 'cat21-result-bus' && typeof m.requestId === 'string') {
+          (g.__cat21Results as Record<string, unknown>)[m.requestId] = m.result;
+        }
+        return undefined;
+      });
+    }
+  });
+
+  const start = Date.now();
+  for (;;) {
+    const captured = await sw.evaluate((rid: string) => {
+      const g = self as unknown as { __cat21Results?: Record<string, unknown> };
+      return (g.__cat21Results?.[rid] ?? null) as {
+        ok: boolean;
+        value?: Record<string, unknown>;
+      } | null;
+    }, requestId);
+    if (captured) return captured;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`cat21 result for ${requestId} never posted within ${timeoutMs}ms`);
+    }
+    await new Promise(res => setTimeout(res, 1000));
+  }
+}
