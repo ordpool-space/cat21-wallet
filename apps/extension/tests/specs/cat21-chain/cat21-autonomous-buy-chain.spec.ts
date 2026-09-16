@@ -1,4 +1,6 @@
 import { expect } from '@playwright/test';
+import { base64, hex } from '@scure/base';
+import * as btc from '@scure/btc-signer';
 
 import { test } from '../../fixtures/fixtures';
 import {
@@ -26,6 +28,15 @@ import {
 // unchanged. The over-cap rejection is proven separately by
 // cat21-caps-autonomous-rejection.
 const BID_SATS = 8_000;
+
+// @scure/btc-signer network descriptor for regtest (bcrt), for decoding the
+// bid PSBT's output scripts.
+const REGTEST = { bech32: 'bcrt', pubKeyHash: 0x6f, scriptHash: 0xc4, wif: 0xef };
+
+/** scriptPubKey (hex) an address decodes to, for comparing PSBT outputs by destination. */
+function scriptHexFor(address: string): string {
+  return hex.encode(btc.OutScript.encode(btc.Address(REGTEST).decode(address)));
+}
 
 /**
  * CAT-21 PATH-3 AUTONOMOUS BUY — real-button-FREE proof (buyer side of the Bazaar).
@@ -68,6 +79,11 @@ test.describe('CAT-21 autonomous buy (Path 3 / NMH, regtest chain truth)', () =>
     await switchToRegtestNetwork(page, extensionId);
 
     const buyerFundingAddress = await readReceiveAddress(page, extensionId, 'btc');
+    // Independent oracle for the payout check below: the wallet's ordinals
+    // address read from the Receive UI, a surface that does NOT feed the buy
+    // builder. Distinct from the (segwit) funding address and from the seller's
+    // address, so an ordinals/payment swap in the builder cannot pass.
+    const buyerOrdinalsAddress = await readReceiveAddress(page, extensionId, 'btc-taproot');
 
     // Fund the buyer (the wallet). Mint a cat owned by a SELLER (non-wallet).
     const fundingTxid = fundAddress(buyerFundingAddress, 0.001);
@@ -127,5 +143,25 @@ test.describe('CAT-21 autonomous buy (Path 3 / NMH, regtest chain truth)', () =>
     expect(myBid.catTxid).toBe(catMintTxid);
     expect(myBid.catVout).toBe(0);
     expect(myBid.psbtBase64.length).toBeGreaterThan(0);
+
+    // 4. DESTINATION TRUTH (independent of both the wallet and the backend).
+    // The backend validates output 0 against the bid's self-reported
+    // buyerOrdinalsAddress — but the wallet BOTH builds the output AND reports
+    // that field, so a consistent ordinals/payment swap would pass the backend
+    // by self-agreement (process distance is not independence). Decode the built
+    // buy-offer PSBT and assert its outputs by destination against addresses read
+    // from the Receive UI, a surface that does not feed the builder:
+    //   output 0 = the cat, to the BUYER's ordinals address (the wallet receives it)
+    //   output 1 = the payout, to the SELLER's payment address
+    // The two are distinct address types (bcrt1p vs bcrt1q), so a swap fails.
+    expect(buyerOrdinalsAddress).not.toBe(sellerPaymentAddress);
+    const bidTx = btc.Transaction.fromPSBT(base64.decode(myBid.psbtBase64));
+    const out0 = bidTx.getOutput(0);
+    const out1 = bidTx.getOutput(1);
+    if (!out0?.script || !out1?.script) {
+      throw new Error('bid PSBT is missing output 0/1 scripts');
+    }
+    expect(hex.encode(out0.script)).toBe(scriptHexFor(buyerOrdinalsAddress));
+    expect(hex.encode(out1.script)).toBe(scriptHexFor(sellerPaymentAddress));
   });
 });
