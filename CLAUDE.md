@@ -403,16 +403,23 @@ The SDK ships two entry points:
 
 | Entry point | What's in it | For |
 |---|---|---|
-| `'ordpool-sdk'` | Everything, including Angular `@Injectable` services (`WalletService`, `Cat21Service`, `Cat21MintOrchestrator`, …) | cat21.space (Angular app) |
-| `'ordpool-sdk/core'` | Pure-functional helpers + types + enums. Zero `@angular/*` imports. | cat21-wallet (React + Webpack), any plain Node consumer |
+| `'ordpool-sdk'` | Everything, including the stateful RxJS service classes (`Cat21Service`, `Cat21MintOrchestrator`, `Cat21ApiService`, `UtxoContentScannerService`, …) and their `rxjs` | cat21.space (Angular app) |
+| `'ordpool-sdk/core'` | Pure-functional helpers + types + enums. Omits the stateful service classes and `rxjs`. | cat21-wallet (React + Webpack), any plain Node consumer |
 
-Importing from `'ordpool-sdk'` in the wallet would drag
-`@angular/core` into the extension bundle (the fesm2022 bundle has
-`import * as i0 from '@angular/core'` at the top, unavoidable since
-five SDK services genuinely use Angular). The architecture spec at
+Importing bare `'ordpool-sdk'` in the wallet drags the stateful RxJS
+service classes and `rxjs` into the extension bundle. Those classes are
+deliberately excluded from `/core`; the wallet composes the SDK's pure
+functions itself and never needs them. (The SDK has **no** `@angular/*`
+dependency in any block — the earlier "core avoids an Angular pull-in"
+justification is stale; the real reason to prefer `/core` is the
+stateful-service/`rxjs` exclusion.) The architecture spec at
 `apps/extension/src/__architecture__/architecture.spec.ts` sweeps
 every source file under `src/` and rejects any `import|export ...
 from 'ordpool-sdk'`. CI is red the moment one slips in.
+
+Note: `/core` is not meaningfully *smaller* in third-party weight (it
+pulls roughly the same vendored set as the bare entry); the reason to
+use it is the excluded stateful classes, not bundle size.
 
 ### How the wallet consumes the SDK
 
@@ -424,16 +431,13 @@ other ordpool consumer (`ordpool/frontend`,
 "ordpool-sdk": "github:ordpool-space/ordpool-sdk#<sha>"
 ```
 
-pnpm fetches the github tarball at that SHA. Since SDK 2026-07-17,
-`dist-core/` (Angular-free CommonJS) is **no longer checked in** —
-the SDK's `prepare` script generates it at install time via
-`npm run build:core` (plain tsc; the ng-packagr-in-node_modules
-bug only affects `build:angular`, which stays pre-built in git as
-`dist/`). Install scripts must be enabled for this to work — they
-are: `/Work/ordpool/.npmrc` sets `ignore-scripts=false`
-workspace-wide (the old global `ignore-scripts=true` posture was
-retired the same day). If `ordpool-sdk/core` imports fail to
-resolve after an install, the prepare script didn't run — check
+pnpm fetches the github tarball at that SHA. The SDK builds a single
+`dist/` (both entry points: `dist/index.js` and `dist/core.js`) and
+`dist/` is **not checked in** — the SDK's `prepare` script generates it
+at install time (`npm run build:main`). Install scripts must be enabled
+for this to work — they are: `/Work/ordpool/.npmrc` sets
+`ignore-scripts=false` workspace-wide. If `ordpool-sdk/core` imports
+fail to resolve after an install, the prepare script didn't run — check
 `npm config get ignore-scripts` from the wallet's directory.
 
 Resolution lands on the `exports` map in
@@ -441,15 +445,16 @@ Resolution lands on the `exports` map in
 
 ```json
 "./core": {
-  "types": "./dist-core/core.d.ts",
-  "default": "./dist-core/core.js"
+  "types": "./dist/core.d.ts",
+  "default": "./dist/core.js"
 }
 ```
 
-The wallet imports **compiled CommonJS bytes** from
-`ordpool-sdk/dist-core/`. The SDK's tsconfig.core.json emits CJS
-specifically so Node-direct consumers (vitest) accept directory
-imports; bundler consumers (webpack/vite) handle either shape.
+The wallet imports from `ordpool-sdk/dist/`. The build is **ESM**
+(`dist/package.json` declares `{"type":"module"}`, so Node loads the
+`.js` as ESM); Webpack consumes it via the `exports` map. `@scure/btc-signer`
+is a `1.6.x` peer of the SDK — the same version the wallet and
+`@leather.io/bitcoin` resolve — so no dependency override is needed.
 
 ### Old `link:` pattern is RETIRED (2026-06-20)
 
@@ -465,10 +470,9 @@ problems the user surfaced:
 2. **Mismatch with other consumers.** `ordpool/frontend` and
    `cat21-indexer/frontend` pin SHAs; cat21-wallet didn't.
 
-The fix: the SDK ships pre-built `dist/` in git and generates
-`dist-core/` via its `prepare` hook at install time, so the wallet
-can adopt the same SHA-pin pattern as everyone else. No more
-`link:`. No more staleness guards. CI deterministic.
+The fix: the SDK generates `dist/` via its `prepare` hook at install
+time, so the wallet can adopt the same SHA-pin pattern as everyone
+else. No more `link:`. No more staleness guards. CI deterministic.
 
 ### Dev workflow
 
@@ -488,7 +492,7 @@ For live local SDK iteration without bumping SHAs, fall back to
 
 ```bash
 # In ordpool-sdk/
-npm run build && cd dist-core && npm link
+npm run build && cd dist && npm link
 
 # In cat21-wallet/apps/extension/
 npm link ordpool-sdk
@@ -503,15 +507,13 @@ SHA-pinned production install.
 2. Export from its own file as usual.
 3. Re-export from `ordpool-sdk/src/core.ts` so it ships via the
    `/core` subpath.
-4. Add the source file to the `include` list in
-   `ordpool-sdk/tsconfig.core.json`.
-5. `npm run build` in the SDK (`build:angular && build:core`).
-6. `git add src/ dist/ dist-core/` + commit + push to SDK `main`.
-7. In the wallet: bump `apps/extension/package.json` to the new
+4. `npm run build` in the SDK. `dist/` is not committed (built by the
+   `prepare` hook at install), so commit `src/` + push to SDK `main`.
+5. In the wallet: bump `apps/extension/package.json` to the new
    SHA, `pnpm install`, commit both package.json + pnpm-lock.yaml.
 
-If the new helper drags Angular (uses `@Injectable`, `InjectionToken`,
-`HttpClient`, etc.), it CANNOT live in `core.ts` — it stays in
+If the new helper is a stateful service class (holds state, uses
+`rxjs`), keep it OUT of `core.ts` — it stays in
 `ordpool-sdk/src/index.ts` only and the wallet can't consume it.
 That's the rule the wallet's architecture spec is encoding for you.
 

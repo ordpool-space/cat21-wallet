@@ -385,8 +385,8 @@ importers:
         specifier: 2.71.1
         version: 2.71.1
       ordpool-sdk:
-        specifier: github:ordpool-space/ordpool-sdk#9500427
-        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/9500427537ec8f32cabdb688b07b358af506b320(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
+        specifier: github:ordpool-space/ordpool-sdk#25eac26
+        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/25eac264ae630d43471f379aad24e01bcc0ecb9d(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
       os-browserify:
         specifier: 0.3.0
         version: 0.3.0
@@ -16451,17 +16451,21 @@ packages:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
     engines: {node: '>=18'}
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/9500427537ec8f32cabdb688b07b358af506b320:
-    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/9500427537ec8f32cabdb688b07b358af506b320}
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/25eac264ae630d43471f379aad24e01bcc0ecb9d:
+    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/25eac264ae630d43471f379aad24e01bcc0ecb9d}
     version: 0.1.0
     peerDependencies:
       '@noble/curves': '>=1'
       '@playwright/test': '>=1.50'
-      '@scure/btc-signer': 1.2.x
+      '@scure/btc-signer': 1.6.x
       rxjs: '>=7'
       sats-connect: '>=4'
     peerDependenciesMeta:
       '@playwright/test':
+        optional: true
+      rxjs:
+        optional: true
+      sats-connect:
         optional: true
 
   os-browserify@0.3.0:
@@ -26215,7 +26219,7 @@ snapshots:
     dependencies:
       '@portabletext/sanity-bridge': 1.1.7(@sanity/schema@4.6.1(@types/react@19.1.17)(debug@4.4.1))(@sanity/types@4.6.1(@types/react@19.1.17)(debug@4.4.1))
       '@portabletext/schema': 1.2.0
-      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.3)
+      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
       '@types/react': 19.1.17
       get-random-values-esm: 1.0.2
       lodash: 4.18.1
@@ -26231,7 +26235,7 @@ snapshots:
       '@portabletext/schema': 1.2.0
       '@portabletext/to-html': 3.0.0
       '@sanity/schema': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
-      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.3)
+      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
       '@xstate/react': 6.0.0(@types/react@19.1.17)(react@19.1.0)(xstate@5.21.0)
       debug: 4.4.3(supports-color@9.4.0)
       get-random-values-esm: 1.0.2
@@ -26273,7 +26277,7 @@ snapshots:
     dependencies:
       '@portabletext/schema': 1.2.0
       '@sanity/schema': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
-      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.3)
+      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
       get-random-values-esm: 1.0.2
       lodash.startcase: 4.4.0
 
@@ -28534,7 +28538,7 @@ snapshots:
   '@sanity/insert-menu@2.0.1(@emotion/is-prop-valid@1.4.0)(@sanity/types@4.6.1(@types/react@19.1.17)(debug@4.4.1))(react-dom@19.1.0(react@19.1.0))(react-is@19.1.1)(react@19.1.0)(styled-components@6.1.18(react-dom@19.1.0(react@19.1.0))(react@19.1.0))':
     dependencies:
       '@sanity/icons': 3.7.4(react@19.1.0)
-      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.3)
+      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
       '@sanity/ui': 3.0.8(@emotion/is-prop-valid@1.4.0)(react-dom@19.1.0(react@19.1.0))(react-is@19.1.1)(react@19.1.0)(styled-components@6.1.18(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
       lodash: 4.18.1
       react: 19.1.0
@@ -28683,7 +28687,7 @@ snapshots:
     dependencies:
       '@sanity/descriptors': 1.1.1
       '@sanity/generate-help-url': 3.0.0
-      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.3)
+      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
       arrify: 2.0.1
       groq-js: 1.17.3
       humanize-list: 1.0.1
@@ -28749,7 +28753,7 @@ snapshots:
 
   '@sanity/types@4.6.1(@types/react@19.1.17)(debug@4.4.1)':
     dependencies:
-      '@sanity/client': 7.10.0(debug@4.4.1)
+      '@sanity/client': 7.10.0(debug@4.4.3)
       '@sanity/media-library-types': 1.0.0
       '@types/react': 19.1.17
     transitivePeerDependencies:
@@ -28873,7 +28877,7 @@ snapshots:
     dependencies:
       '@sanity/client': 7.10.0(debug@4.4.3)
     optionalDependencies:
-      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.3)
+      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
 
   '@sats-connect/core@0.10.0(valibot@1.1.0(typescript@5.9.3))':
     dependencies:
@@ -28884,6 +28888,7 @@ snapshots:
       valibot: 1.1.0(typescript@5.9.3)
     transitivePeerDependencies:
       - debug
+    optional: true
 
   '@sats-connect/make-default-provider-config@0.0.10(@sats-connect/core@0.10.0(valibot@1.1.0(typescript@5.9.3)))(typescript@5.9.3)':
     dependencies:
@@ -28891,10 +28896,13 @@ snapshots:
       '@sats-connect/ui': 0.0.6
       bowser: 2.14.1
       typescript: 5.9.3
+    optional: true
 
-  '@sats-connect/ui@0.0.6': {}
+  '@sats-connect/ui@0.0.6':
+    optional: true
 
-  '@sats-connect/ui@0.0.7': {}
+  '@sats-connect/ui@0.0.7':
+    optional: true
 
   '@scure/base@1.1.1': {}
 
@@ -31549,6 +31557,7 @@ snapshots:
       proxy-from-env: 1.1.0
     transitivePeerDependencies:
       - debug
+    optional: true
 
   axios@1.16.1:
     dependencies:
@@ -31803,7 +31812,8 @@ snapshots:
 
   base58-js@1.0.5: {}
 
-  base58-js@3.0.3: {}
+  base58-js@3.0.3:
+    optional: true
 
   base64-arraybuffer@1.0.2: {}
 
@@ -31883,6 +31893,7 @@ snapshots:
       base58-js: 3.0.3
       bech32: 2.0.0
       sha256-uint8array: 0.10.7
+    optional: true
 
   bitcoinjs-lib@6.1.5:
     dependencies:
@@ -31978,7 +31989,8 @@ snapshots:
   boolean@3.2.0:
     optional: true
 
-  bowser@2.14.1: {}
+  bowser@2.14.1:
+    optional: true
 
   boxen@7.1.1:
     dependencies:
@@ -38863,17 +38875,17 @@ snapshots:
       string-width: 7.2.0
       strip-ansi: 7.1.2
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/9500427537ec8f32cabdb688b07b358af506b320(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/25eac264ae630d43471f379aad24e01bcc0ecb9d(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
     dependencies:
       '@noble/curves': 1.8.2
       '@noble/hashes': 1.5.0
       '@scure/base': 1.2.4
       '@scure/bip32': 1.4.0
       '@scure/btc-signer': 1.6.0
-      rxjs: 7.8.1
-      sats-connect: 4.2.1(typescript@5.9.3)
     optionalDependencies:
       '@playwright/test': 1.58.2
+      rxjs: 7.8.1
+      sats-connect: 4.2.1(typescript@5.9.3)
 
   os-browserify@0.3.0: {}
 
@@ -41048,7 +41060,7 @@ snapshots:
       '@sanity/schema': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
       '@sanity/sdk': 2.1.2(@types/react@19.1.17)(debug@4.4.1)(immer@11.1.3)(react@19.1.0)(use-sync-external-store@1.5.0(react@19.1.0))
       '@sanity/telemetry': 0.8.1(react@19.1.0)
-      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.3)
+      '@sanity/types': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
       '@sanity/ui': 3.0.8(@emotion/is-prop-valid@1.4.0)(react-dom@19.1.0(react@19.1.0))(react-is@19.1.1)(react@19.1.0)(styled-components@6.1.18(react-dom@19.1.0(react@19.1.0))(react@19.1.0))
       '@sanity/util': 4.6.1(@types/react@19.1.17)(debug@4.4.1)
       '@sanity/uuid': 3.0.2
@@ -41187,6 +41199,7 @@ snapshots:
     transitivePeerDependencies:
       - debug
       - typescript
+    optional: true
 
   sax@1.4.4: {}
 
@@ -42965,6 +42978,7 @@ snapshots:
   valibot@1.1.0(typescript@5.9.3):
     optionalDependencies:
       typescript: 5.9.3
+    optional: true
 
   valibot@1.2.0(typescript@5.9.3):
     optionalDependencies:

@@ -502,13 +502,14 @@ describe('HARD RULE — every cat21_* RPC method has a documented SDK / wallet h
     // function of the wallet's RPC method names. A future SDK rename
     // (e.g. back to 'mint' / 'sell-accept') turns this red.
     //
-    // Reads the SHA-pinned SDK from `node_modules/ordpool-sdk/dist-core/`
-    // (.d.ts is shipped in the tarball; safe to read at test time).
+    // Reads the SHA-pinned SDK from `node_modules/ordpool-sdk/dist/` (the SDK
+    // collapsed its dist-core build into a single dist/; the .d.ts is emitted
+    // there by the install-time prepare build; safe to read at test time).
     // The pre-SHA-pin path `../ordpool-sdk/src/agent-mode/agent-policy.types.ts`
     // would only work on a maintainer's disk; CI doesn't have the
     // sibling-repo clone.
     const src = read(
-      join(EXTENSION_ROOT, 'node_modules/ordpool-sdk/dist-core/agent-mode/agent-policy.types.d.ts')
+      join(EXTENSION_ROOT, 'node_modules/ordpool-sdk/dist/agent-mode/agent-policy.types.d.ts')
     );
     expect(src).toMatch(/'cat21_mint'/);
     expect(src).toMatch(/'cat21_transfer'/);
