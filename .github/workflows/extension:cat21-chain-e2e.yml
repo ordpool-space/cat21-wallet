@@ -94,6 +94,7 @@ jobs:
           sdk/e2e/consumer-environment-bootstrap.sh \
             --buildx-cache \
             --with-cat21-ord \
+            --with-ord-stock \
             > stack.json
           cat stack.json
           # Inherit the electrs host URL from the SDK bootstrap descriptor
@@ -125,6 +126,23 @@ jobs:
             code=$(curl -s -o /dev/null -w '%{http_code}' "$E2E_ELECTRS_URL/blocks/tip/height" 2>/dev/null || echo 000)
             if [ "$code" = "200" ]; then echo "electrs up"; break; fi
             if [ "$i" = "60" ]; then echo "electrs never came up (last HTTP $code)"; exit 1; fi
+            sleep 2
+          done
+
+      # The full ord (:8081) backs the four-class funding-safety classify port,
+      # which every funding-selecting flow now reads (not just the dirty-coin
+      # spec). It has no in-container healthcheck (slim image), so poll the
+      # host-exposed :8081/status here.
+      - name: wait-for-ord-stock-ready
+        run: |
+          for i in $(seq 1 120); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Accept: application/json' http://localhost:8081/status 2>/dev/null || echo 000)
+            if [ "$code" = "200" ]; then echo "ord-stock up"; break; fi
+            if [ "$i" = "120" ]; then
+              echo "ord-stock never came up (last HTTP $code)"
+              docker logs ordpool-e2e-consumer-ord-stock --tail 100 || true
+              exit 1
+            fi
             sleep 2
           done
 
@@ -205,6 +223,18 @@ jobs:
           # The harness's ELECTRS_BASE reads this (falls back to :3010 if unset);
           # sourced from the SDK descriptor so it tracks the SDK's host port.
           E2E_ELECTRS_URL: ${{ env.E2E_ELECTRS_URL }}
+          # The harness rewrites ord.ordpool.space -> this (full ord :8081).
+          E2E_ORD_STOCK_URL: http://localhost:8081
+          # The SDK's seed helpers (seedInscribedCoin / seedRuneCoin /
+          # seedRareSatCoin) reach the consumer stack via docker exec. They read
+          # REGTEST_* (distinct from the harness's E2E_*); point them at the
+          # -consumer- containers. REGTEST_WALLET defaults to ordpool-e2e, the
+          # wallet the bootstrap creates and funds.
+          REGTEST_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
+          REGTEST_ORD_CONTAINER: ordpool-e2e-consumer-cat21-ord
+          REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
+          REGTEST_ORD_STOCK_URL: http://localhost:8081
+          REGTEST_ELECTRS_URL: ${{ env.E2E_ELECTRS_URL }}
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             pnpm exec playwright test --config playwright.config.chain.ts

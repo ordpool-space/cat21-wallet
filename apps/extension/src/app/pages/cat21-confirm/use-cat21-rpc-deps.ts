@@ -8,11 +8,16 @@ import {
   type CoreFundingUtxo,
   type UtxoClassification,
   broadcastCat21,
+  classifyOutpoint as sdkClassifyOutpoint,
   toPaymentAddress,
   validateCat21BuyOfferPsbt,
 } from 'ordpool-sdk/core';
 
-import { getCat21OrdApiClient } from '@leather.io/services';
+import {
+  getCat21OrdApiClient,
+  getCat21OrdBasePath,
+  getOrdpoolOrdBasePath,
+} from '@leather.io/services';
 
 import { postBidToCat21Bazaar } from '@app/common/cat21-bazaar/cat21-bazaar-client';
 import { useBitcoinClient } from '@app/query/bitcoin/clients/bitcoin-client';
@@ -62,8 +67,9 @@ import { resolveCatFundingUtxo } from './resolve-cat-funding-utxo';
  *     `transactionsApi.broadcastTransaction`
  *   - `spendableUtxos(address)` — the native-segwit spendable bucket as a
  *     `CoreFundingUtxo[]`; the SDK core selects + fees over it
- *   - `classifyOutpoint(outpoint)` — cat-only content scan via cat21-ord's
- *     `/output`; rejects on scan failure (core treats it as not-auto)
+ *   - `classifyOutpoint(outpoint)` — four-class funding-safety scan via the
+ *     SDK's `classifyOutpoint` (full ord for inscriptions + runes + rare sats,
+ *     cat21-ord for cats); rejects on scan failure (core treats it as not-auto)
  *   - `resolveCatUtxo(catId)` — synchronous lookup against a React-
  *     Query-cached `/cat/<id>` response that the popup pre-fetches via
  *     the `catIdHint` argument. Maps the OrdCat21 to a
@@ -227,14 +233,25 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
           available.map(u => ({ txid: u.txid, vout: u.vout, value: u.value }))
         );
       },
-      // Cat-only content scan (the maintainer's chosen depth): cat21-ord's
-      // `/output/<outpoint>` lists the cats on a UTXO. Non-empty ⇒
-      // `has-assets`; empty ⇒ `clean`. A fetch failure REJECTS — the core
-      // then treats the coin as not-auto (expert-mode), never clean, which
-      // matches utxos.service's conservative "unreachable ⇒ protected".
+      // Four-class funding-safety scan. Autonomous / YOLO mode signs with no
+      // confirmation dialog, so this port is the last line of defence against
+      // spending an asset-bearing coin as fee funding. The SDK's
+      // `classifyOutpoint` merges TWO `/output` reads: the full ord
+      // (inscriptions + runes + rare sats) and cat21-ord (cats). A UTXO is
+      // `clean` only when it carries none of the four; anything else is
+      // `has-assets` and the core drops it from the auto-fundable pool.
+      //
+      // A non-2xx from EITHER ord makes the SDK REJECT, which propagates here:
+      // the core then treats the coin as expert-mode (never auto-picked), the
+      // fail-CLOSED posture. Do NOT catch-and-return-clean — that would convert
+      // the core's fail-closed into fail-open and let an unclassifiable coin be
+      // spent silently.
       classifyOutpoint: async (outpoint: string): Promise<UtxoClassification> => {
-        const output = await cat21OrdClient.fetchOutput(outpoint);
-        return output.cats.length > 0 ? 'has-assets' : 'clean';
+        const classification = await sdkClassifyOutpoint(outpoint, {
+          ordApiUrl: getOrdpoolOrdBasePath(),
+          cat21OrdApiUrl: getCat21OrdBasePath(),
+        });
+        return classification.clean ? 'clean' : 'has-assets';
       },
       // Synchronous answer from the React-Query cache populated by the
       // hook above. The hook-state guards run here; the OrdCat21 →

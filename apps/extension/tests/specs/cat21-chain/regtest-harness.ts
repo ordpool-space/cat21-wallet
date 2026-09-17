@@ -1,6 +1,7 @@
 import { type BrowserContext, type Page, expect } from '@playwright/test';
 import { getTestSoftwareAccountDefaultWalletState } from '@tests/page-object-models/onboarding.page';
 import { execFileSync } from 'node:child_process';
+import { classifyOutpoint } from 'ordpool-sdk/core';
 
 /**
  * Chain-truth harness for the cat21-wallet real-button E2E suite.
@@ -15,6 +16,12 @@ import { execFileSync } from 'node:child_process';
  *   ordpool-e2e-bitcoind  RPC :18443 (user/pass ordpool/ordpool)
  *   ordpool-e2e-electrs   Esplora HTTP :3000
  *   ordpool-e2e-cat21-ord ord HTTP :8080  (cat-only index)
+ *   ordpool-e2e-ord-stock ord HTTP :8081  (full ord: sats + runes, no cats)
+ *
+ * The full ord (:8081) is required for EVERY funding-selecting flow, not just
+ * the dirty-coin spec: the SDK core classifies every funding candidate against
+ * both ords (four-class scan), so mint/transfer/offer/buy all read it. Bring it
+ * up with the bootstrap's `--with-ord-stock` flag.
  *
  * How the wallet reaches regtest:
  *   - We switch its `currentNetworkId` to the built-in `sbtcDevenv` config
@@ -41,6 +48,12 @@ const BITCOIND_CONTAINER = process.env.E2E_BITCOIND_CONTAINER ?? 'ordpool-e2e-bi
 const MINER_WALLET = 'e2e-miner';
 const ELECTRS_BASE = process.env.E2E_ELECTRS_URL ?? 'http://localhost:3010';
 const CAT21_ORD_BASE = process.env.E2E_CAT21_ORD_URL ?? 'http://localhost:8080';
+// The full ord (`--index-sats --index-runes`, NO --index-cat21), the second
+// `/output` source the four-class funding-safety scan reads (inscriptions +
+// runes + rare sats). The wallet's classify port hits `ord.ordpool.space`; the
+// route rewrite below forwards it here. Kept in step with the SDK seed helpers'
+// REGTEST_ORD_STOCK_URL (same :8081 default).
+const ORD_STOCK_BASE = process.env.E2E_ORD_STOCK_URL ?? 'http://localhost:8081';
 /**
  * The REAL CAT-21 Bazaar backend (cat21-indexer) running locally against the
  * regtest chain (BACKEND_NETWORK=regtest, ORD_API_URL -> local cat21-ord,
@@ -282,6 +295,56 @@ export async function waitOutputIndexed(
 }
 
 /**
+ * Poll the SDK's four-class classifier (via the local ords the wallet's funding
+ * guard also reads) until `outpoint` reads dirty on `stableReads` CONSECUTIVE
+ * checks. A seed helper confirms its asset is indexed on ITS side, but the
+ * wallet's guard only excludes a coin once BOTH ords have the asset for the
+ * guard's OWN read, and while ord-stock is still settling a block that read can
+ * flip dirty for one probe and back to clean for the next. A single dirty read
+ * would let the mint fire during that window and spend a genuinely dirty coin.
+ * Requiring several consecutive dirty reads waits for ord-stock to settle
+ * (hammering a synced ord-stock is 100% stable), so the guard's mint-time read
+ * is deterministic — a wait on state, not a fixed sleep. Runs in the node test
+ * process, so it hits the local ords directly (browser-context route rewrites
+ * don't apply here).
+ *
+ * Not a production concern: mainnet ord.ordpool.space is always fully synced, so
+ * this settling window exists only on a regtest ord indexing fresh blocks.
+ */
+export async function waitOutpointClassifiedDirty(
+  outpoint: string,
+  timeoutMs = 30_000,
+  stableReads = 3
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let streak = 0;
+  let last = 'no attempt';
+  for (;;) {
+    try {
+      const c = await classifyOutpoint(outpoint, {
+        ordApiUrl: ORD_STOCK_BASE,
+        cat21OrdApiUrl: CAT21_ORD_BASE,
+      });
+      if (!c.clean) {
+        if (++streak >= stableReads) return;
+      } else {
+        streak = 0;
+        last = 'classified clean';
+      }
+    } catch (e) {
+      streak = 0;
+      last = (e as Error).message;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `outpoint ${outpoint} never classified dirty ${stableReads}x in a row within ${timeoutMs}ms (last: ${last})`
+      );
+    }
+    await sleep(400);
+  }
+}
+
+/**
  * Poll cat21-ord's `/output/<txid>:<vout>` until it reports at least one
  * cat (i.e. the indexer has processed the block and recognized the mint).
  * This is the indexer-truth half of every proof.
@@ -490,6 +553,7 @@ export function newCapture(): BroadcastCapture {
  * Install the regtest route rewrites on the browser context:
  *   - localhost:18443  -> localhost:3010  (wallet Bitcoin client -> electrs)
  *   - ord.cat21.space  -> localhost:8080  (wallet cat21-ord client)
+ *   - ord.ordpool.space -> localhost:8081 (wallet full-ord classify scan)
  *   - mempool.space fee endpoint -> a static regtest fee (avoids a hang if
  *     the wallet prefetches recommended fees; the mint uses the form's rate)
  *
@@ -531,6 +595,24 @@ export async function installRegtestRoutes(
         .url()
         .replace('https://ord.cat21.space', CAT21_ORD_BASE)
         .replace('http://ord.cat21.space', CAT21_ORD_BASE);
+      const resp = await route.fetch({ url: target });
+      const bodyText = await resp.text();
+      await route.fulfill({ response: resp, body: bodyText });
+    }
+  );
+
+  // Full-ord host rewrite: the four-class funding-safety scan reads
+  // inscriptions + runes + rare sats from `ord.ordpool.space`. cat21-ord
+  // (--index-cat21) cannot answer these, so every cat21 action that selects
+  // funding hits this host per candidate; forward it to the stock ord (:8081).
+  await context.route(
+    url => url.hostname === 'ord.ordpool.space',
+    async route => {
+      const target = route
+        .request()
+        .url()
+        .replace('https://ord.ordpool.space', ORD_STOCK_BASE)
+        .replace('http://ord.ordpool.space', ORD_STOCK_BASE);
       const resp = await route.fetch({ url: target });
       const bodyText = await resp.text();
       await route.fulfill({ response: resp, body: bodyText });
