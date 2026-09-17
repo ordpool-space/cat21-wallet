@@ -3,7 +3,32 @@
  * hook so they are unit-testable without the React/Redux/inversify harness the
  * hook needs. The hook keeps the IO wiring; these keep the translation rules.
  */
-import type { AgentActionKind } from 'ordpool-sdk/core';
+import type { AgentActionKind, UtxoClassification } from 'ordpool-sdk/core';
+
+/**
+ * Map an ord `classifyOutpoint` result to the funding guard's verdict. This is
+ * the decision that keeps an asset-bearing coin out of the auto-fundable pool,
+ * lifted out of the hook so the reject branch is unit-testable without a chain:
+ *
+ *   - `indexed === false` -> THROW. ord answers 200 with empty fields both for
+ *     an output it carries no assets on AND for one it has not indexed yet (a
+ *     lagging / restarting / reorged ord), so an unindexed result is "no answer",
+ *     not clean. Rejecting routes the coin to the core's not-auto-spendable
+ *     bucket (fail-closed) instead of mislabelling it `has-assets`.
+ *   - otherwise `clean` -> 'clean', else 'has-assets'.
+ *
+ * `clean` already implies `indexed` in the SDK, so an indexed-but-empty output
+ * still classifies clean.
+ */
+export function classifyOutpointVerdict(
+  outpoint: string,
+  classification: { indexed: boolean; clean: boolean }
+): UtxoClassification {
+  if (!classification.indexed) {
+    throw new Error(`ord has not indexed ${outpoint}; cannot classify funding coin`);
+  }
+  return classification.clean ? 'clean' : 'has-assets';
+}
 
 /**
  * Map the wallet's bitcoin network mode to the coarse label the cat pipeline

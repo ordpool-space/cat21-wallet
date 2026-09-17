@@ -41,7 +41,12 @@ import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 import { makeAgentPolicyDeps } from '@background/cat21/agent-policy-deps';
 import { type Cat21RpcDeps, walletNetworkToSdkNetwork } from '@background/cat21/cat21-rpc.service';
 
-import { stripCat21Prefix, toBidNetwork, toNetworkLabel } from './cat21-rpc-deps.helper';
+import {
+  classifyOutpointVerdict,
+  stripCat21Prefix,
+  toBidNetwork,
+  toNetworkLabel,
+} from './cat21-rpc-deps.helper';
 import { resolveCatFundingUtxo } from './resolve-cat-funding-utxo';
 
 /**
@@ -233,36 +238,20 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
           available.map(u => ({ txid: u.txid, vout: u.vout, value: u.value }))
         );
       },
-      // Four-class funding-safety scan. Autonomous / YOLO mode signs with no
-      // confirmation dialog, so this port is the last line of defence against
-      // spending an asset-bearing coin as fee funding. The SDK's
-      // `classifyOutpoint` merges TWO `/output` reads: the full ord
-      // (inscriptions + runes + rare sats) and cat21-ord (cats). A UTXO is
-      // `clean` only when it carries none of the four; anything else is
-      // `has-assets` and the core drops it from the auto-fundable pool.
-      //
-      // A non-2xx from EITHER ord makes the SDK REJECT, which propagates here:
-      // the core then treats the coin as expert-mode (never auto-picked), the
-      // fail-CLOSED posture. Do NOT catch-and-return-clean — that would convert
-      // the core's fail-closed into fail-open and let an unclassifiable coin be
-      // spent silently.
-      //
-      // ord answers 200 with empty fields both for an output it carries no assets
-      // on AND for one it has not indexed yet (a lagging / restarting / reorged
-      // ord — not just a mainnet edge). `indexed === false` is "no answer", not
-      // "clean": REJECT it so the core treats the coin as not-auto-spendable,
-      // rather than mislabelling it `has-assets`. `clean` already implies
-      // `indexed`, so an indexed-but-empty output still classifies clean.
-      classifyOutpoint: async (outpoint: string): Promise<UtxoClassification> => {
-        const classification = await sdkClassifyOutpoint(outpoint, {
-          ordApiUrl: getOrdpoolOrdBasePath(),
-          cat21OrdApiUrl: getCat21OrdBasePath(),
-        });
-        if (!classification.indexed) {
-          throw new Error(`ord has not indexed ${outpoint}; cannot classify funding coin`);
-        }
-        return classification.clean ? 'clean' : 'has-assets';
-      },
+      // Four-class funding-safety scan — the last line of defence in autonomous
+      // mode (no confirmation dialog). The SDK's `classifyOutpoint` merges the
+      // full ord (inscriptions + runes + rare sats) and cat21-ord (cats); a
+      // non-2xx from either REJECTS (the core then never auto-picks the coin).
+      // The clean/has-assets/reject-on-unindexed decision is `classifyOutpoint-
+      // Verdict` (unit-tested at the boundary). Do NOT catch-and-return-clean.
+      classifyOutpoint: async (outpoint: string): Promise<UtxoClassification> =>
+        classifyOutpointVerdict(
+          outpoint,
+          await sdkClassifyOutpoint(outpoint, {
+            ordApiUrl: getOrdpoolOrdBasePath(),
+            cat21OrdApiUrl: getCat21OrdBasePath(),
+          })
+        ),
       // Synchronous answer from the React-Query cache populated by the
       // hook above. The hook-state guards run here; the OrdCat21 →
       // Cat21TransferCatInput mapping (address, value PRESERVE, satpoint

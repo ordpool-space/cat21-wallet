@@ -1,7 +1,47 @@
 import type { AgentActionKind } from 'ordpool-sdk/core';
 import { describe, expect, it } from 'vitest';
 
-import { stripCat21Prefix, toBidNetwork, toNetworkLabel } from './cat21-rpc-deps.helper';
+import {
+  classifyOutpointVerdict,
+  stripCat21Prefix,
+  toBidNetwork,
+  toNetworkLabel,
+} from './cat21-rpc-deps.helper';
+
+/**
+ * `classifyOutpointVerdict` is the funding guard's decision boundary: it maps an
+ * ord classification to clean / has-assets / REJECT. In autonomous (Path 3) mode
+ * this decides whether an asset-bearing or unclassifiable coin can be auto-spent
+ * for fees with no prompt, so every branch is money-path. The regtest e2e proves
+ * the clean/has-assets paths end to end but always against a fully-indexed ord,
+ * so the reject-on-unindexed branch — the one that stops a lagging / reorged ord
+ * from reading an asset coin as clean — has no on-chain coverage. These pin it.
+ */
+describe('classifyOutpointVerdict', () => {
+  it('rejects an unindexed output (ord "no answer" is not clean)', () => {
+    // Disabling the `!indexed` guard makes this return 'has-assets' instead of
+    // throwing — the money-path regression the branch exists to stop.
+    expect(() => classifyOutpointVerdict('abc:0', { indexed: false, clean: false })).toThrow(
+      /has not indexed/
+    );
+  });
+
+  it('rejects an unindexed output even if the empty read looks clean', () => {
+    // Defensive: `indexed` is checked before `clean`, so a bogus
+    // {indexed:false, clean:true} still rejects rather than passing as clean.
+    expect(() => classifyOutpointVerdict('abc:0', { indexed: false, clean: true })).toThrow(
+      /has not indexed/
+    );
+  });
+
+  it('classifies an indexed coin carrying no assets as clean', () => {
+    expect(classifyOutpointVerdict('abc:0', { indexed: true, clean: true })).toBe('clean');
+  });
+
+  it('classifies an indexed coin carrying an asset as has-assets', () => {
+    expect(classifyOutpointVerdict('abc:0', { indexed: true, clean: false })).toBe('has-assets');
+  });
+});
 
 /**
  * `stripCat21Prefix` is the single seam that translates the agent-policy's
