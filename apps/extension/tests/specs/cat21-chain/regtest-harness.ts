@@ -1,7 +1,27 @@
-import { type BrowserContext, type Page, expect } from '@playwright/test';
+import { type BrowserContext, type Page, type Route, expect } from '@playwright/test';
 import { getTestSoftwareAccountDefaultWalletState } from '@tests/page-object-models/onboarding.page';
 import { execFileSync } from 'node:child_process';
 import { classifyOutpoint } from 'ordpool-sdk/core';
+
+/**
+ * A route can fire while the context is being torn down: the test body finished,
+ * but an in-flight wallet fetch is still routing. `route.fetch` / `route.fulfill`
+ * then throw "Target page, context or browser has been closed". That is teardown
+ * noise, not a test failure, so swallow exactly it and rethrow anything else.
+ * Wraps every handler below — the four-class scan issues an ord fetch per funding
+ * candidate, so there are more in-flight requests to catch at teardown.
+ */
+function ignoreClosedContext(
+  handler: (route: Route) => Promise<void>
+): (route: Route) => Promise<void> {
+  return async route => {
+    try {
+      await handler(route);
+    } catch (e) {
+      if (!((e as Error)?.message ?? '').includes('has been closed')) throw e;
+    }
+  };
+}
 
 /**
  * Chain-truth harness for the cat21-wallet real-button E2E suite.
@@ -568,7 +588,7 @@ export async function installRegtestRoutes(
   // sbtcDevenv bitcoinUrl carries and forward to electrs at the same host.
   await context.route(
     url => url.host === WALLET_BITCOIN_HOST && url.pathname.startsWith(WALLET_BITCOIN_PATH_PREFIX),
-    async route => {
+    ignoreClosedContext(async route => {
       const original = new URL(route.request().url());
       const strippedPath = original.pathname.slice(WALLET_BITCOIN_PATH_PREFIX.length);
       const target = `${ELECTRS_BASE}${strippedPath}${original.search}`;
@@ -583,13 +603,13 @@ export async function installRegtestRoutes(
         capture.utxoResponses += 1;
       }
       await route.fulfill({ response: resp, body: bodyText });
-    }
+    })
   );
 
   // cat21-ord client host rewrite.
   await context.route(
     url => url.hostname === 'ord.cat21.space',
-    async route => {
+    ignoreClosedContext(async route => {
       const target = route
         .request()
         .url()
@@ -598,7 +618,7 @@ export async function installRegtestRoutes(
       const resp = await route.fetch({ url: target });
       const bodyText = await resp.text();
       await route.fulfill({ response: resp, body: bodyText });
-    }
+    })
   );
 
   // Full-ord host rewrite: the four-class funding-safety scan reads
@@ -607,7 +627,7 @@ export async function installRegtestRoutes(
   // funding hits this host per candidate; forward it to the stock ord (:8081).
   await context.route(
     url => url.hostname === 'ord.ordpool.space',
-    async route => {
+    ignoreClosedContext(async route => {
       const target = route
         .request()
         .url()
@@ -616,7 +636,7 @@ export async function installRegtestRoutes(
       const resp = await route.fetch({ url: target });
       const bodyText = await resp.text();
       await route.fulfill({ response: resp, body: bodyText });
-    }
+    })
   );
 
   // CAT-21 Bazaar: forward backend2.cat21.space to the REAL cat21-indexer
@@ -626,7 +646,7 @@ export async function installRegtestRoutes(
   // persists the listing in MariaDB. No stub.
   await context.route(
     url => url.hostname === 'backend2.cat21.space',
-    async route => {
+    ignoreClosedContext(async route => {
       const req = route.request();
       const target = req.url().replace(/https?:\/\/backend2\.cat21\.space/, BAZAAR_BACKEND_BASE);
       if (req.method() === 'POST') {
@@ -635,13 +655,13 @@ export async function installRegtestRoutes(
       const resp = await route.fetch({ url: target });
       const bodyText = await resp.text();
       await route.fulfill({ response: resp, body: bodyText });
-    }
+    })
   );
 
   // Static fee estimate: keep the popup responsive if it prefetches fees.
   await context.route(
     url => url.pathname.includes('/fees/recommended'),
-    async route => {
+    ignoreClosedContext(async route => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -653,7 +673,7 @@ export async function installRegtestRoutes(
           minimumFee: 1,
         }),
       });
-    }
+    })
   );
 }
 
