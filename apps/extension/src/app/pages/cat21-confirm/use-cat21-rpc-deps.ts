@@ -246,11 +246,21 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
       // fail-CLOSED posture. Do NOT catch-and-return-clean — that would convert
       // the core's fail-closed into fail-open and let an unclassifiable coin be
       // spent silently.
+      //
+      // ord answers 200 with empty fields both for an output it carries no assets
+      // on AND for one it has not indexed yet (a lagging / restarting / reorged
+      // ord — not just a mainnet edge). `indexed === false` is "no answer", not
+      // "clean": REJECT it so the core treats the coin as not-auto-spendable,
+      // rather than mislabelling it `has-assets`. `clean` already implies
+      // `indexed`, so an indexed-but-empty output still classifies clean.
       classifyOutpoint: async (outpoint: string): Promise<UtxoClassification> => {
         const classification = await sdkClassifyOutpoint(outpoint, {
           ordApiUrl: getOrdpoolOrdBasePath(),
           cat21OrdApiUrl: getCat21OrdBasePath(),
         });
+        if (!classification.indexed) {
+          throw new Error(`ord has not indexed ${outpoint}; cannot classify funding coin`);
+        }
         return classification.clean ? 'clean' : 'has-assets';
       },
       // Synchronous answer from the React-Query cache populated by the

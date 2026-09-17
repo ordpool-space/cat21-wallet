@@ -114,11 +114,10 @@ test.describe('CAT-21 four-class dirty-coin funding safety (Path 3 autonomous, r
       expect(dirty.assetId.length).toBeGreaterThan(0);
       expect(dirty.value).toBe(DIRTY_SATS);
 
-      // Bury both coins under extra confirmations. A freshly-seeded coin sits in
-      // the block ord is still settling at the tip, and its `/output` can read
-      // asset-present one moment and empty the next during that settle. Moving
-      // the tip away finalises the coin's block, so the guard's mint-time read is
-      // stable (with the classify precondition below as the belt-and-braces).
+      // Confirm both coins deeply so ord has fully indexed the dirty one by mint
+      // time. That keeps this test about DETECTION: the guard reads a real asset
+      // (indexed + content), not the not-yet-indexed case (the guard fail-closes
+      // that too, but the SDK unit-tests it; here we want the positive path).
       mine(3);
 
       await waitElectrsSynced();
