@@ -10,36 +10,77 @@ import {
 
 /**
  * `classifyOutpointVerdict` is the funding guard's decision boundary: it maps an
- * ord classification to clean / has-assets / REJECT. In autonomous (Path 3) mode
- * this decides whether an asset-bearing or unclassifiable coin can be auto-spent
- * for fees with no prompt, so every branch is money-path. The regtest e2e proves
- * the clean/has-assets paths end to end but always against a fully-indexed ord,
- * so the reject-on-unindexed branch — the one that stops a lagging / reorged ord
- * from reading an asset coin as clean — has no on-chain coverage. These pin it.
+ * ord classification to a `{ verdict, assets }` classification / REJECT. In
+ * autonomous (Path 3) mode the verdict decides whether an asset-bearing or
+ * unclassifiable coin can be auto-spent for fees with no prompt; the assets are
+ * what let the manual notice name WHICH asset. So every branch is money-path.
+ * The regtest e2e proves the clean/has-assets paths end to end but always
+ * against a fully-indexed ord, so the reject-on-unindexed branch — the one that
+ * stops a lagging / reorged ord from reading an asset coin as clean — has no
+ * on-chain coverage. These pin it.
  */
+type OrdClassification = Parameters<typeof classifyOutpointVerdict>[1];
+function classification(over: Partial<OrdClassification> = {}): OrdClassification {
+  // Defaults to a fully-indexed, empty (clean) coin.
+  return {
+    indexed: true,
+    clean: true,
+    inscriptionIds: [],
+    runes: null,
+    catIds: [],
+    rareSat: null,
+    ...over,
+  };
+}
+
 describe('classifyOutpointVerdict', () => {
   it('rejects an unindexed output (ord "no answer" is not clean)', () => {
-    // Disabling the `!indexed` guard makes this return 'has-assets' instead of
+    // Disabling the `!indexed` guard makes this return has-assets instead of
     // throwing — the money-path regression the branch exists to stop.
-    expect(() => classifyOutpointVerdict('abc:0', { indexed: false, clean: false })).toThrow(
-      /has not indexed/
-    );
+    expect(() =>
+      classifyOutpointVerdict('abc:0', classification({ indexed: false, clean: false }))
+    ).toThrow(/has not indexed/);
   });
 
   it('rejects an unindexed output even if the empty read looks clean', () => {
     // Defensive: `indexed` is checked before `clean`, so a bogus
     // {indexed:false, clean:true} still rejects rather than passing as clean.
-    expect(() => classifyOutpointVerdict('abc:0', { indexed: false, clean: true })).toThrow(
-      /has not indexed/
-    );
+    expect(() =>
+      classifyOutpointVerdict('abc:0', classification({ indexed: false, clean: true }))
+    ).toThrow(/has not indexed/);
   });
 
-  it('classifies an indexed coin carrying no assets as clean', () => {
-    expect(classifyOutpointVerdict('abc:0', { indexed: true, clean: true })).toBe('clean');
+  it('classifies an indexed coin carrying no assets as a clean verdict with empty assets', () => {
+    expect(classifyOutpointVerdict('abc:0', classification({ clean: true }))).toEqual({
+      verdict: 'clean',
+      assets: { inscriptionIds: [], runeNames: [], catIds: [], rareSat: null },
+    });
   });
 
-  it('classifies an indexed coin carrying an asset as has-assets', () => {
-    expect(classifyOutpointVerdict('abc:0', { indexed: true, clean: false })).toBe('has-assets');
+  it('classifies a dirty coin as has-assets AND NAMES each asset (id / rune name / cat / rare sat)', () => {
+    // The notice renders from these names, so a count would lose the property.
+    // `runeNames` are the KEYS of ord's runes map (ord's spelling, spacers).
+    const rareSat = { sat: '1000000', block: 5, rarity: 'uncommon' as const };
+    expect(
+      classifyOutpointVerdict(
+        'abc:0',
+        classification({
+          clean: false,
+          inscriptionIds: ['dead'.repeat(16) + 'i0'],
+          runes: { 'UNCOMMON•GOODS': { amount: 1 } },
+          catIds: ['cafe'.repeat(16) + 'i0'],
+          rareSat,
+        })
+      )
+    ).toEqual({
+      verdict: 'has-assets',
+      assets: {
+        inscriptionIds: ['dead'.repeat(16) + 'i0'],
+        runeNames: ['UNCOMMON•GOODS'],
+        catIds: ['cafe'.repeat(16) + 'i0'],
+        rareSat,
+      },
+    });
   });
 });
 
