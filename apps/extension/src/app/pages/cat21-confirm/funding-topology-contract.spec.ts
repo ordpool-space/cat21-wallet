@@ -24,8 +24,12 @@ import { describe, expect, it } from 'vitest';
  * separate-address layout), so the fee/vsize path runs on the script types the
  * wallet actually funds from.
  *
- * `fundingTopology` is a params property, not a port, so the autonomous path
- * declines the relaxation by simply not passing it (see the load-bearing case).
+ * `fundingTopology` is a params property the CALLER derives (the core can't:
+ * it holds the payment address but not the ordinals one). A well-formed caller,
+ * UI or agent, passes its derived topology and acts on the named-asset answer;
+ * an agent is protected by getting the same facts, not by being denied them.
+ * Omitting the field yields the blocking default, which is the safe fallback
+ * for a caller that FORGOT to thread it, not a mechanism for declining.
  */
 
 /** A p2*.address is `string | undefined`; assert-present without the banned `!`. */
@@ -83,13 +87,14 @@ describe('funding-topology contract (wallet <-> SDK simulate*)', () => {
     expect(sim.fundingUtxo?.txid).toBe(asset.txid);
   });
 
-  it('AUTONOMOUS (topology omitted): a dirty-only pool previews expert-required with no coin', async () => {
-    // Load-bearing safety property: the MCP/agent path passes no topology, so it
-    // gets the BLOCKING answer and no coin, so an unattended dirty spend cannot
-    // happen. Passing 'separate-payment-address' here would return asset-notice +
-    // a coin (exactly that spend), so this assertion is what forbids it.
-    // Mutation: swap params() for params({ fundingTopology: 'separate-payment-address' })
-    // and both expectations red.
+  it('OMITTED topology: a dirty-only pool previews expert-required with no coin (safe default for a caller that forgot)', async () => {
+    // The blocking default when NO topology is threaded. It guards a caller that
+    // forgot to derive-and-pass one; it is NOT how an agent declines (an agent
+    // passes its topology and acts on the named-asset answer, same as the UI).
+    // Worth pinning because it stays TRUE regardless: a caller that supplies
+    // nothing must never be handed a coin that carries assets. Mutation: swap
+    // params() for params({ fundingTopology: 'separate-payment-address' }) and
+    // both expectations red (it returns asset-notice + a coin).
     const { ports } = dirtyOnly();
     const sim = await simulateMint(params(), ports);
 
