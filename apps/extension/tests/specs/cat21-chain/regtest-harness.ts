@@ -5,12 +5,19 @@ import { classifyOutpoint } from 'ordpool-sdk/core';
 
 /**
  * A route can fire while the context is being torn down: the test body finished,
- * but an in-flight wallet fetch is still routing. `route.fetch` / `route.fulfill`
- * then throw "Target page, context or browser has been closed". That is teardown
- * noise, not a test failure, so swallow exactly it and rethrow anything else.
- * Wraps every handler below — the four-class scan issues an ord fetch per funding
- * candidate, so there are more in-flight requests to catch at teardown.
+ * but an in-flight wallet fetch is still routing. The teardown then surfaces as
+ * one of a few Playwright messages, all teardown noise rather than a test
+ * failure: "Target page, context or browser has been closed" (from route.fetch /
+ * route.fulfill), and "Response has been disposed" (when the fetched response is
+ * disposed before `resp.text()` reads it). Swallow exactly those and rethrow
+ * anything else. Wraps every handler below, the four-class scan issues an ord
+ * fetch per funding candidate, so there are more in-flight requests at teardown.
  */
+function isTeardownNoise(e: unknown): boolean {
+  const message = (e as Error)?.message ?? '';
+  return message.includes('has been closed') || message.includes('has been disposed');
+}
+
 function ignoreClosedContext(
   handler: (route: Route) => Promise<void>
 ): (route: Route) => Promise<void> {
@@ -18,7 +25,7 @@ function ignoreClosedContext(
     try {
       await handler(route);
     } catch (e) {
-      if (!((e as Error)?.message ?? '').includes('has been closed')) throw e;
+      if (!isTeardownNoise(e)) throw e;
     }
   };
 }

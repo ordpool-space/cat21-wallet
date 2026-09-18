@@ -45,27 +45,33 @@ const ORDINALS_PUB = hex.decode('5df12ac222a1cd78dd4681c7c7a56f3e273884a086b2b61
 const PAYMENT_ADDR = addressOf(btc.p2wpkh(PAYMENT_PUB, btc.NETWORK));
 const ORDINALS_ADDR = addressOf(btc.p2tr(ORDINALS_PUB, undefined, btc.NETWORK));
 
-const coin = (id: string, value: number): CoreFundingUtxo => ({
-  txid: id.repeat(64).slice(0, 64),
-  vout: 0,
-  value,
-});
-const op = (u: { txid: string; vout: number }) => `${u.txid}:${u.vout}`;
+function coin(id: string, value: number): CoreFundingUtxo {
+  return { txid: id.repeat(64).slice(0, 64), vout: 0, value };
+}
+function op(u: { txid: string; vout: number }): string {
+  return `${u.txid}:${u.vout}`;
+}
 
-const params = (over: Partial<MintCoreParams> = {}): MintCoreParams => ({
-  walletType: KnownOrdinalWalletType.cat21wallet,
-  network: Network.Mainnet,
-  paymentPublicKey: PAYMENT_PUB,
-  paymentAddress: PAYMENT_ADDR,
-  recipientAddress: ORDINALS_ADDR,
-  feeRatePerVbyte: 10,
-  ...over,
-});
+function params(over: Partial<MintCoreParams> = {}): MintCoreParams {
+  return {
+    walletType: KnownOrdinalWalletType.cat21wallet,
+    network: Network.Mainnet,
+    paymentPublicKey: PAYMENT_PUB,
+    paymentAddress: PAYMENT_ADDR,
+    recipientAddress: ORDINALS_ADDR,
+    feeRatePerVbyte: 10,
+    ...over,
+  };
+}
 
-const utxosPort = (coins: CoreFundingUtxo[]): UtxosPort => ({ spendableUtxos: async () => coins });
-const scanPort = (verdicts: Record<string, 'clean' | 'has-assets'> = {}): ContentScanPort => ({
-  classify: async outpoint => verdicts[outpoint] ?? 'clean',
-});
+// Ports return resolved promises (no `async` without `await`, per the
+// wallet's require-await rule).
+function utxosPort(coins: CoreFundingUtxo[]): UtxosPort {
+  return { spendableUtxos: () => Promise.resolve(coins) };
+}
+function scanPort(verdicts: Record<string, 'clean' | 'has-assets'> = {}): ContentScanPort {
+  return { classify: outpoint => Promise.resolve(verdicts[outpoint] ?? 'clean') };
+}
 
 /** One covering coin that carries assets: the pool where topology decides. */
 function dirtyOnly() {
