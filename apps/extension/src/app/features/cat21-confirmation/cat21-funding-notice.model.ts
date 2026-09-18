@@ -31,7 +31,8 @@ export type FundingPreviewState =
 export type FundingNoticeModel =
   | { kind: 'none' }
   | { kind: 'checking' }
-  | { kind: 'blocked'; reason: string }
+  | { kind: 'insufficient'; reason: string }
+  | { kind: 'unavailable'; reason: string }
   | { kind: 'assets'; intro: string; rows: FundingAssetRow[] };
 
 export interface FundingAssetRow {
@@ -72,22 +73,33 @@ export function txidOfInscriptionId(inscriptionId: string): string {
 /**
  * Map the funding preview state to what the notice shows:
  *   - `not-applicable` / `ready` → nothing (clean funding; dialog byte-identical).
- *   - `loading`                  → a "checking" line (CTA held while unknown).
- *   - `error`                    → blocked, "content-check failed" (fail closed).
- *   - `insufficient`             → blocked, "add funds".
- *   - `expert-required`          → blocked, "content-check failed" (a scan miss;
- *                                   a separate-payment-address wallet never
- *                                   reaches expert-required for the asset-only
- *                                   case — that becomes `asset-notice`).
- *   - `asset-notice`             → the named-asset rows.
+ *   - `loading`                  → a "checking" line (CTA HELD while unknown).
+ *   - `error` / `expert-required`→ `unavailable`, "content-check failed" (CTA
+ *                                   HELD — the coin's contents are unknown, so a
+ *                                   click could spend an asset without the notice
+ *                                   ever showing; fail closed. A separate-payment-
+ *                                   address wallet never reaches `expert-required`
+ *                                   for the asset-only case — that becomes
+ *                                   `asset-notice` — so this only comes from a
+ *                                   scan that failed).
+ *   - `insufficient`             → `insufficient`, "add funds". CTA stays LIVE:
+ *                                   there is provably NO covering coin to spend,
+ *                                   so a click cannot lose an asset — the service
+ *                                   blocks it, and (caps run before funding in the
+ *                                   pipeline) an over-cap intent surfaces its cap
+ *                                   message first, which is the more actionable
+ *                                   answer.
+ *   - `asset-notice`             → the named-asset rows (CTA live; informed
+ *                                   consent on a separate-payment-address wallet).
  */
 export function describeFundingNotice(state: FundingPreviewState): FundingNoticeModel {
   if (state.status === 'not-applicable') return { kind: 'none' };
   if (state.status === 'loading') return { kind: 'checking' };
-  if (state.status === 'error') return { kind: 'blocked', reason: SCAN_FAILED_REASON };
+  if (state.status === 'error') return { kind: 'unavailable', reason: SCAN_FAILED_REASON };
   if (state.status === 'ready') return { kind: 'none' };
-  if (state.status === 'insufficient') return { kind: 'blocked', reason: INSUFFICIENT_REASON };
-  if (state.status === 'expert-required') return { kind: 'blocked', reason: SCAN_FAILED_REASON };
+  if (state.status === 'insufficient') return { kind: 'insufficient', reason: INSUFFICIENT_REASON };
+  if (state.status === 'expert-required')
+    return { kind: 'unavailable', reason: SCAN_FAILED_REASON };
 
   const { assets } = state;
   const rows: FundingAssetRow[] = [];
@@ -123,12 +135,14 @@ export function describeFundingNotice(state: FundingPreviewState): FundingNotice
 }
 
 /**
- * The CTA is held whenever funding safety is not established: while the preview
- * is loading, when it failed, and when it resolved to a blocking status
- * (insufficient / scan-pending). `ready` and `asset-notice` leave it live — a
- * separate-payment-address wallet lets the human proceed on an asset coin AFTER
- * seeing the notice. `none` (not-applicable / ready) never blocks.
+ * The CTA is HELD only when a click could spend a funding coin whose contents
+ * have NOT been shown to the user: while the scan is in flight (`checking`), and
+ * when the scan could not complete (`unavailable`) so the coin's contents are
+ * unknown. It stays LIVE for `none` (clean / no preview), `assets` (contents
+ * shown — informed consent on a separate-payment-address wallet), and
+ * `insufficient` (no covering coin exists, so nothing can be lost; the service
+ * blocks the click and any cap violation surfaces first).
  */
 export function isApproveBlocked(model: FundingNoticeModel): boolean {
-  return model.kind === 'checking' || model.kind === 'blocked';
+  return model.kind === 'checking' || model.kind === 'unavailable';
 }

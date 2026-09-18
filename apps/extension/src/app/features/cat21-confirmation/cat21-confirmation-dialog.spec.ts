@@ -88,7 +88,9 @@ describe('cat21-confirmation-dialog (structural contract)', () => {
     // variant="solid" — makes this red.
     const approveBlock =
       src.match(/[\s\S]{0,400}data-testid="cat21-confirmation-approve"/u)?.[0] ?? '';
-    expect(approveBlock).toMatch(/variant=\{submitError \|\| approveDisabled \? 'outline' : 'solid'\}/);
+    expect(approveBlock).toMatch(
+      /variant=\{submitError \|\| approveDisabled \? 'outline' : 'solid'\}/
+    );
   });
 
   it('disables approve on submit OR a funding block; disables reject only on submit', async () => {

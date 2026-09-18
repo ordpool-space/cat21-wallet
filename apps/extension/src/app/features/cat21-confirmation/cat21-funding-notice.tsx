@@ -128,7 +128,11 @@ export function Cat21FundingNotice({ model, linkForTxid, ordBaseUrl }: Cat21Fund
     );
   }
 
-  if (model.kind === 'blocked') {
+  if (model.kind === 'insufficient' || model.kind === 'unavailable') {
+    // Both render the same "can't fund" box; the CTA gate (isApproveBlocked)
+    // differs — `insufficient` leaves Approve live (no coin to lose, the service
+    // blocks and a cap violation surfaces first), `unavailable` holds it (the
+    // coin's contents are unknown). The distinct testid makes that observable.
     return (
       <Flex
         direction="column"
@@ -136,7 +140,7 @@ export function Cat21FundingNotice({ model, linkForTxid, ordBaseUrl }: Cat21Fund
         p="space.04"
         borderRadius="sm"
         backgroundColor="ink.background-secondary"
-        data-testid="cat21-funding-notice-blocked"
+        data-testid={`cat21-funding-notice-${model.kind}`}
       >
         <styled.span textStyle="label.01">Can’t fund this action</styled.span>
         <styled.p textStyle="body.02" color="ink.text-subdued">

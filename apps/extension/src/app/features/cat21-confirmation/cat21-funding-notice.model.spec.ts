@@ -64,24 +64,31 @@ describe('describeFundingNotice', () => {
     expect(isApproveBlocked(model)).toBe(true);
   });
 
-  it('HOLDS the CTA and fails closed when the preview errors', () => {
+  it('HOLDS the CTA and fails closed when the preview errors (contents unknown)', () => {
+    // A failed scan means we do not know what the coin carries, so a click could
+    // spend an asset without the notice ever showing. Hold the CTA.
     const model = describeFundingNotice({ status: 'error' });
-    expect(model.kind).toBe('blocked');
+    expect(model.kind).toBe('unavailable');
     expect(isApproveBlocked(model)).toBe(true);
   });
 
-  it('blocks with an "add funds" reason on insufficient, CTA held', () => {
-    const model = describeFundingNotice({ status: 'insufficient', assets: null });
-    expect(model.kind).toBe('blocked');
-    if (model.kind === 'blocked') expect(model.reason).toMatch(/Add funds/u);
-    expect(isApproveBlocked(model)).toBe(true);
-  });
-
-  it('blocks with a "content-check failed" reason on expert-required (a scan miss), CTA held', () => {
+  it('HOLDS the CTA on expert-required (a scan miss — contents unknown)', () => {
     const model = describeFundingNotice({ status: 'expert-required', assets: null });
-    expect(model.kind).toBe('blocked');
-    if (model.kind === 'blocked') expect(model.reason).toMatch(/content-checked/u);
+    expect(model.kind).toBe('unavailable');
+    if (model.kind === 'unavailable') expect(model.reason).toMatch(/content-checked/u);
     expect(isApproveBlocked(model)).toBe(true);
+  });
+
+  it('shows "add funds" on insufficient but LEAVES the CTA live (no coin to lose)', () => {
+    // There is provably no covering coin, so a click cannot lose an asset — the
+    // service blocks it, and a cap violation (checked before funding) surfaces
+    // first. Disabling here would hide that more-actionable message AND break the
+    // real-extension caps-manual-rejection proof, which clicks Approve on an
+    // unfunded wallet. Flipping isApproveBlocked to true here is the regression.
+    const model = describeFundingNotice({ status: 'insufficient', assets: null });
+    expect(model.kind).toBe('insufficient');
+    if (model.kind === 'insufficient') expect(model.reason).toMatch(/Add funds/u);
+    expect(isApproveBlocked(model)).toBe(false);
   });
 
   it('NAMES an inscription, links it to its tx, and leaves the CTA live', () => {
