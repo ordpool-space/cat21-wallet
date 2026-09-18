@@ -1,0 +1,13 @@
+{
+  "address": "bc1p85ra9kv6a48yvk4mq4hx08wxk6t32tdjw9ylahergexkymsc3uwsdrx6sh",
+  "confirmations": 134699,
+  "indexed": true,
+  "cats": ["98316dcb21daaa221865208fe0323616ee6dd84e6020b78bc6908e914ac03892i0"],
+  "outpoint": "98316dcb21daaa221865208fe0323616ee6dd84e6020b78bc6908e914ac03892:0",
+  "runes": null,
+  "sat_ranges": [[596964966600565, 596964966601111]],
+  "script_pubkey": "51203d07d2d99aed4e465abb056e679dc6b697152db27149fedf23464d626e188f1d",
+  "spent": false,
+  "transaction": "98316dcb21daaa221865208fe0323616ee6dd84e6020b78bc6908e914ac03892",
+  "value": 546
+}

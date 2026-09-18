@@ -1,0 +1,33 @@
+{
+  "address": "bc1p85ra9kv6a48yvk4mq4hx08wxk6t32tdjw9ylahergexkymsc3uwsdrx6sh",
+  "charms": [],
+  "child_count": 0,
+  "children": [],
+  "content_length": null,
+  "content_type": null,
+  "effective_content_type": null,
+  "fee": 40834,
+  "height": 824205,
+  "id": "98316dcb21daaa221865208fe0323616ee6dd84e6020b78bc6908e914ac03892i0",
+  "metaprotocol": null,
+  "next": "90dcf7825be098d1700014f15c6e4b5f99371d61cc7fc40cd5c3ae9228c64290i0",
+  "number": 0,
+  "parents": [],
+  "previous": null,
+  "properties": {
+    "gallery": [],
+    "attributes": {
+      "title": null,
+      "traits": {}
+    }
+  },
+  "rune": null,
+  "sat": 596964966600565,
+  "satpoint": "98316dcb21daaa221865208fe0323616ee6dd84e6020b78bc6908e914ac03892:0:0",
+  "timestamp": 1704315886,
+  "value": 546,
+  "weight": 705,
+  "size": 258,
+  "minted_by": "bc1p85ra9kv6a48yvk4mq4hx08wxk6t32tdjw9ylahergexkymsc3uwsdrx6sh",
+  "block_hash": "000000000000000000018e3ea447b11385e3330348010e1b2418d0d8ae4e0ac7"
+}

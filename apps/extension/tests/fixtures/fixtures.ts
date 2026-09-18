@@ -35,13 +35,22 @@ export const test = base.extend<TestFixtures>({
   // eslint-disable-next-line no-empty-pattern
   context: async ({}, use) => {
     const pathToExtension = path.join(__dirname, '../../dist');
+    /* HACK -- Cat21: PW_CHROMIUM_EXE lets a local run point at an
+       already-installed Chrome-for-Testing binary (e.g. a newer revision
+       than the one @playwright/test bundles) so the real-extension suite
+       runs without re-downloading the pinned build. Unset in CI, where the
+       bundled browser is provisioned fresh, so CI behaviour is unchanged.
+       On macOS the Linux-only `--use-gl=egl` crashes the GPU process, so it
+       is dropped when an override binary is supplied (local dev). */
+    const overrideExe = process.env.PW_CHROMIUM_EXE || undefined;
     const context = await chromium.launchPersistentContext('', {
       headless: false,
       permissions: ['clipboard-read'],
+      ...(overrideExe ? { executablePath: overrideExe } : {}),
       args: [
         `--disable-extensions-except=${pathToExtension}`,
         `--load-extension=${pathToExtension}`,
-        '--use-gl=egl',
+        ...(overrideExe ? [] : ['--use-gl=egl']),
       ],
     });
     await use(context);

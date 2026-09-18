@@ -1,5 +1,6 @@
 export * from './account.model';
 export * from './activity/activity-level.model';
+export * from './auth.model';
 export * from './input-currency-mode.model';
 export * from './activity/activity-status.model';
 export * from './activity/activity-type.model';
@@ -9,6 +10,9 @@ export * from './assets/asset-id.model';
 export * from './assets/asset-type-guards';
 export * from './assets/asset.model';
 export * from './assets/sip9-asset.model';
+/* HACK -- Cat21: cat21-mime-type model re-exported for the revived
+ * Cat21AssetService (ADR-12). Replaces upstream's removed inscription-mime-type. */
+export * from './cat21-mime-type.model';
 export * from './balance.model';
 export * from './bitcoin.model';
 export * from './bns.model';
@@ -17,9 +21,9 @@ export * from './fees/bitcoin-fees.model';
 export * from './fees/fees.model';
 export * from './fees/stacks-fees.model';
 export * from './fees/transaction-fees.model';
-export * from './inscription-mime-type.model';
 export * from './market.model';
 export * from './money.model';
+export * from './multisig.model';
 export * from './network/network.model';
 export * from './network/network.schema';
 export * from './settings.model';

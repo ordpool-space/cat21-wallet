@@ -1,0 +1,858 @@
+import { type BrowserContext, type Page, type Route, expect } from '@playwright/test';
+import { getTestSoftwareAccountDefaultWalletState } from '@tests/page-object-models/onboarding.page';
+import { execFileSync } from 'node:child_process';
+import { classifyOutpoint } from 'ordpool-sdk/core';
+
+/**
+ * A route can fire while the context is being torn down: the test body finished,
+ * but an in-flight wallet fetch is still routing. The teardown then surfaces as
+ * one of a few Playwright messages, all teardown noise rather than a test
+ * failure: "Target page, context or browser has been closed" (from route.fetch /
+ * route.fulfill), and "Response has been disposed" (when the fetched response is
+ * disposed before `resp.text()` reads it). Swallow exactly those and rethrow
+ * anything else. Wraps every handler below, the four-class scan issues an ord
+ * fetch per funding candidate, so there are more in-flight requests at teardown.
+ */
+function isTeardownNoise(e: unknown): boolean {
+  const message = (e as Error)?.message ?? '';
+  return message.includes('has been closed') || message.includes('has been disposed');
+}
+
+function ignoreClosedContext(
+  handler: (route: Route) => Promise<void>
+): (route: Route) => Promise<void> {
+  return async route => {
+    try {
+      await handler(route);
+    } catch (e) {
+      if (!isTeardownNoise(e)) throw e;
+    }
+  };
+}
+
+/**
+ * Chain-truth harness for the cat21-wallet real-button E2E suite.
+ *
+ * The wallet is driven through its OWN popup UI (Path 2) against a live
+ * regtest chain: bitcoind mines and funds, electrs serves the Esplora API
+ * the wallet's Bitcoin client speaks, and cat21-ord (--index-cat21) is the
+ * indexer we assert against. Nothing is mocked below the button click —
+ * the wallet builds, signs, and broadcasts a real transaction.
+ *
+ * Stack (from ordpool-sdk/e2e/docker-compose.regtest.yml):
+ *   ordpool-e2e-bitcoind  RPC :18443 (user/pass ordpool/ordpool)
+ *   ordpool-e2e-electrs   Esplora HTTP :3000
+ *   ordpool-e2e-cat21-ord ord HTTP :8080  (cat-only index)
+ *   ordpool-e2e-ord-stock ord HTTP :8081  (full ord: sats + runes, no cats)
+ *
+ * The full ord (:8081) is required for EVERY funding-selecting flow, not just
+ * the dirty-coin spec: the SDK core classifies every funding candidate against
+ * both ords (four-class scan), so mint/transfer/offer/buy all read it. Bring it
+ * up with the bootstrap's `--with-ord-stock` flag.
+ *
+ * How the wallet reaches regtest:
+ *   - We switch its `currentNetworkId` to the built-in `sbtcDevenv` config
+ *     (mode='regtest', bitcoinUrl='http://localhost:3010/api/proxy'). That
+ *     makes the keychain derive bcrt addresses AND makes the UTXO/broadcast
+ *     clients resolve a real base URL. (The bare `regtest` built-in is NOT
+ *     usable here: `getMempoolUrlFromUserSettings` returns its base URL only
+ *     for custom networks / sbtcTestnet / sbtcDevenv, so `regtest` yields a
+ *     `null` base and the UTXO fetch silently produces nothing.)
+ *   - Every wallet Bitcoin request is `http://localhost:3010/api/proxy/...`;
+ *     interception strips `/api/proxy` and forwards to electrs at :3000
+ *     (identical Esplora path shapes: /address/:a/utxo, /tx, /tx/:id/hex,
+ *     POST /tx).
+ *   - cat21-ord is hardcoded to ord.cat21.space in the wallet; interception
+ *     rewrites that host -> localhost:8080.
+ */
+
+// Endpoints + container name are env-overridable so the same specs run against
+// the local `docker-compose.regtest.yml` stack (defaults) OR the CI
+// `consumer-environment` stack, which uses identical ports but a
+// `ordpool-e2e-consumer-*` container prefix. Defaults are the local names, so
+// nothing changes for a local run.
+const BITCOIND_CONTAINER = process.env.E2E_BITCOIND_CONTAINER ?? 'ordpool-e2e-bitcoind';
+const MINER_WALLET = 'e2e-miner';
+const ELECTRS_BASE = process.env.E2E_ELECTRS_URL ?? 'http://localhost:3010';
+const CAT21_ORD_BASE = process.env.E2E_CAT21_ORD_URL ?? 'http://localhost:8080';
+// The full ord (`--index-sats --index-runes`, NO --index-cat21), the second
+// `/output` source the four-class funding-safety scan reads (inscriptions +
+// runes + rare sats). The wallet's classify port hits `ord.ordpool.space`; the
+// route rewrite below forwards it here. Kept in step with the SDK seed helpers'
+// REGTEST_ORD_STOCK_URL (same :8081 default).
+const ORD_STOCK_BASE = process.env.E2E_ORD_STOCK_URL ?? 'http://localhost:8081';
+/**
+ * The REAL CAT-21 Bazaar backend (cat21-indexer) running locally against the
+ * regtest chain (BACKEND_NETWORK=regtest, ORD_API_URL -> local cat21-ord,
+ * MariaDB). The create-offer flow publishes a real listing here — no stub.
+ */
+const BAZAAR_BACKEND_BASE = process.env.E2E_BAZAAR_BACKEND_URL ?? 'http://127.0.0.1:3333';
+
+/**
+ * Built-in sBTC-devenv network id (WalletDefaultNetworkConfigurationIds.sbtcDevenv).
+ * mode='regtest' (⇒ bcrt address derivation) and its bitcoinUrl resolves via
+ * `getMempoolUrlFromUserSettings`, unlike the bare `regtest` id.
+ */
+const REGTEST_NETWORK_ID = 'sbtcDevenv';
+/** Host of every wallet Bitcoin request under sbtcDevenv (path-prefixed /api/proxy). */
+const WALLET_BITCOIN_HOST = 'localhost:3010';
+const WALLET_BITCOIN_PATH_PREFIX = '/api/proxy';
+
+// ── bitcoind control (docker exec bitcoin-cli) ──────────────────────────────
+
+function bitcoinCli(args: string[], wallet?: string): string {
+  const base = [
+    'exec',
+    BITCOIND_CONTAINER,
+    'bitcoin-cli',
+    '-regtest',
+    '-rpcuser=ordpool',
+    '-rpcpassword=ordpool',
+  ];
+  const walletArg = wallet ? [`-rpcwallet=${wallet}`] : [];
+  return execFileSync('docker', [...base, ...walletArg, ...args], {
+    encoding: 'utf8',
+  }).trim();
+}
+
+/** Idempotent: create (or load) the miner wallet used to mine + fund. */
+export function ensureMinerWallet(): void {
+  try {
+    bitcoinCli(['createwallet', MINER_WALLET]);
+  } catch {
+    // Already exists on disk — load it (also idempotent-ish; ignore "already loaded").
+    try {
+      bitcoinCli(['loadwallet', MINER_WALLET]);
+    } catch {
+      /* already loaded */
+    }
+  }
+}
+
+export function minerNewAddress(): string {
+  return bitcoinCli(['getnewaddress'], MINER_WALLET);
+}
+
+/** A fresh regtest address controlled by the miner wallet (transfer recipient). */
+export function newRegtestAddress(kind: 'bech32' | 'bech32m' = 'bech32m'): string {
+  return bitcoinCli(['getnewaddress', '', kind], MINER_WALLET);
+}
+
+/**
+ * Create a CAT-21 cat at `address` by broadcasting a real `nLockTime=21`
+ * transaction (output 0 = the cat; change forced to position 1). This mints a
+ * cat OWNED by an address the wallet controls, so transfer/offer flows have a
+ * cat to act on without first driving the mint UI. Mirrors how an external
+ * minter (or ord) would create a cat. Returns the mint txid; the cat's
+ * inscription id is `<txid>i0`.
+ */
+export function mintCatViaRawTx(address: string, amountBtc = 0.00005): string {
+  ensureSpendableMinerFunds();
+  const raw = bitcoinCli(
+    ['createrawtransaction', '[]', JSON.stringify([{ [address]: amountBtc }]), '21'],
+    MINER_WALLET
+  );
+  const funded = JSON.parse(
+    bitcoinCli(
+      ['-named', 'fundrawtransaction', `hexstring=${raw}`, 'options={"changePosition":1}'],
+      MINER_WALLET
+    )
+  ).hex as string;
+  const signed = JSON.parse(bitcoinCli(['signrawtransactionwithwallet', funded], MINER_WALLET))
+    .hex as string;
+  const txid = bitcoinCli(['sendrawtransaction', signed]);
+  mine(1);
+  return txid;
+}
+
+/** Wait for cat21-ord to index the output, then return its cat inscription id. */
+export async function getCatIdAtOutput(txid: string, vout: number): Promise<string> {
+  const out = await waitForCatAtOutput(txid, vout);
+  return out.cats[0];
+}
+
+export function blockHeight(): number {
+  return Number(bitcoinCli(['getblockcount']));
+}
+
+/** Mine `n` blocks to a fresh miner address, returning the new height. */
+export function mine(n: number): number {
+  const addr = minerNewAddress();
+  bitcoinCli(['generatetoaddress', String(n), addr]);
+  return blockHeight();
+}
+
+/**
+ * Ensure the miner wallet has mature spendable coins. Coinbase matures
+ * after 100 confirmations, so on a fresh chain we mine 101 blocks once.
+ * Idempotent: re-mines only enough to keep a spendable balance.
+ */
+export function ensureSpendableMinerFunds(): void {
+  ensureMinerWallet();
+  const balance = Number(bitcoinCli(['getbalance'], MINER_WALLET));
+  if (balance <= 0) {
+    const addr = minerNewAddress();
+    bitcoinCli(['generatetoaddress', '101', addr]);
+  }
+}
+
+/**
+ * Send `amountBtc` to `address` from the miner wallet and confirm it in a
+ * block. Returns the funding txid.
+ */
+export function fundAddress(address: string, amountBtc: number): string {
+  ensureSpendableMinerFunds();
+  const txid = bitcoinCli(['sendtoaddress', address, amountBtc.toFixed(8)], MINER_WALLET);
+  mine(1);
+  return txid;
+}
+
+// ── electrs / cat21-ord polling (node-side fetch, not through the wallet) ───
+
+async function fetchText(url: string): Promise<string> {
+  // `Accept: application/json` is load-bearing for cat21-ord: without it ord
+  // serves HTML. electrs ignores the header and returns JSON regardless.
+  const resp = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!resp.ok) throw new Error(`GET ${url} -> HTTP ${resp.status}`);
+  return await resp.text();
+}
+
+async function fetchJson<T>(url: string): Promise<T> {
+  return JSON.parse(await fetchText(url)) as T;
+}
+
+/** Poll until electrs has indexed up to bitcoind's current tip height. */
+export async function waitElectrsSynced(timeoutMs = 60_000): Promise<void> {
+  const target = blockHeight();
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const tip = Number(await fetchText(`${ELECTRS_BASE}/blocks/tip/height`));
+      if (tip >= target) return;
+    } catch {
+      /* electrs still starting / mid-reorg; retry */
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`electrs did not reach height ${target} within ${timeoutMs}ms`);
+    }
+    await sleep(500);
+  }
+}
+
+export interface EsploraTx {
+  txid: string;
+  locktime: number;
+  vin: { txid: string; vout: number }[];
+  vout: { scriptpubkey?: string; scriptpubkey_address?: string; value: number }[];
+  status: { confirmed: boolean; block_height?: number };
+}
+
+export async function getEsploraTx(txid: string): Promise<EsploraTx> {
+  return fetchJson<EsploraTx>(`${ELECTRS_BASE}/tx/${txid}`);
+}
+
+export interface EsploraUtxo {
+  txid: string;
+  vout: number;
+  value: number;
+  status: { confirmed: boolean };
+}
+
+export async function getAddressUtxos(address: string): Promise<EsploraUtxo[]> {
+  return fetchJson<EsploraUtxo[]>(`${ELECTRS_BASE}/address/${address}/utxo`);
+}
+
+/** Poll electrs until a confirmed UTXO of at least `minValue` sats exists at `address`. */
+export async function waitForUtxoAt(
+  address: string,
+  minValue = 1,
+  timeoutMs = 60_000
+): Promise<EsploraUtxo> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const utxos = await getAddressUtxos(address);
+      const hit = utxos.find(u => u.status.confirmed && u.value >= minValue);
+      if (hit) return hit;
+    } catch {
+      /* retry */
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`no confirmed UTXO >= ${minValue} at ${address} within ${timeoutMs}ms`);
+    }
+    await sleep(500);
+  }
+}
+
+export interface Cat21OrdOutput {
+  // cat21-ord re-emits ord's `inscriptions` array as `cats`; each entry is
+  // an inscription-id string (`<64hex>i<n>`). Non-empty ⇒ the output carries
+  // at least one cat.
+  cats: string[];
+  indexed: boolean;
+  // The address currently holding the output (the cat's owner after a move).
+  address?: string;
+}
+
+/**
+ * Poll cat21-ord until it has indexed a given output at all (`indexed:true`),
+ * regardless of whether it carries a cat. The mint's `classifyOutpoint`
+ * content-scan queries cat21-ord for each funding UTXO, so the funding
+ * output must be indexed before the wallet can select it.
+ */
+export async function waitOutputIndexed(
+  txid: string,
+  vout: number,
+  timeoutMs = 60_000
+): Promise<void> {
+  const url = `${CAT21_ORD_BASE}/output/${txid}:${vout}`;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const out = await fetchJson<Cat21OrdOutput>(url);
+      if (out.indexed) return;
+    } catch {
+      /* not indexed yet; retry */
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`cat21-ord did not index ${txid}:${vout} within ${timeoutMs}ms`);
+    }
+    await sleep(1000);
+  }
+}
+
+/**
+ * Poll the SDK's four-class classifier (via the local ords the wallet's funding
+ * guard also reads) until `outpoint` reads dirty on `stableReads` CONSECUTIVE
+ * checks. A seed helper confirms its asset is indexed on ITS side, but the
+ * wallet's guard only excludes a coin once BOTH ords have the asset for the
+ * guard's OWN read, and while ord-stock is still settling a block that read can
+ * flip dirty for one probe and back to clean for the next. A single dirty read
+ * would let the mint fire during that window and spend a genuinely dirty coin.
+ * Requiring several consecutive dirty reads waits for ord-stock to settle
+ * (hammering a synced ord-stock is 100% stable), so the guard's mint-time read
+ * is deterministic — a wait on state, not a fixed sleep. Runs in the node test
+ * process, so it hits the local ords directly (browser-context route rewrites
+ * don't apply here).
+ *
+ * Not a production concern: mainnet ord.ordpool.space is always fully synced, so
+ * this settling window exists only on a regtest ord indexing fresh blocks.
+ */
+export async function waitOutpointClassifiedDirty(
+  outpoint: string,
+  timeoutMs = 30_000,
+  stableReads = 3
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let streak = 0;
+  let last = 'no attempt';
+  for (;;) {
+    try {
+      const c = await classifyOutpoint(outpoint, {
+        ordApiUrl: ORD_STOCK_BASE,
+        cat21OrdApiUrl: CAT21_ORD_BASE,
+      });
+      if (!c.clean) {
+        if (++streak >= stableReads) return;
+      } else {
+        streak = 0;
+        last = 'classified clean';
+      }
+    } catch (e) {
+      streak = 0;
+      last = (e as Error).message;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `outpoint ${outpoint} never classified dirty ${stableReads}x in a row within ${timeoutMs}ms (last: ${last})`
+      );
+    }
+    await sleep(400);
+  }
+}
+
+/**
+ * The clean counterpart of {@link waitOutpointClassifiedDirty}: wait until the
+ * guard's OWN merged classify reads `outpoint` as CLEAN (indexed AND no assets)
+ * on `stableReads` consecutive checks. A freshly-mined coin is not immediately
+ * ord-indexed, and `classifyOutpoint` throws / reads not-indexed until ord-stock
+ * settles the block — so a funding preview that runs before this wait would see
+ * `expert-required` (scan pending) instead of `ready`. Requiring several stable
+ * clean reads makes the popup's preview deterministically resolve to `ready`.
+ * Runs in the node test process, so it hits the local ords directly.
+ */
+export async function waitOutpointClassifiedClean(
+  outpoint: string,
+  timeoutMs = 30_000,
+  stableReads = 3
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let streak = 0;
+  let last = 'no attempt';
+  for (;;) {
+    try {
+      const c = await classifyOutpoint(outpoint, {
+        ordApiUrl: ORD_STOCK_BASE,
+        cat21OrdApiUrl: CAT21_ORD_BASE,
+      });
+      if (c.clean) {
+        if (++streak >= stableReads) return;
+      } else {
+        streak = 0;
+        last = c.indexed ? 'classified dirty' : 'not indexed yet';
+      }
+    } catch (e) {
+      streak = 0;
+      last = (e as Error).message;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `outpoint ${outpoint} never classified clean ${stableReads}x in a row within ${timeoutMs}ms (last: ${last})`
+      );
+    }
+    await sleep(400);
+  }
+}
+
+/**
+ * Poll cat21-ord's `/output/<txid>:<vout>` until it reports at least one
+ * cat (i.e. the indexer has processed the block and recognized the mint).
+ * This is the indexer-truth half of every proof.
+ */
+export async function waitForCatAtOutput(
+  txid: string,
+  vout: number,
+  timeoutMs = 90_000
+): Promise<Cat21OrdOutput> {
+  const url = `${CAT21_ORD_BASE}/output/${txid}:${vout}`;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const out = await fetchJson<Cat21OrdOutput>(url);
+      if (out.cats && out.cats.length > 0) return out;
+    } catch {
+      /* not indexed yet; retry */
+    }
+    if (Date.now() > deadline) {
+      throw new Error(`cat21-ord reported no cat at ${txid}:${vout} within ${timeoutMs}ms`);
+    }
+    await sleep(1000);
+  }
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+export interface BackendListing {
+  catNumber: number;
+  askSats: number;
+  payTo: string;
+  ordinalsAddress: string;
+  catTxid: string;
+  catVout: number;
+  network: string;
+}
+
+/**
+ * Read a cat's listing back from the REAL Bazaar backend
+ * (`GET /api/v1/listings/cat/:catNumber`). Returns null on 404 (no listing).
+ * This is how a create-offer test proves the listing actually persisted in the
+ * backend's database, not that a stub echoed it back.
+ */
+export async function getBackendListing(catNumber: number): Promise<BackendListing | null> {
+  const resp = await fetch(`${BAZAAR_BACKEND_BASE}/api/v1/listings/cat/${catNumber}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (resp.status === 404) return null;
+  if (!resp.ok) throw new Error(`GET listing/cat/${catNumber} -> HTTP ${resp.status}`);
+  return (await resp.json()) as BackendListing;
+}
+
+/** Poll the real backend until it reports a listing for `catNumber`. */
+export async function waitForBackendListing(
+  catNumber: number,
+  timeoutMs = 30_000
+): Promise<BackendListing> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const listing = await getBackendListing(catNumber).catch(() => null);
+    if (listing) return listing;
+    if (Date.now() > deadline) {
+      throw new Error(
+        `backend never reported a listing for cat #${catNumber} within ${timeoutMs}ms`
+      );
+    }
+    await sleep(500);
+  }
+}
+
+/** cat21-ord cat number for an inscription id (needed to build a buy ask link). */
+export async function getCatNumber(catId: string): Promise<number> {
+  const cat = await fetchJson<{ number: number }>(`${CAT21_ORD_BASE}/cat/${catId}`);
+  return cat.number;
+}
+
+/**
+ * Raw cat21-ord `/output/<outpoint>` JSON, unparsed. Feeds the cat-UTXO
+ * protection proof: the spec parses this with the wallet's REAL `ordOutputSchema`
+ * to prove the schema agrees with what a real cat21-ord actually emits (the
+ * mainnet-gated probe is otherwise never exercised against real infra).
+ */
+export async function getOrdOutputByOutpoint(outpoint: string): Promise<unknown> {
+  return fetchJson<unknown>(`${CAT21_ORD_BASE}/output/${outpoint}`);
+}
+
+export interface BackendBid {
+  network: string;
+  catTxid: string;
+  catVout: number;
+  bidSats: number;
+  buyerOrdinalsAddress: string;
+  buyerPaymentAddress: string;
+  sellerPaymentAddress: string;
+  psbtBase64: string;
+}
+
+/**
+ * Poll the REAL Bazaar backend until it reports at least one bid at the outpoint
+ * (`GET /api/v1/bids/outpoint/:catTxid/:catVout` -> `BidDto[]`). Proves the
+ * wallet's buy-offer bid actually persisted in the backend, not a stub echo.
+ */
+export async function waitForBackendBids(
+  catTxid: string,
+  catVout: number,
+  timeoutMs = 30_000
+): Promise<BackendBid[]> {
+  const url = `${BAZAAR_BACKEND_BASE}/api/v1/bids/outpoint/${catTxid}/${catVout}`;
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      const bids = await fetchJson<BackendBid[]>(url);
+      if (bids.length > 0) return bids;
+    } catch {
+      /* retry */
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `backend never reported a bid for ${catTxid}:${catVout} within ${timeoutMs}ms`
+      );
+    }
+    await sleep(500);
+  }
+}
+
+/**
+ * Click the Cat21 confirmation dialog's Approve button until the wallet
+ * broadcasts (a new txid lands in `capture.txids`), then return that txid.
+ *
+ * The confirm route fetches the account's UTXOs asynchronously, so the
+ * pipeline's funding selection can lose a race with that fetch on the first
+ * click (surfacing as the transient `funding-pick-failed`). We re-click while
+ * that is the only error — each render re-binds the approve handler to
+ * freshly-loaded state — until broadcast. Any other error fails loudly. The
+ * service guards against double-submit, so repeated clicks are safe.
+ *
+ * For broadcasting flows only (mint, transfer, accept-offer). create-offer
+ * does not broadcast; its success is a Bazaar-publish UI state.
+ */
+export async function approveUntilBroadcast(
+  page: Page,
+  capture: BroadcastCapture,
+  { timeoutMs = 90_000 }: { timeoutMs?: number } = {}
+): Promise<string> {
+  const approve = page.getByTestId('cat21-confirmation-approve');
+  const errorLabel = page.getByTestId('cat21-confirmation-error');
+  await approve.waitFor({ state: 'visible' });
+  const before = capture.txids.length;
+  await expect
+    .poll(
+      async () => {
+        if (capture.txids.length > before) return true;
+        if (await errorLabel.isVisible()) {
+          const detail = (await errorLabel.textContent()) ?? '';
+          // Transient races only: funding UTXOs / cat metadata not yet loaded
+          // when the first click landed. Anything else is a real rejection.
+          if (
+            !/funding-pick-failed|Insufficient funds|cat-utxo-resolve-failed|cat-data-not-loaded/.test(
+              detail
+            )
+          ) {
+            throw new Error(`cat21 action rejected: ${detail}`);
+          }
+        }
+        if (await approve.isEnabled().catch(() => false)) {
+          await approve.click().catch(() => undefined);
+        }
+        return false;
+      },
+      { timeout: timeoutMs, intervals: [1500], message: 'wallet never broadcast a tx' }
+    )
+    .toBe(true);
+  return capture.txids[capture.txids.length - 1];
+}
+
+// ── wallet regtest wiring ───────────────────────────────────────────────────
+
+/**
+ * Broadcast capture: the route interceptor records the txid returned by
+ * electrs for the wallet's `POST /tx`, so the spec can assert the exact
+ * transaction the wallet built — no guessing which mempool entry is ours.
+ */
+export interface BroadcastCapture {
+  txids: string[];
+  lastRawHex: string | null;
+  /**
+   * Count of electrs `/address/<a>/utxo` responses served to the wallet — a
+   * signal that the account's UTXOs have been fetched at least once.
+   */
+  utxoResponses: number;
+  /**
+   * Bodies POSTed to the CAT-21 Bazaar (backend2.cat21.space), captured so a
+   * create-offer test can assert the published listing. The Bazaar backend is
+   * not part of the regtest stack, so its endpoints are stubbed to succeed.
+   */
+  bazaarPosts: { path: string; body: string }[];
+}
+
+export function newCapture(): BroadcastCapture {
+  return { txids: [], lastRawHex: null, utxoResponses: 0, bazaarPosts: [] };
+}
+
+/**
+ * Install the regtest route rewrites on the browser context:
+ *   - localhost:18443  -> localhost:3010  (wallet Bitcoin client -> electrs)
+ *   - ord.cat21.space  -> localhost:8080  (wallet cat21-ord client)
+ *   - ord.ordpool.space -> localhost:8081 (wallet full-ord classify scan)
+ *   - mempool.space fee endpoint -> a static regtest fee (avoids a hang if
+ *     the wallet prefetches recommended fees; the mint uses the form's rate)
+ *
+ * The interceptor proxies via `route.fetch` (server-side) and fulfils with
+ * the fetched response, capturing the broadcast txid on the `POST /tx` path.
+ */
+export async function installRegtestRoutes(
+  context: BrowserContext,
+  capture: BroadcastCapture
+): Promise<void> {
+  // Wallet Bitcoin client (electrs Esplora): strip the /api/proxy prefix the
+  // sbtcDevenv bitcoinUrl carries and forward to electrs at the same host.
+  await context.route(
+    url => url.host === WALLET_BITCOIN_HOST && url.pathname.startsWith(WALLET_BITCOIN_PATH_PREFIX),
+    ignoreClosedContext(async route => {
+      const original = new URL(route.request().url());
+      const strippedPath = original.pathname.slice(WALLET_BITCOIN_PATH_PREFIX.length);
+      const target = `${ELECTRS_BASE}${strippedPath}${original.search}`;
+      const isBroadcast = route.request().method() === 'POST' && strippedPath === '/tx';
+      if (isBroadcast) {
+        capture.lastRawHex = route.request().postData();
+      }
+      const resp = await route.fetch({ url: target });
+      const bodyText = await resp.text();
+      if (isBroadcast && resp.ok()) capture.txids.push(bodyText.trim());
+      if (route.request().method() === 'GET' && /\/address\/[^/]+\/utxo$/.test(strippedPath)) {
+        capture.utxoResponses += 1;
+      }
+      await route.fulfill({ response: resp, body: bodyText });
+    })
+  );
+
+  // cat21-ord client host rewrite.
+  await context.route(
+    url => url.hostname === 'ord.cat21.space',
+    ignoreClosedContext(async route => {
+      const target = route
+        .request()
+        .url()
+        .replace('https://ord.cat21.space', CAT21_ORD_BASE)
+        .replace('http://ord.cat21.space', CAT21_ORD_BASE);
+      const resp = await route.fetch({ url: target });
+      const bodyText = await resp.text();
+      await route.fulfill({ response: resp, body: bodyText });
+    })
+  );
+
+  // Full-ord host rewrite: the four-class funding-safety scan reads
+  // inscriptions + runes + rare sats from `ord.ordpool.space`. cat21-ord
+  // (--index-cat21) cannot answer these, so every cat21 action that selects
+  // funding hits this host per candidate; forward it to the stock ord (:8081).
+  await context.route(
+    url => url.hostname === 'ord.ordpool.space',
+    ignoreClosedContext(async route => {
+      const target = route
+        .request()
+        .url()
+        .replace('https://ord.ordpool.space', ORD_STOCK_BASE)
+        .replace('http://ord.ordpool.space', ORD_STOCK_BASE);
+      const resp = await route.fetch({ url: target });
+      const bodyText = await resp.text();
+      await route.fulfill({ response: resp, body: bodyText });
+    })
+  );
+
+  // CAT-21 Bazaar: forward backend2.cat21.space to the REAL cat21-indexer
+  // backend running locally against regtest. The listing POST (with its
+  // BIP-322 session headers + body) is replayed verbatim; the backend verifies
+  // the session, cross-checks cat ownership against the local cat21-ord, and
+  // persists the listing in MariaDB. No stub.
+  await context.route(
+    url => url.hostname === 'backend2.cat21.space',
+    ignoreClosedContext(async route => {
+      const req = route.request();
+      const target = req.url().replace(/https?:\/\/backend2\.cat21\.space/, BAZAAR_BACKEND_BASE);
+      if (req.method() === 'POST') {
+        capture.bazaarPosts.push({ path: new URL(req.url()).pathname, body: req.postData() ?? '' });
+      }
+      const resp = await route.fetch({ url: target });
+      const bodyText = await resp.text();
+      await route.fulfill({ response: resp, body: bodyText });
+    })
+  );
+
+  // Static fee estimate: keep the popup responsive if it prefetches fees.
+  await context.route(
+    url => url.pathname.includes('/fees/recommended'),
+    ignoreClosedContext(async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          fastestFee: 5,
+          halfHourFee: 5,
+          hourFee: 4,
+          economyFee: 2,
+          minimumFee: 1,
+        }),
+      });
+    })
+  );
+}
+
+/**
+ * Switch the signed-in wallet to the built-in regtest network by patching
+ * `currentNetworkId` in the persisted redux root, then reloading so
+ * redux-persist rehydrates. The networks selector merges
+ * `defaultNetworksKeyedById`, so `regtest` resolves to the built-in config
+ * without adding a custom entity.
+ */
+export async function switchToRegtestNetwork(page: Page, extensionId: string): Promise<void> {
+  await page.evaluate(async networkId => {
+    const stored = await chrome.storage.local.get('persist:root');
+    const root = stored['persist:root'];
+    root.networks = { ...root.networks, currentNetworkId: networkId };
+    await chrome.storage.local.set({ 'persist:root': root });
+  }, REGTEST_NETWORK_ID);
+  await page.goto(`chrome-extension://${extensionId}/index.html`);
+}
+
+/**
+ * Seed the signed-in wallet state ALREADY on regtest. Used when a test wants
+ * the wallet to boot straight onto regtest (avoids a mainnet render pass).
+ */
+export function regtestWalletState(): object {
+  const state = getTestSoftwareAccountDefaultWalletState() as {
+    networks: { ids: string[]; entities: object; currentNetworkId: string };
+  };
+  return {
+    ...state,
+    networks: { ...state.networks, currentNetworkId: REGTEST_NETWORK_ID },
+  };
+}
+
+/**
+ * Stash a Cat21 request in `chrome.storage.session` under the key the confirm
+ * route reads (`cat21-request-<id>`), the same way the NMH popup relay does
+ * for Path 3. The route is then reached with `?cat21RequestId=<id>`. With an
+ * intent `mode` other than `'autonomous'` the route does NOT auto-confirm, so
+ * the test clicks the real Approve button (a manual confirmation reached via
+ * the MCP transport). Requires an extension page to be loaded (chrome.* APIs).
+ */
+export async function stashCat21Request(
+  page: Page,
+  requestId: string,
+  intent: unknown,
+  transport = 'mcp-nmh'
+): Promise<void> {
+  await page.evaluate(
+    async ({ key, value }) => {
+      await chrome.storage.session.set({ [key]: value });
+    },
+    { key: `cat21-request-${requestId}`, value: { intent, transport } }
+  );
+}
+
+/**
+ * Read the wallet's own regtest address from the Receive UI (ground truth —
+ * whatever the keychain actually derives on regtest, no assumptions about
+ * coin type). `kind` selects the native-segwit funding address (`btc`) or
+ * the taproot ordinals address (`btc-taproot`) where minted cats land.
+ */
+export async function readReceiveAddress(
+  page: Page,
+  extensionId: string,
+  kind: 'btc' | 'btc-taproot'
+): Promise<string> {
+  await page.goto(`chrome-extension://${extensionId}/index.html#/receive/${kind}`);
+  const displayer = page.getByTestId('address-displayer');
+  await displayer.waitFor({ state: 'visible' });
+  // AddressDisplayer renders the address as 4-char <span> groups with a CSS
+  // column gap (no literal spaces), so textContent is the raw address.
+  const text = (await displayer.textContent()) ?? '';
+  const address = text.trim();
+  if (!address) throw new Error(`empty ${kind} address in Receive UI`);
+  return address;
+}
+
+/**
+ * Capture the Path-3 result envelope the popup posts on
+ * `chrome.runtime.sendMessage` (source `cat21-result-bus`) when the autoconfirm
+ * finalises. This is how payload-returning actions (create-offer -> a listing,
+ * buy -> a bid) surface their outcome to the agent; unlike mint/transfer/accept
+ * they do not broadcast, so there is no txid to capture.
+ *
+ * NO MOCK: this installs a real `chrome.runtime.onMessage` listener in the
+ * extension's own MV3 service worker and reads back the real envelope the
+ * production `postCat21Result` emits. Call it BEFORE opening the confirm route so
+ * the listener is armed when the autoconfirm fires.
+ */
+export async function captureCat21Result(
+  context: BrowserContext,
+  requestId: string,
+  { timeoutMs = 90_000 }: { timeoutMs?: number } = {}
+): Promise<{ ok: boolean; value?: Record<string, unknown> }> {
+  let [sw] = context.serviceWorkers();
+  if (!sw) sw = await context.waitForEvent('serviceworker');
+
+  await sw.evaluate(() => {
+    const g = self as unknown as {
+      __cat21Results?: Record<string, unknown>;
+      __cat21ResultListenerInstalled?: boolean;
+    };
+    g.__cat21Results = g.__cat21Results ?? {};
+    if (!g.__cat21ResultListenerInstalled) {
+      g.__cat21ResultListenerInstalled = true;
+      chrome.runtime.onMessage.addListener((msg: unknown) => {
+        const m = msg as { source?: string; requestId?: string; result?: unknown };
+        if (m && m.source === 'cat21-result-bus' && typeof m.requestId === 'string') {
+          (g.__cat21Results as Record<string, unknown>)[m.requestId] = m.result;
+        }
+        return undefined;
+      });
+    }
+  });
+
+  const start = Date.now();
+  for (;;) {
+    const captured = await sw.evaluate((rid: string) => {
+      const g = self as unknown as { __cat21Results?: Record<string, unknown> };
+      return (g.__cat21Results?.[rid] ?? null) as {
+        ok: boolean;
+        value?: Record<string, unknown>;
+      } | null;
+    }, requestId);
+    if (captured) return captured;
+    if (Date.now() - start > timeoutMs) {
+      throw new Error(`cat21 result for ${requestId} never posted within ${timeoutMs}ms`);
+    }
+    await new Promise(res => setTimeout(res, 1000));
+  }
+}

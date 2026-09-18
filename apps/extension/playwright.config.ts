@@ -6,6 +6,12 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   globalSetup: './tests/global-playwright-setup.js',
   testDir: './tests',
+  // The cat21-chain/ chain-truth specs need a live regtest stack (bitcoind +
+  // electrs + cat21-ord) and run via playwright.config.chain.ts, NOT here. The
+  // CI caps lane invokes `playwright test tests/specs/cat21`, whose path filter
+  // also prefix-matches `tests/specs/cat21-chain/`; ignore them so that lane
+  // never tries to run them without the stack.
+  testIgnore: ['**/cat21-chain/**'],
   timeout: 30 * 1000,
   expect: { timeout: 5000 },
   // Extensions live cross-worker meaning `chrome.storage` is shared. Disabling

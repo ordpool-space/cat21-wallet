@@ -24,7 +24,10 @@ import { NetworkListSwitch } from './components/network-list-switch';
 
 const defaultNetworkIds = Object.values(WalletDefaultNetworkConfigurationIds) as string[];
 
-export function SelectNetwork() {
+// HACK -- Cat21: removed `export` (upstream Stacks/Ledger/Network/Swap surface unrouted by ADR-1 BTC-L1-only scope). HARD RULE #5 — restore on consumer wire-up.
+// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
+function SelectNetwork() {
   const navigate = useNavigate();
   const networks = useNetworks();
   const networksActions = useNetworksActions();
