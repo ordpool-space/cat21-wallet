@@ -372,6 +372,49 @@ export async function waitOutpointClassifiedDirty(
 }
 
 /**
+ * The clean counterpart of {@link waitOutpointClassifiedDirty}: wait until the
+ * guard's OWN merged classify reads `outpoint` as CLEAN (indexed AND no assets)
+ * on `stableReads` consecutive checks. A freshly-mined coin is not immediately
+ * ord-indexed, and `classifyOutpoint` throws / reads not-indexed until ord-stock
+ * settles the block — so a funding preview that runs before this wait would see
+ * `expert-required` (scan pending) instead of `ready`. Requiring several stable
+ * clean reads makes the popup's preview deterministically resolve to `ready`.
+ * Runs in the node test process, so it hits the local ords directly.
+ */
+export async function waitOutpointClassifiedClean(
+  outpoint: string,
+  timeoutMs = 30_000,
+  stableReads = 3
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let streak = 0;
+  let last = 'no attempt';
+  for (;;) {
+    try {
+      const c = await classifyOutpoint(outpoint, {
+        ordApiUrl: ORD_STOCK_BASE,
+        cat21OrdApiUrl: CAT21_ORD_BASE,
+      });
+      if (c.clean) {
+        if (++streak >= stableReads) return;
+      } else {
+        streak = 0;
+        last = c.indexed ? 'classified dirty' : 'not indexed yet';
+      }
+    } catch (e) {
+      streak = 0;
+      last = (e as Error).message;
+    }
+    if (Date.now() > deadline) {
+      throw new Error(
+        `outpoint ${outpoint} never classified clean ${stableReads}x in a row within ${timeoutMs}ms (last: ${last})`
+      );
+    }
+    await sleep(400);
+  }
+}
+
+/**
  * Poll cat21-ord's `/output/<txid>:<vout>` until it reports at least one
  * cat (i.e. the indexer has processed the block and recognized the mint).
  * This is the indexer-truth half of every proof.
