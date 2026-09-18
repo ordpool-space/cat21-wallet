@@ -105,11 +105,16 @@ test.describe('CAT-21 approval dialogs (UX round 2 capture)', () => {
       await page.getByTestId('cat21-confirmation-rows').waitFor({ state: 'visible' });
       // A cat-touching action draws the cat once its cat21-ord data resolves.
       // Wait for it so the frame captures the image rather than racing the (cold,
-      // first-fetch) query; mint has no cat and renders none.
+      // first-fetch) query; mint has no cat and renders none. TOLERANT: the cat
+      // is fetched from the real ord.cat21.space (this capture installs no
+      // regtest routes), so if that host is slow or unreachable in CI, shoot the
+      // dialog without the image rather than failing the lane. The dialog is
+      // fully functional without it; the image is an enhancement.
       if (intent.catId != null || intent.expectedCatId != null) {
         await page
           .getByTestId('cat21-confirmation-cat-image')
-          .waitFor({ state: 'visible', timeout: 15_000 });
+          .waitFor({ state: 'visible', timeout: 15_000 })
+          .catch(() => undefined);
       }
       await page.screenshot({ path: path.join(OUT_DIR, `${name}-popup-390.png`) });
     }
