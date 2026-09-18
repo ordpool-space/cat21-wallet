@@ -28,7 +28,7 @@ import type { Cat21Intent, Cat21MintIntent } from '@background/cat21/types';
  * and decides). The autonomous path passes none and keeps the blocking default;
  * the two are the same core, split only by what the caller passes.
  */
-export interface Cat21FundingPreview {
+interface Cat21FundingPreview {
   status: MintStatus;
   /** Named assets on the auto-selected coin; set only when status is asset-notice. */
   assets: UtxoAssetDetail | null;

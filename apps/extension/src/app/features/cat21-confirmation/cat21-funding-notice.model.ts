@@ -10,7 +10,7 @@ import type { MintStatus, UtxoAssetDetail } from 'ordpool-sdk/core';
  * that can't be decided synchronously: a rune's etching-transaction link, which
  * needs an ord lookup (`resolveRuneEtchingTxid`).
  */
-export type FundingNoticeModel =
+type FundingNoticeModel =
   | { kind: 'none' }
   | { kind: 'blocked'; reason: string }
   | { kind: 'assets'; intro: string; rows: FundingAssetRow[] };
