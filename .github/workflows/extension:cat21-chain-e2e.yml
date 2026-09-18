@@ -235,6 +235,10 @@ jobs:
           REGTEST_ORD_STOCK_CONTAINER: ordpool-e2e-consumer-ord-stock
           REGTEST_ORD_STOCK_URL: http://localhost:8081
           REGTEST_ELECTRS_URL: ${{ env.E2E_ELECTRS_URL }}
+          # Write the confirm-dialog capture PNGs (funding-safety states, the four
+          # cat-touching dialogs) under test-results so they upload as artifacts
+          # for review. Relative to this step's working-directory (apps/extension).
+          CAT21_UX_CAPTURE_DIR: test-results/ux-capture
         run: |
           xvfb-run --auto-servernum --server-args='-screen 0 1280x900x24' \
             pnpm exec playwright test --config playwright.config.chain.ts
