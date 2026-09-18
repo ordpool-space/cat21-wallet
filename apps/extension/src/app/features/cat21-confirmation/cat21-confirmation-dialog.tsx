@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import { Flex, styled } from 'leather-styles/jsx';
 
@@ -68,6 +68,20 @@ interface Cat21ConfirmationDialogProps {
    * for mint (no cat yet) or when the cat cannot be drawn.
    */
   catImageSrc?: string;
+  /**
+   * The funding-safety notice, rendered between the detail rows and the action
+   * buttons. Set from the container's `simulate*` preview: names what a flagged
+   * funding coin carries (asset-notice), or why the action can't be funded
+   * (insufficient / scan-failed). Absent on a clean funding, so the safe dialog
+   * stays byte-identical to the common path.
+   */
+  fundingNotice?: ReactNode;
+  /**
+   * Disables the approve button because funding can't proceed (insufficient
+   * funds, or a coin couldn't be content-checked). The reason is shown inside
+   * `fundingNotice`; this only gates the button. Reject stays enabled.
+   */
+  approveDisabled?: boolean;
   /** Called when the user clicks the approve button. */
   onApprove(): void;
   /** Called when the user clicks the reject button. */
@@ -99,7 +113,16 @@ interface Cat21ConfirmationDialogProps {
  *     buttons. That's it.
  */
 export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
-  const { copy, catImageSrc, onApprove, onReject, isSubmitting, submitError } = props;
+  const {
+    copy,
+    catImageSrc,
+    fundingNotice,
+    approveDisabled,
+    onApprove,
+    onReject,
+    isSubmitting,
+    submitError,
+  } = props;
   return (
     <Content>
       <Flex direction="column" gap="space.05" px="space.05">
@@ -187,6 +210,7 @@ export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
             );
           })}
         </Flex>
+        {fundingNotice}
         {submitError ? (
           <ErrorLabel data-testid="cat21-confirmation-error">{submitError}</ErrorLabel>
         ) : null}
@@ -209,10 +233,10 @@ export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
             // a red "you can't continue" message reads as a confident "go" it
             // is not. Outline signals "not the confident action" while keeping
             // the retry path open.
-            variant={submitError ? 'outline' : 'solid'}
+            variant={submitError || approveDisabled ? 'outline' : 'solid'}
             flexGrow={1}
             onClick={onApprove}
-            disabled={isSubmitting}
+            disabled={isSubmitting || approveDisabled}
             type="button"
             data-testid="cat21-confirmation-approve"
           >

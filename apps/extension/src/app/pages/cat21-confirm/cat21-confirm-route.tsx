@@ -4,15 +4,22 @@ import { useLocation, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Flex, styled } from 'leather-styles/jsx';
 
-import { getCat21OrdApiClient, mapOrdCat21ToCat21Asset } from '@leather.io/services';
+import { getBitcoinExplorerLink } from '@leather.io/features';
+import {
+  getCat21OrdApiClient,
+  getOrdpoolOrdBasePath,
+  mapOrdCat21ToCat21Asset,
+} from '@leather.io/services';
 import { Button } from '@leather.io/ui';
 
 import { Content } from '@app/components/layout';
 import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat21-confirmation-copy';
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
 import { humanizeCat21Error } from '@app/features/cat21-confirmation/cat21-error-copy';
+import { Cat21FundingNotice } from '@app/features/cat21-confirmation/cat21-funding-notice';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { useHasActiveInMemoryWalletSecretKey } from '@app/store/in-memory-key/in-memory-key.selectors';
+import { useCurrentNetworkState } from '@app/store/networks/networks.hooks';
 import { postCat21Result } from '@background/cat21/cat21-result-bus';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
 import type { Cat21Transport } from '@background/cat21/mode-resolver';
@@ -22,6 +29,7 @@ import type { Cat21Intent, Cat21RpcBidSuccess, Cat21RpcResult } from '@backgroun
 import { usePublishToBazaar } from '../cat21-create-offer/use-publish-to-bazaar';
 import { Cat21BazaarPublishStatus } from './cat21-bazaar-publish-status';
 import { extractCatIdHint } from './extract-cat-id-hint';
+import { useCat21FundingPreview } from './use-cat21-funding-preview';
 import { useCat21RequestFromUrl } from './use-cat21-request-from-url';
 import { useCat21RpcDeps } from './use-cat21-rpc-deps';
 
@@ -144,6 +152,14 @@ export function Cat21ConfirmRoute() {
     enabled: catIdHint != null,
   });
   const catQueryLoading = catQuery.isLoading;
+
+  // Pre-approve funding picture (mint wired first). Runs the SAME `simulateMint`
+  // the manual execute repeats, so the notice the human reads cannot disagree
+  // with what Approve does. `ready` renders nothing (the safe dialog stays
+  // byte-identical to the common path); `asset-notice` names what the funding
+  // coin carries; `insufficient` / `expert-required` block the CTA with a reason.
+  const { chain } = useCurrentNetworkState();
+  const { preview: fundingPreview } = useCat21FundingPreview(intent, deps);
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
@@ -380,10 +396,35 @@ export function Cat21ConfirmRoute() {
   const renderedCat = catQuery.data ? mapOrdCat21ToCat21Asset(catQuery.data).thumbnailSrc : '';
   const catImageSrc = renderedCat || undefined;
 
+  // The funding notice + CTA gate. Only mint has a preview today (others resolve
+  // `undefined` here → no notice, CTA unchanged). `ready`/loading leave the
+  // dialog byte-identical to the shipped safe screenshots; `asset-notice` shows
+  // the named-asset block with the CTA still live (a separate-payment-address
+  // wallet lets the human proceed); `insufficient`/`expert-required` disable the
+  // CTA and explain why.
+  const fundingNotice = fundingPreview ? (
+    <Cat21FundingNotice
+      status={fundingPreview.status}
+      assets={fundingPreview.assets}
+      linkForTxid={txid =>
+        getBitcoinExplorerLink({
+          id: txid,
+          type: 'tx',
+          networkPreference: chain.bitcoin.bitcoinNetwork,
+        })
+      }
+      ordBaseUrl={getOrdpoolOrdBasePath()}
+    />
+  ) : undefined;
+  const approveDisabled =
+    fundingPreview?.status === 'insufficient' || fundingPreview?.status === 'expert-required';
+
   return (
     <Cat21ConfirmationDialog
       copy={copy}
       catImageSrc={catImageSrc}
+      fundingNotice={fundingNotice}
+      approveDisabled={approveDisabled}
       isSubmitting={isSubmitting}
       submitError={error}
       onApprove={() => confirm(intent)}

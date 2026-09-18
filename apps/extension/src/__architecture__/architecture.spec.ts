@@ -1247,6 +1247,45 @@ describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () =>
   });
 });
 
+describe('funding-safety notice — the manual pre-approve funding preview', () => {
+  const ROUTE = 'apps/extension/src/app/pages/cat21-confirm/cat21-confirm-route.tsx';
+  const HOOK = 'apps/extension/src/app/pages/cat21-confirm/use-cat21-funding-preview.ts';
+  const SERVICE = 'apps/extension/src/background/cat21/cat21-rpc.service.ts';
+
+  it('the confirm route runs the preview and passes the notice + CTA gate to the dialog', () => {
+    // The dialog must be handed the funding notice + the approve-disable derived
+    // from the `simulate*` status. Dropping either would either hide the
+    // named-asset warning or let a user approve an unfundable action.
+    const src = read(join(REPO_ROOT, ROUTE));
+    expect(src).toMatch(/useCat21FundingPreview\(intent,\s*deps\)/);
+    expect(src).toMatch(/fundingNotice=\{fundingNotice\}/);
+    expect(src).toMatch(/approveDisabled=\{approveDisabled\}/);
+    // The block state disables the CTA; the notice text carries the reason.
+    expect(src).toMatch(
+      /approveDisabled\s*=\s*[\s\S]{0,120}'insufficient'[\s\S]{0,60}'expert-required'/
+    );
+  });
+
+  it('the preview runs the SAME simulateMint the execute repeats, with the manual topology', () => {
+    // The dialog and the click must agree: both go through the SDK core, and the
+    // manual surface threads `separate-payment-address` so an asset coin becomes
+    // a notice the human can act on rather than an opaque block.
+    const src = read(join(REPO_ROOT, HOOK));
+    expect(src).toMatch(/simulateMint\(/);
+    expect(src).toMatch(/fundingTopology:\s*resolveManualFundingTopology\(/);
+  });
+
+  it('the manual mint execute threads fundingTopology; the autonomous path does NOT', () => {
+    // A human who saw the notice may proceed on an asset coin (manual). An
+    // unattended agent must keep the blocking default (no topology) until an
+    // explicit opt-in policy exists — so the topology is gated on `mode`.
+    const src = read(join(REPO_ROOT, SERVICE));
+    expect(src).toMatch(
+      /fundingTopology:\s*\n?\s*mode === 'manual'\s*\n?\s*\?\s*resolveManualFundingTopology\(/
+    );
+  });
+});
+
 describe('audit H4 — cat21-ord query cache keys are NOT persisted to disk', () => {
   // Without this filter the wallet writes a permanent on-disk log of
   // which BTC addresses the user has viewed and which cats live
@@ -1264,6 +1303,13 @@ describe('audit H4 — cat21-ord query cache keys are NOT persisted to disk', ()
     const src = read(join(REPO_ROOT, PERSISTENCE));
     expect(src).toMatch(/CAT21_PRIVACY_LEAK_KEY_PREFIXES[\s\S]{0,400}'cat21-ord-'/);
     expect(src).toMatch(/CAT21_PRIVACY_LEAK_KEY_PREFIXES[\s\S]{0,400}'http-cat21-ord-'/);
+  });
+
+  it('CAT21_PRIVACY_LEAK_KEY_PREFIXES lists cat21-funding-preview (its intent key carries the recipient address)', () => {
+    // The funding-safety preview query keys on the intent, whose `recipient` is
+    // a destination address. Persisting it would leak who the user pays to disk.
+    const src = read(join(REPO_ROOT, PERSISTENCE));
+    expect(src).toMatch(/CAT21_PRIVACY_LEAK_KEY_PREFIXES[\s\S]{0,600}'cat21-funding-preview'/);
   });
 });
 

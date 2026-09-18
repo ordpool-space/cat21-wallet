@@ -17,12 +17,14 @@ import {
   type SignPort,
   type UtxoClassification,
   type UtxosPort,
+  type WalletAddressTopology,
   // Aliased: the SDK's createOffer is the BUYER-side buy-offer builder
   // (cat21_buy), distinct from this service's own createOffer (the SELL
   // listing, cat21_create_offer).
   createOffer as createBuyOffer,
   executeMint,
   executeTransfer,
+  isOneAddressWallet,
   toScureNetwork,
   validateCat21Operation,
 } from 'ordpool-sdk/core';
@@ -396,6 +398,14 @@ export class Cat21RpcService {
           tip:
             intent.tip && intent.tip.value > 0
               ? { address: intent.tip.address, valueSats: intent.tip.value }
+              : undefined,
+          // Manual: a human has seen the funding notice (the popup ran the same
+          // `simulateMint` and named what the coin carries) and clicked, so let
+          // the core proceed on an asset coin. Autonomous: no topology -> the
+          // core keeps blocking an asset-only funding situation.
+          fundingTopology:
+            mode === 'manual'
+              ? resolveManualFundingTopology(accountCtx.paymentAddress, accountCtx.ordinalsAddress)
               : undefined,
         },
         {
@@ -822,6 +832,32 @@ export function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet' | 'regtest'
   if (net === 'mainnet') return Network.Mainnet;
   if (net === 'regtest') return Network.Regtest;
   return Network.Testnet3;
+}
+
+/**
+ * The wallet's address layout, for the SDK core's notice-vs-block decision on a
+ * funding coin that carries assets. cat21-wallet keeps a native-segwit payment
+ * address apart from its taproot ordinals address, so this resolves to
+ * `separate-payment-address`, where the core downgrades an asset-only funding
+ * situation to `asset-notice` (proceed, but NAME what the coin carries) instead
+ * of the one-address `expert-required` block. `isOneAddressWallet` is asked
+ * rather than assumed so a future single-address configuration still resolves
+ * correctly; with no ordinals address to compare, fall back to the wallet's real
+ * separate-address shape.
+ *
+ * Threaded ONLY onto the MANUAL execute path (a human sees the notice and
+ * decides). The autonomous path passes nothing and keeps the blocking default —
+ * an unattended agent must not auto-spend an asset coin to the miners until an
+ * explicit opt-in policy exists.
+ */
+export function resolveManualFundingTopology(
+  paymentAddress: string,
+  ordinalsAddress: string | undefined
+): WalletAddressTopology {
+  if (ordinalsAddress == null) return 'separate-payment-address';
+  return isOneAddressWallet({ paymentAddress, ordinalsAddress })
+    ? 'one-address-for-everything'
+    : 'separate-payment-address';
 }
 
 function denied(reason: Cat21RpcDenyReason, detail?: string): Cat21RpcResult {

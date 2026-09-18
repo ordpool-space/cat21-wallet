@@ -76,35 +76,52 @@ describe('cat21-confirmation-dialog (structural contract)', () => {
     expect(src).toMatch(/Show full/);
   });
 
-  it('de-emphasises the approve button while an error is showing, but keeps it live', async () => {
+  it('de-emphasises the approve button while an error OR a funding block is showing, but keeps error-retry live', async () => {
     const src = await import('node:fs').then(fs =>
       fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')
     );
-    // Under a red denial/error, the primary action must not read as a
-    // confident solid "go" identical to the allowed state (three reviewers
-    // read it as tappable-and-fine). It stays enabled (retry can succeed once
-    // the block clears) but its variant flips to outline on error. Removing
-    // the conditional — hardcoding variant="solid" — makes this red.
+    // Under a red denial/error OR a funding block (insufficient / scan-failed),
+    // the primary action must not read as a confident solid "go". Its variant
+    // flips to outline in either case. On an ERROR it stays enabled (retry can
+    // succeed once the block clears); a FUNDING block additionally disables it
+    // (see the disabled assertion below). Removing the conditional — hardcoding
+    // variant="solid" — makes this red.
     const approveBlock =
       src.match(/[\s\S]{0,400}data-testid="cat21-confirmation-approve"/u)?.[0] ?? '';
-    expect(approveBlock).toMatch(/variant=\{submitError \? 'outline' : 'solid'\}/);
-    // Still gated only by isSubmitting, never disabled by the error itself.
-    expect(approveBlock).toMatch(/disabled=\{isSubmitting\}/);
+    expect(approveBlock).toMatch(/variant=\{submitError \|\| approveDisabled \? 'outline' : 'solid'\}/);
   });
 
-  it('disables both buttons when isSubmitting=true', async () => {
+  it('disables approve on submit OR a funding block; disables reject only on submit', async () => {
     const src = await import('node:fs').then(fs =>
       fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')
     );
-    // Both buttons MUST honour the `isSubmitting` prop so a
-    // double-click during sign/broadcast can't fire two requests.
-    // Walk backwards from each testid to find the enclosing <Button ...>
-    // tag (200 chars before the testid is enough to cover the prop list).
+    // Approve honours `isSubmitting` (double-click guard) AND `approveDisabled`
+    // (funding can't proceed: insufficient funds / a coin couldn't be content-
+    // checked). Reject must NOT honour `approveDisabled` — a user must always be
+    // able to back out of a blocked action. Walk backwards from each testid to
+    // the enclosing <Button ...>.
     const approveBlock =
       src.match(/[\s\S]{0,300}data-testid="cat21-confirmation-approve"/u)?.[0] ?? '';
     const rejectBlock =
       src.match(/[\s\S]{0,300}data-testid="cat21-confirmation-reject"/u)?.[0] ?? '';
-    expect(approveBlock).toMatch(/disabled=\{isSubmitting\}/);
+    expect(approveBlock).toMatch(/disabled=\{isSubmitting \|\| approveDisabled\}/);
     expect(rejectBlock).toMatch(/disabled=\{isSubmitting\}/);
+    expect(rejectBlock).not.toMatch(/approveDisabled/);
+  });
+
+  it('renders the funding-notice slot between the detail rows and the buttons', async () => {
+    const src = await import('node:fs').then(fs =>
+      fs.readFileSync(new URL('./cat21-confirmation-dialog.tsx', import.meta.url), 'utf8')
+    );
+    // The funding-safety notice (the `simulate*` preview) renders after the
+    // rows and before the error slot + buttons. Dropping the slot would hide
+    // the named-asset warning the whole feature exists to show.
+    expect(src).toMatch(/\{fundingNotice\}/);
+    const rowsIdx = src.indexOf('cat21-confirmation-rows');
+    const noticeIdx = src.indexOf('{fundingNotice}');
+    const approveIdx = src.indexOf('cat21-confirmation-approve');
+    expect(rowsIdx).toBeGreaterThan(0);
+    expect(noticeIdx).toBeGreaterThan(rowsIdx);
+    expect(approveIdx).toBeGreaterThan(noticeIdx);
   });
 });
