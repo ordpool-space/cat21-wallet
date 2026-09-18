@@ -163,7 +163,10 @@ export function Cat21ConfirmRoute() {
   // byte-identical to the common path); `asset-notice` names what the funding
   // coin carries; `insufficient` / `expert-required` block the CTA with a reason.
   const { chain } = useCurrentNetworkState();
-  const fundingState = useCat21FundingPreview(intent, deps);
+  // Hold the preview until the funding UTXO query settles (same query the deps'
+  // `spendableUtxos` reads, deduped): running it on the still-loading empty set
+  // would cache a wrong `insufficient` for a funded wallet.
+  const fundingState = useCat21FundingPreview(intent, deps, fundingQueryLoading);
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);

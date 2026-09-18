@@ -1,5 +1,4 @@
-import { expect } from '@playwright/test';
-import type { Page } from '@playwright/test';
+import { type Page, expect } from '@playwright/test';
 import { generateMnemonic } from '@scure/bip39';
 import { wordlist } from '@scure/bip39/wordlists/english';
 import fs from 'node:fs';

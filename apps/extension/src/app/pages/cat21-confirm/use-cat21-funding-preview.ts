@@ -41,13 +41,25 @@ function isMintIntent(intent: Cat21Intent): intent is Cat21MintIntent {
 
 export function useCat21FundingPreview(
   intent: Cat21Intent | undefined,
-  deps: Cat21RpcDeps
+  deps: Cat21RpcDeps,
+  /**
+   * Whether the funding UTXO query is still loading. The preview must NOT run
+   * until it settles: `deps.spendableUtxos` returns [] while the query loads, so
+   * a preview that ran early would compute `insufficient` on an empty set and
+   * cache it — leaving a FUNDED wallet's dialog stuck on "insufficient" for the
+   * popup's life, since the key does not depend on the utxo data. While loading,
+   * the hook holds at `loading` (CTA held); when it settles the query runs once
+   * against the real spendable set.
+   */
+  fundingLoading: boolean
 ): FundingPreviewState {
-  const enabled = intent != null && isMintIntent(intent);
+  const enabled = intent != null && isMintIntent(intent) && !fundingLoading;
   const query = useQuery({
     // The key varies on the intent only. `deps` (its ports) is memoised by
     // `useCat21RpcDeps` and stable for a given account; putting function
-    // identities in a serialised key would be wrong, not more correct.
+    // identities in a serialised key would be wrong, not more correct. The
+    // `enabled` gate below holds the query until funding has loaded, so the
+    // queryFn always reads a settled spendable set.
     // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['cat21-funding-preview', intent],
     enabled,
@@ -86,7 +98,9 @@ export function useCat21FundingPreview(
     },
   });
 
-  if (!enabled) return { status: 'not-applicable' };
+  if (intent == null || !isMintIntent(intent)) return { status: 'not-applicable' };
+  // A mint intent whose funding is still loading (query held): hold the CTA.
+  if (fundingLoading) return { status: 'loading' };
   if (query.isError) return { status: 'error' };
   if (query.data) return query.data;
   return { status: 'loading' };

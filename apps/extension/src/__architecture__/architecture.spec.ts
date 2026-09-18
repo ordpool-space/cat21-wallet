@@ -1256,7 +1256,9 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
     // The notice text and the approve-disable must come from the same model so
     // they cannot disagree (a notice with no gate, or a gate with no reason).
     const src = read(join(REPO_ROOT, ROUTE));
-    expect(src).toMatch(/useCat21FundingPreview\(intent,\s*deps\)/);
+    // The preview is held until the funding UTXO query settles (3rd arg), so a
+    // funded wallet never caches a wrong `insufficient` from the loading set.
+    expect(src).toMatch(/useCat21FundingPreview\(intent,\s*deps,\s*fundingQueryLoading\)/);
     expect(src).toMatch(/describeFundingNotice\(fundingState\)/);
     expect(src).toMatch(/fundingNotice=\{fundingNotice\}/);
     expect(src).toMatch(/approveDisabled=\{approveDisabled\}/);
