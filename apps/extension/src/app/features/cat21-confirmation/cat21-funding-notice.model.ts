@@ -1,6 +1,24 @@
 import type { MintStatus, UtxoAssetDetail } from 'ordpool-sdk/core';
 
 /**
+ * The funding preview's state, as the confirmation route sees it. It is the SDK
+ * `simulate*` outcome, plus the states that exist BEFORE a resolved outcome:
+ *
+ *   - `not-applicable` — this action has no funding preview wired (only mint
+ *     today). The dialog behaves exactly as before: no notice, CTA ungated.
+ *   - `loading` — the simulate is in flight. Funding safety is not yet known, so
+ *     the CTA must be held (the HARD RULE's "still scanning → DISABLED").
+ *   - `error`  — the simulate / content scan failed. Fail closed: block, do not
+ *     let a click proceed on an unknown funding picture.
+ *   - the four `MintStatus` values once resolved.
+ */
+export type FundingPreviewState =
+  | { status: 'not-applicable' }
+  | { status: 'loading' }
+  | { status: 'error' }
+  | { status: MintStatus; assets: UtxoAssetDetail | null };
+
+/**
  * The pure decision behind the funding-safety notice, split from the React
  * component so the branching — which is the safety-relevant part — is unit
  * testable without a render harness (the wallet's vitest setup can't resolve
@@ -10,8 +28,9 @@ import type { MintStatus, UtxoAssetDetail } from 'ordpool-sdk/core';
  * that can't be decided synchronously: a rune's etching-transaction link, which
  * needs an ord lookup (`resolveRuneEtchingTxid`).
  */
-type FundingNoticeModel =
+export type FundingNoticeModel =
   | { kind: 'none' }
+  | { kind: 'checking' }
   | { kind: 'blocked'; reason: string }
   | { kind: 'assets'; intro: string; rows: FundingAssetRow[] };
 
@@ -51,25 +70,26 @@ export function txidOfInscriptionId(inscriptionId: string): string {
 }
 
 /**
- * Map a `simulate*` status (+ the named assets on the chosen coin) to what the
- * notice shows:
- *   - `ready`                      → nothing (clean funding; dialog byte-identical).
- *   - `insufficient`               → blocked, "add funds".
- *   - `expert-required`            → blocked, "content-check failed" (a scan miss;
- *                                     a separate-payment-address wallet never
- *                                     reaches expert-required for the asset-only
- *                                     case — that becomes `asset-notice` — so this
- *                                     status here means the scan itself failed).
- *   - `asset-notice`               → the named-asset rows.
+ * Map the funding preview state to what the notice shows:
+ *   - `not-applicable` / `ready` → nothing (clean funding; dialog byte-identical).
+ *   - `loading`                  → a "checking" line (CTA held while unknown).
+ *   - `error`                    → blocked, "content-check failed" (fail closed).
+ *   - `insufficient`             → blocked, "add funds".
+ *   - `expert-required`          → blocked, "content-check failed" (a scan miss;
+ *                                   a separate-payment-address wallet never
+ *                                   reaches expert-required for the asset-only
+ *                                   case — that becomes `asset-notice`).
+ *   - `asset-notice`             → the named-asset rows.
  */
-export function describeFundingNotice(
-  status: MintStatus,
-  assets: UtxoAssetDetail | null
-): FundingNoticeModel {
-  if (status === 'ready') return { kind: 'none' };
-  if (status === 'insufficient') return { kind: 'blocked', reason: INSUFFICIENT_REASON };
-  if (status === 'expert-required') return { kind: 'blocked', reason: SCAN_FAILED_REASON };
+export function describeFundingNotice(state: FundingPreviewState): FundingNoticeModel {
+  if (state.status === 'not-applicable') return { kind: 'none' };
+  if (state.status === 'loading') return { kind: 'checking' };
+  if (state.status === 'error') return { kind: 'blocked', reason: SCAN_FAILED_REASON };
+  if (state.status === 'ready') return { kind: 'none' };
+  if (state.status === 'insufficient') return { kind: 'blocked', reason: INSUFFICIENT_REASON };
+  if (state.status === 'expert-required') return { kind: 'blocked', reason: SCAN_FAILED_REASON };
 
+  const { assets } = state;
   const rows: FundingAssetRow[] = [];
   for (const id of assets?.inscriptionIds ?? []) {
     rows.push({
@@ -100,4 +120,15 @@ export function describeFundingNotice(
     });
   }
   return { kind: 'assets', intro: ASSET_NOTICE_INTRO, rows };
+}
+
+/**
+ * The CTA is held whenever funding safety is not established: while the preview
+ * is loading, when it failed, and when it resolved to a blocking status
+ * (insufficient / scan-pending). `ready` and `asset-notice` leave it live — a
+ * separate-payment-address wallet lets the human proceed on an asset coin AFTER
+ * seeing the notice. `none` (not-applicable / ready) never blocks.
+ */
+export function isApproveBlocked(model: FundingNoticeModel): boolean {
+  return model.kind === 'checking' || model.kind === 'blocked';
 }

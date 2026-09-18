@@ -1252,26 +1252,30 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
   const HOOK = 'apps/extension/src/app/pages/cat21-confirm/use-cat21-funding-preview.ts';
   const SERVICE = 'apps/extension/src/background/cat21/cat21-rpc.service.ts';
 
-  it('the confirm route runs the preview and passes the notice + CTA gate to the dialog', () => {
-    // The dialog must be handed the funding notice + the approve-disable derived
-    // from the `simulate*` status. Dropping either would either hide the
-    // named-asset warning or let a user approve an unfundable action.
+  it('the confirm route derives the notice AND the CTA gate from ONE preview model', () => {
+    // The notice text and the approve-disable must come from the same model so
+    // they cannot disagree (a notice with no gate, or a gate with no reason).
     const src = read(join(REPO_ROOT, ROUTE));
     expect(src).toMatch(/useCat21FundingPreview\(intent,\s*deps\)/);
+    expect(src).toMatch(/describeFundingNotice\(fundingState\)/);
     expect(src).toMatch(/fundingNotice=\{fundingNotice\}/);
     expect(src).toMatch(/approveDisabled=\{approveDisabled\}/);
-    // The block state disables the CTA; the notice text carries the reason.
-    expect(src).toMatch(
-      /approveDisabled\s*=\s*[\s\S]{0,120}'insufficient'[\s\S]{0,60}'expert-required'/
-    );
+    // The CTA gate is `isApproveBlocked(model)` — which holds the button while
+    // loading (checking) and on any blocked status, not only insufficient.
+    expect(src).toMatch(/approveDisabled\s*=\s*isApproveBlocked\(fundingModel\)/);
   });
 
-  it('the preview runs the SAME simulateMint the execute repeats, with the manual topology', () => {
-    // The dialog and the click must agree: both go through the SDK core, and the
+  it('the preview runs the SAME simulateMint the execute repeats: recipient, fee, TIP, topology', () => {
+    // The dialog and the click must agree: both go through the SDK core with the
+    // same inputs. A tip changes the funding target + coin pick, so the preview
+    // MUST pass it too or the notice/CTA can diverge from what Approve funds. The
     // manual surface threads `separate-payment-address` so an asset coin becomes
     // a notice the human can act on rather than an opaque block.
     const src = read(join(REPO_ROOT, HOOK));
     expect(src).toMatch(/simulateMint\(/);
+    expect(src).toMatch(/recipientAddress:\s*intent\.recipient/);
+    expect(src).toMatch(/feeRatePerVbyte:\s*intent\.feeRate/);
+    expect(src).toMatch(/tip:\s*\n?\s*intent\.tip/);
     expect(src).toMatch(/fundingTopology:\s*resolveManualFundingTopology\(/);
   });
 

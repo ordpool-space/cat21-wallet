@@ -108,12 +108,16 @@ test.describe('CAT-21 mint funding-safety notice (manual Path 2, regtest)', () =
 
     await openMintDialog(page, extensionId, recipient, `safe-${Date.now()}`);
 
-    // A clean coin covers the mint, so the preview resolves to `ready`: the
-    // notice never renders and Approve stays enabled. Poll a couple of cycles so
-    // a late-arriving (wrong) notice would still be caught before the shot.
+    // The CTA is HELD (disabled) while the preview is in flight and enables only
+    // once it resolves to `ready`. So waiting for Approve to become enabled is a
+    // positive proof the preview resolved to a safe funding — a dead/errored
+    // preview would keep it disabled and fail here. THEN there is no notice, no
+    // block, no checking line: the safe dialog is byte-identical to the shipped
+    // screenshot.
+    await expect(page.getByTestId('cat21-confirmation-approve')).toBeEnabled();
     await expect(page.getByTestId('cat21-funding-notice')).toHaveCount(0);
     await expect(page.getByTestId('cat21-funding-notice-blocked')).toHaveCount(0);
-    await expect(page.getByTestId('cat21-confirmation-approve')).toBeEnabled();
+    await expect(page.getByTestId('cat21-funding-notice-checking')).toHaveCount(0);
     await page.screenshot({ path: path.join(OUT_DIR, 'mint-safe-popup-390.png') });
   });
 

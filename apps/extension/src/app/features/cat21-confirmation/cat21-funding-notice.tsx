@@ -1,32 +1,26 @@
 import { useQuery } from '@tanstack/react-query';
 import { Flex, styled } from 'leather-styles/jsx';
-import { type MintStatus, type UtxoAssetDetail, resolveRuneEtchingTxid } from 'ordpool-sdk/core';
+import { resolveRuneEtchingTxid } from 'ordpool-sdk/core';
 
 import { openInNewTab } from '@app/common/utils/open-in-new-tab';
 
-import { type FundingAssetRow, describeFundingNotice } from './cat21-funding-notice.model';
+import { type FundingAssetRow, type FundingNoticeModel } from './cat21-funding-notice.model';
 
 /**
- * The funding-safety notice shown on a manual cat action BEFORE the user
- * approves. It renders ONLY when the SDK's `simulate*` could not fund the action
- * from a clean coin (see `describeFundingNotice` for the status→shape mapping):
+ * The funding-safety notice shown on a manual cat action, rendered straight from
+ * the `FundingNoticeModel` the route derives from the SDK `simulate*` preview:
  *
- *   - `asset-notice` — the only coin that covers the spend carries assets. The
- *     action MAY proceed (cat21-wallet is a separate-payment-address wallet, so
- *     the core downgrades the block to a notice), but the person must be told
- *     WHAT sits on the coin they are about to pay to the miners. Each asset is
- *     NAMED (not counted) and, where a transaction exists to point at, linked.
- *   - `insufficient` / `expert-required` — nothing spendable covers the action,
- *     or a coin couldn't be content-checked. Blocked; the CTA is disabled and
- *     this explains why.
- *   - `ready` — a clean coin covers it. Renders NOTHING, so the safe dialog is
- *     byte-identical to the common path. This is the invariant the capture specs
- *     pin.
+ *   - `none`     — a clean coin covers it (or no preview is wired). Renders
+ *     NOTHING, so the safe dialog is byte-identical to the common path.
+ *   - `checking` — the preview is in flight; a brief line while the CTA is held.
+ *   - `blocked`  — insufficient funds, or a coin couldn't be content-checked.
+ *   - `assets`   — the only covering coin carries assets. Each is NAMED (not
+ *     counted) and, where a transaction exists to point at, linked. cat21-wallet
+ *     is a separate-payment-address wallet, so the CTA stays live: the person
+ *     decides after seeing what the coin carries.
  */
 interface Cat21FundingNoticeProps {
-  status: MintStatus;
-  /** Named assets on the coin the flow would spend; set only on `asset-notice`. */
-  assets: UtxoAssetDetail | null;
+  model: FundingNoticeModel;
   /**
    * Explorer link for a txid, or `null` when there is no public explorer for the
    * active network (regtest) — the asset then renders named but unlinked, which
@@ -57,11 +51,11 @@ function useRuneEtchingTxids(
       const entries = await Promise.all(
         runeNames.map(async name => {
           const txid = await resolveRuneEtchingTxid(name, { ordBaseUrl });
-          return [name, txid] as const;
+          return { name, txid };
         })
       );
       const map: Record<string, string> = {};
-      for (const [name, txid] of entries) {
+      for (const { name, txid } of entries) {
         if (txid != null) map[name] = txid;
       }
       return map;
@@ -71,8 +65,7 @@ function useRuneEtchingTxids(
 }
 
 /** One named asset line: a label plus, when there is a tx to point at, a link. */
-function AssetLine(props: { label: string; name: string; href: string | null }) {
-  const { label, name, href } = props;
+function AssetLine({ label, name, href }: { label: string; name: string; href: string | null }) {
   return (
     <Flex justifyContent="space-between" gap="space.04" alignItems="baseline">
       <styled.span textStyle="label.02" color="ink.text-subdued" flexShrink={0}>
@@ -116,12 +109,24 @@ function hrefForRow(
   return linkForTxid(txid);
 }
 
-export function Cat21FundingNotice(props: Cat21FundingNoticeProps) {
-  const { status, assets, linkForTxid, ordBaseUrl } = props;
-  const runeTxids = useRuneEtchingTxids(assets?.runeNames ?? [], ordBaseUrl);
-  const model = describeFundingNotice(status, assets);
+export function Cat21FundingNotice({ model, linkForTxid, ordBaseUrl }: Cat21FundingNoticeProps) {
+  const runeNames =
+    model.kind === 'assets' ? model.rows.flatMap(row => (row.runeName ? [row.runeName] : [])) : [];
+  const runeTxids = useRuneEtchingTxids(runeNames, ordBaseUrl);
 
   if (model.kind === 'none') return null;
+
+  if (model.kind === 'checking') {
+    return (
+      <styled.p
+        textStyle="body.02"
+        color="ink.text-subdued"
+        data-testid="cat21-funding-notice-checking"
+      >
+        Checking that this action won’t spend a coin carrying an asset…
+      </styled.p>
+    );
+  }
 
   if (model.kind === 'blocked') {
     return (

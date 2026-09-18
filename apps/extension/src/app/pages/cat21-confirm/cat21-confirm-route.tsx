@@ -17,6 +17,10 @@ import { makeCat21ConfirmationCopy } from '@app/features/cat21-confirmation/cat2
 import { Cat21ConfirmationDialog } from '@app/features/cat21-confirmation/cat21-confirmation-dialog';
 import { humanizeCat21Error } from '@app/features/cat21-confirmation/cat21-error-copy';
 import { Cat21FundingNotice } from '@app/features/cat21-confirmation/cat21-funding-notice';
+import {
+  describeFundingNotice,
+  isApproveBlocked,
+} from '@app/features/cat21-confirmation/cat21-funding-notice.model';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { useHasActiveInMemoryWalletSecretKey } from '@app/store/in-memory-key/in-memory-key.selectors';
 import { useCurrentNetworkState } from '@app/store/networks/networks.hooks';
@@ -159,7 +163,7 @@ export function Cat21ConfirmRoute() {
   // byte-identical to the common path); `asset-notice` names what the funding
   // coin carries; `insufficient` / `expert-required` block the CTA with a reason.
   const { chain } = useCurrentNetworkState();
-  const { preview: fundingPreview } = useCat21FundingPreview(intent, deps);
+  const fundingState = useCat21FundingPreview(intent, deps);
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
@@ -396,28 +400,30 @@ export function Cat21ConfirmRoute() {
   const renderedCat = catQuery.data ? mapOrdCat21ToCat21Asset(catQuery.data).thumbnailSrc : '';
   const catImageSrc = renderedCat || undefined;
 
-  // The funding notice + CTA gate. Only mint has a preview today (others resolve
-  // `undefined` here → no notice, CTA unchanged). `ready`/loading leave the
-  // dialog byte-identical to the shipped safe screenshots; `asset-notice` shows
-  // the named-asset block with the CTA still live (a separate-payment-address
-  // wallet lets the human proceed); `insufficient`/`expert-required` disable the
-  // CTA and explain why.
-  const fundingNotice = fundingPreview ? (
-    <Cat21FundingNotice
-      status={fundingPreview.status}
-      assets={fundingPreview.assets}
-      linkForTxid={txid =>
-        getBitcoinExplorerLink({
-          id: txid,
-          type: 'tx',
-          networkPreference: chain.bitcoin.bitcoinNetwork,
-        })
-      }
-      ordBaseUrl={getOrdpoolOrdBasePath()}
-    />
-  ) : undefined;
-  const approveDisabled =
-    fundingPreview?.status === 'insufficient' || fundingPreview?.status === 'expert-required';
+  // The funding notice + CTA gate, both derived from the ONE preview model so
+  // they cannot disagree. Only mint has a preview today (others are
+  // `not-applicable` → `none` → no notice, CTA ungated). `ready` renders nothing
+  // (safe dialog byte-identical to the shipped screenshots); `asset-notice`
+  // names what the coin carries with the CTA still live (a separate-payment-
+  // address wallet lets the human proceed); `checking` (preview in flight) and
+  // `blocked` (insufficient / scan failed) hold the CTA so a click can't outrun
+  // the funding-safety answer.
+  const fundingModel = describeFundingNotice(fundingState);
+  const fundingNotice =
+    fundingModel.kind === 'none' ? undefined : (
+      <Cat21FundingNotice
+        model={fundingModel}
+        linkForTxid={txid =>
+          getBitcoinExplorerLink({
+            id: txid,
+            type: 'tx',
+            networkPreference: chain.bitcoin.bitcoinNetwork,
+          })
+        }
+        ordBaseUrl={getOrdpoolOrdBasePath()}
+      />
+    );
+  const approveDisabled = isApproveBlocked(fundingModel);
 
   return (
     <Cat21ConfirmationDialog
