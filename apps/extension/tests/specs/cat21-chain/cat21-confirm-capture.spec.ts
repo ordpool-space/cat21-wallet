@@ -119,7 +119,13 @@ test.describe('CAT-21 approval dialogs (UX round 2 capture)', () => {
       await page.screenshot({ path: path.join(OUT_DIR, `${name}-popup-390.png`) });
     }
 
-    await shoot('mint', ROUTE.mint, { recipient: taproot, feeRate: 5 });
+    // Mint is captured in its THREE funding states (safe / notice / insufficient)
+    // by cat21-funding-notice-capture.spec.ts, which controls regtest funding so
+    // each state is deterministic. This routeless spec renders on the default
+    // (unfunded) network, where the mint's funding preview would resolve to
+    // `insufficient` racily — so mint's shape+states live in that dedicated spec,
+    // and this one captures the four cat-touching dialogs (whose funding preview
+    // is not wired yet, so they render identically here).
     await shoot('transfer', ROUTE.transfer, { catId: CAT_ID, recipient: taproot, feeRate: 5 });
     await shoot('create-offer', ROUTE.createOffer, {
       catId: CAT_ID,
