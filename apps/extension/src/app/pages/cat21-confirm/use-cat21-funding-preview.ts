@@ -45,6 +45,10 @@ export function useCat21FundingPreview(
 ): FundingPreviewState {
   const enabled = intent != null && isMintIntent(intent);
   const query = useQuery({
+    // The key varies on the intent only. `deps` (its ports) is memoised by
+    // `useCat21RpcDeps` and stable for a given account; putting function
+    // identities in a serialised key would be wrong, not more correct.
+    // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['cat21-funding-preview', intent],
     enabled,
     queryFn: async (): Promise<FundingPreviewState> => {
