@@ -10,6 +10,9 @@ export * from './balances/stx-balances.service';
 export * from './bns/bns.service';
 /* HACK -- Cat21: cat-asset collectibles surface per ADR-12. */
 export * from './collectibles/cat21-asset.service';
+/* HACK -- Cat21: the OrdCat21 -> rendered Cat21Asset mapper, reused by the
+ * confirmation dialog to draw the cat a money action touches. */
+export { mapOrdCat21ToCat21Asset } from './collectibles/collectibles.utils';
 export * from './infrastructure/api/cat21-ord/cat21-ord-api.client';
 export * from './infrastructure/api/cat21-ord/cat21-ord-api.schema';
 export * from './infrastructure/api/cat21-ord/cat21-ord-api.utils';

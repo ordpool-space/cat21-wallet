@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { Flex, styled } from 'leather-styles/jsx';
 
-import { getCat21OrdApiClient } from '@leather.io/services';
+import { getCat21OrdApiClient, mapOrdCat21ToCat21Asset } from '@leather.io/services';
 import { Button } from '@leather.io/ui';
 
 import { Content } from '@app/components/layout';
@@ -138,11 +138,12 @@ export function Cat21ConfirmRoute() {
   // WAIT for it too (same query key as the deps hook — this dedupes, no extra
   // fetch). Intents with no cat (mint) pass `catIdHint === undefined`, are not
   // enabled, and skip the gate.
-  const catQueryLoading = useQuery({
+  const catQuery = useQuery({
     queryKey: ['cat21-ord-cat', catIdHint],
     queryFn: () => getCat21OrdApiClient().fetchCat21(catIdHint as string),
     enabled: catIdHint != null,
-  }).isLoading;
+  });
+  const catQueryLoading = catQuery.isLoading;
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
@@ -372,9 +373,17 @@ export function Cat21ConfirmRoute() {
 
   const copy = makeCat21ConfirmationCopy(intent);
 
+  // The cat this action touches, drawn locally from txid + block hash (no
+  // fetch). Shown so the user visually confirms WHICH cat they are selling /
+  // sending / bidding on, not just its id. Empty when it cannot be drawn (an
+  // unconfirmed or unresolved cat) or when there is no cat (mint).
+  const renderedCat = catQuery.data ? mapOrdCat21ToCat21Asset(catQuery.data).thumbnailSrc : '';
+  const catImageSrc = renderedCat || undefined;
+
   return (
     <Cat21ConfirmationDialog
       copy={copy}
+      catImageSrc={catImageSrc}
       isSubmitting={isSubmitting}
       submitError={error}
       onApprove={() => confirm(intent)}

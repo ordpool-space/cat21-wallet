@@ -62,6 +62,12 @@ function RevealAddressRow(props: {
 interface Cat21ConfirmationDialogProps {
   /** Result of `makeCat21ConfirmationCopy(intent)`. */
   copy: Cat21ConfirmationCopy;
+  /**
+   * The cat this action touches, drawn locally as an SVG data URI. Shown so the
+   * user visually confirms WHICH cat before selling / sending / bidding. Absent
+   * for mint (no cat yet) or when the cat cannot be drawn.
+   */
+  catImageSrc?: string;
   /** Called when the user clicks the approve button. */
   onApprove(): void;
   /** Called when the user clicks the reject button. */
@@ -93,13 +99,25 @@ interface Cat21ConfirmationDialogProps {
  *     buttons. That's it.
  */
 export function Cat21ConfirmationDialog(props: Cat21ConfirmationDialogProps) {
-  const { copy, onApprove, onReject, isSubmitting, submitError } = props;
+  const { copy, catImageSrc, onApprove, onReject, isSubmitting, submitError } = props;
   return (
     <Content>
       <Flex direction="column" gap="space.05" px="space.05">
         <styled.h1 textStyle="heading.03" data-testid="cat21-confirmation-title">
           {copy.title}
         </styled.h1>
+        {catImageSrc ? (
+          <styled.img
+            src={catImageSrc}
+            alt={copy.title}
+            data-testid="cat21-confirmation-cat-image"
+            alignSelf="center"
+            width="120px"
+            height="120px"
+            borderRadius="sm"
+            backgroundColor="ink.background-secondary"
+          />
+        ) : null}
         <Flex direction="column" gap="space.03">
           {copy.paragraphs.map((paragraph, idx) => (
             <styled.p key={idx} textStyle="body.02">

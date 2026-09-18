@@ -1240,7 +1240,10 @@ describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () =>
     // service rejects with `cat-data-not-loaded`. Regression guard for the bug
     // the autonomous transfer/accept chain-truth specs caught on regtest.
     expect(src).toMatch(/if\s*\(catIdHint\s*!=\s*null\s*&&\s*catQueryLoading\)\s*return;/);
-    expect(src).toMatch(/const\s+catQueryLoading\s*=\s*useQuery\(/);
+    // The metadata query is held as `catQuery` (its `.data` also draws the cat
+    // image on the confirmation); `catQueryLoading` is its loading flag.
+    expect(src).toMatch(/const\s+catQuery\s*=\s*useQuery\(/);
+    expect(src).toMatch(/const\s+catQueryLoading\s*=\s*catQuery\.isLoading/);
   });
 });
 
