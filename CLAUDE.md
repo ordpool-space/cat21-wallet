@@ -16,7 +16,7 @@ Single source of truth for the CAT-21 wallet (a non-fork clone of Leather `leath
 | other-wallet MINT input | `CAT21_OTHER_WALLET_MINT_INPUT_SEQUENCE=0xfffffffe` (RBF off), mint-only via `resolveCat21MintInputSequence`. Transfers+offers RBF-on for all wallets since SDK `703f90b`. | same |
 | RBF replace our tx | replacement keeps `lockTime=21`, assert | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` |
 | cat UTXO in BTC send | refused; `protected` bucket | `packages/services/src/utxos/utxos.service.ts` |
-| inbound buy-offer accept | sign as-is, any lockTime | `apps/extension/src/background/cat21/builders/accept-offer-validator.ts`, `cat21-rpc.service.ts → acceptOffer` |
+| inbound buy-offer accept | sign as-is, any lockTime; popup shows the inbound lockTime so the human seller sees what they sign | `apps/extension/src/background/cat21/builders/accept-offer-validator.ts`, `cat21-rpc.service.ts → acceptOffer` |
 
 - Verify builder changes: edit the SDK helper, `pnpm sdk:build` (staleness guard `apps/extension/scripts/check-sdk-fresh.cjs`), `pnpm --filter @leather.io/extension test:unit -- src/background/cat21`, then `apps/extension/src/__architecture__/architecture.spec.ts`.
 Why: skipping 21 on a non-mint costs a bonus mint, not the cat (ordinal theory); only a mempool mint RBF that drops 21 loses the mint.
