@@ -300,17 +300,28 @@ describe('Cat21RpcService.mint', () => {
       }
     });
 
-    it('returns "funding-pick-failed" when only asset-carrying coins cover (content scan)', async () => {
-      // The one coin covers, but the content scan flags it as carrying an
-      // asset — the core refuses to auto-spend it (expert-required).
+    it('AUTONOMOUS: "funding-pick-failed" when only an asset coin covers', async () => {
+      // Autonomous passes no funding topology, so an asset-only coin is
+      // expert-required and execute refuses it. No consent, no spend.
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve('has-assets' as const)) });
       service = new Cat21RpcService(deps);
-      const result = await service.mint(makeIntent(), 'popup');
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.value.reason).toBe('intent-invariant-violated');
         expect(result.value.detail).toContain('funding-pick-failed');
       }
+    });
+
+    it('MANUAL: proceeds when only an asset coin covers (notice-and-proceed)', async () => {
+      // Manual threads separate-payment-address, so an asset-only coin is
+      // asset-notice and execute proceeds. The dialog showed the notice before
+      // calling mint; the service trusts that consent.
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve('has-assets' as const)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup');
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.kind).toBe('broadcast');
     });
 
     it('returns "intent-invariant-violated: no-payment-public-key" when the pubkey is absent', async () => {
