@@ -140,7 +140,7 @@ importers:
         version: 8.47.0(eslint@9.34.0(jiti@2.5.1))(typescript@5.9.3)
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
 
   apps/extension:
     dependencies:
@@ -385,8 +385,8 @@ importers:
         specifier: 2.71.1
         version: 2.71.1
       ordpool-sdk:
-        specifier: github:ordpool-space/ordpool-sdk#c76bd36024e0fc70aefe63ef51233fe81cdff256
-        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/c76bd36024e0fc70aefe63ef51233fe81cdff256(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
+        specifier: github:ordpool-space/ordpool-sdk#dc8f2167c261f771b2d4850a0887bbfee09804bf
+        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/dc8f2167c261f771b2d4850a0887bbfee09804bf(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
       os-browserify:
         specifier: 0.3.0
         version: 0.3.0
@@ -1081,7 +1081,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
 
   apps/web:
     dependencies:
@@ -1349,7 +1349,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
 
   packages/bitcoin:
     dependencies:
@@ -2440,7 +2440,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 2.1.9
-        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+        version: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
 
 packages:
 
@@ -16451,8 +16451,8 @@ packages:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
     engines: {node: '>=18'}
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/c76bd36024e0fc70aefe63ef51233fe81cdff256:
-    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/c76bd36024e0fc70aefe63ef51233fe81cdff256}
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/dc8f2167c261f771b2d4850a0887bbfee09804bf:
+    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/dc8f2167c261f771b2d4850a0887bbfee09804bf}
     version: 0.1.0
     peerDependencies:
       '@noble/curves': '>=1'
@@ -28042,9 +28042,9 @@ snapshots:
       '@babel/runtime': 7.28.4
       '@emotion/react': 11.14.0(@types/react@19.1.17)(react@19.2.3)
       '@emotion/styled': 11.14.1(@emotion/react@11.14.0(@types/react@19.1.17)(react@19.1.0))(@types/react@19.1.17)(react@19.2.3)
-      '@rjsf/core': 5.24.13(@rjsf/utils@5.24.13(react@19.2.3))(react@19.2.3)
+      '@rjsf/core': 5.24.13(@rjsf/utils@5.24.13(react@19.1.0))(react@19.2.3)
       '@rjsf/utils': 5.24.13(react@19.2.3)
-      '@rjsf/validator-ajv8': 5.24.13(@rjsf/utils@5.24.13(react@19.2.3))
+      '@rjsf/validator-ajv8': 5.24.13(@rjsf/utils@5.24.13(react@19.1.0))
       '@types/codemirror': 5.60.17
       '@types/json-schema': 7.0.15
       '@types/react': 19.1.17
@@ -28109,14 +28109,23 @@ snapshots:
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
 
-  '@rjsf/core@5.24.13(@rjsf/utils@5.24.13(react@19.2.3))(react@19.2.3)':
+  '@rjsf/core@5.24.13(@rjsf/utils@5.24.13(react@19.1.0))(react@19.2.3)':
     dependencies:
-      '@rjsf/utils': 5.24.13(react@19.2.3)
+      '@rjsf/utils': 5.24.13(react@19.1.0)
       lodash: 4.18.1
       lodash-es: 4.18.1
       markdown-to-jsx: 7.7.17(react@19.2.3)
       prop-types: 15.8.1
       react: 19.2.3
+
+  '@rjsf/utils@5.24.13(react@19.1.0)':
+    dependencies:
+      json-schema-merge-allof: 0.8.1
+      jsonpointer: 5.0.1
+      lodash: 4.18.1
+      lodash-es: 4.18.1
+      react: 19.1.0
+      react-is: 18.3.1
 
   '@rjsf/utils@5.24.13(react@19.2.3)':
     dependencies:
@@ -28127,9 +28136,9 @@ snapshots:
       react: 19.2.3
       react-is: 18.3.1
 
-  '@rjsf/validator-ajv8@5.24.13(@rjsf/utils@5.24.13(react@19.2.3))':
+  '@rjsf/validator-ajv8@5.24.13(@rjsf/utils@5.24.13(react@19.1.0))':
     dependencies:
-      '@rjsf/utils': 5.24.13(react@19.2.3)
+      '@rjsf/utils': 5.24.13(react@19.1.0)
       ajv: 8.18.0
       ajv-formats: 2.1.1(ajv@8.18.0)
       lodash: 4.18.1
@@ -30861,7 +30870,7 @@ snapshots:
       std-env: 3.9.0
       test-exclude: 7.0.1
       tinyrainbow: 1.2.0
-      vitest: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
+      vitest: 2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -38866,7 +38875,7 @@ snapshots:
       string-width: 7.2.0
       strip-ansi: 7.1.2
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/c76bd36024e0fc70aefe63ef51233fe81cdff256(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/dc8f2167c261f771b2d4850a0887bbfee09804bf(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
     dependencies:
       '@noble/curves': 1.8.2
       '@noble/hashes': 1.5.0
@@ -43237,7 +43246,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0)(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0):
+  vitest@2.1.9(@types/node@24.0.8)(happy-dom@20.0.11)(jsdom@27.4.0(@noble/hashes@1.5.0))(lightningcss@1.30.2)(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(terser@5.46.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(msw@2.12.7(@types/node@24.0.8)(typescript@5.9.3))(vite@5.4.21(@types/node@24.0.8)(lightningcss@1.30.2)(terser@5.46.0))
