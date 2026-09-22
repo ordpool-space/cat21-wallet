@@ -112,10 +112,7 @@ const CAT21_PRIVACY_LEAK_KEY_PREFIXES = [
   'bitcoin-address-',
   'mempool-tx-',
   'mempool-address-',
-  // The funding-safety preview keys on the full intent (queryKey[1]), whose
-  // `recipient` is a destination address; persisting it would write an on-disk
-  // record of who the user pays. Kept out of the cache dump like every other
-  // address-shaped key above.
+  // Its key holds the intent, whose `recipient` is a destination address.
   'cat21-funding-preview',
 ];
 

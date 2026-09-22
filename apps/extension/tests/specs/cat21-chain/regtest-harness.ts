@@ -372,14 +372,10 @@ export async function waitOutpointClassifiedDirty(
 }
 
 /**
- * The clean counterpart of {@link waitOutpointClassifiedDirty}: wait until the
- * guard's OWN merged classify reads `outpoint` as CLEAN (indexed AND no assets)
- * on `stableReads` consecutive checks. A freshly-mined coin is not immediately
- * ord-indexed, and `classifyOutpoint` throws / reads not-indexed until ord-stock
- * settles the block — so a funding preview that runs before this wait would see
- * `expert-required` (scan pending) instead of `ready`. Requiring several stable
- * clean reads makes the popup's preview deterministically resolve to `ready`.
- * Runs in the node test process, so it hits the local ords directly.
+ * Clean counterpart of {@link waitOutpointClassifiedDirty}: wait until the merged
+ * classify reads `outpoint` CLEAN (indexed, no assets) on `stableReads`
+ * consecutive checks, so a preview run after it resolves `ready`, not the
+ * `expert-required` a not-yet-indexed coin gives.
  */
 export async function waitOutpointClassifiedClean(
   outpoint: string,

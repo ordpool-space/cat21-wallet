@@ -25,30 +25,18 @@ import {
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 /**
- * FUNDING-SAFETY NOTICE — the three states a manual mint's funding preview can
- * reach, captured at the real 390px popup width against a live regtest chain,
- * with REAL on-chain data (no stubs). The REAL `useCat21FundingPreview` runs the
- * REAL `simulateMint` over the wallet's own ports, so the notice + CTA the person
- * meets are produced by production code end to end.
+ * Captures the manual mint funding preview's three states at 390px against real
+ * regtest data (production `useCat21FundingPreview` -> `simulateMint`):
+ *   1. SAFE (`ready`): clean coin, no notice, Approve live.
+ *   2. NOTICE (`asset-notice`): sole covering coin is a RARE SAT, named, Approve
+ *      live. Rare sat (not inscription): its seed builds a raw tx that does not
+ *      collide with the multiclass spec's ord wallet, and it is not cat-protected
+ *      so it reaches the preview. A one-address block cannot arise on this
+ *      separate-address wallet.
+ *   3. INSUFFICIENT: no covering coin, add-funds notice, Approve live.
  *
- *   1. SAFE (`ready`)          — a clean coin covers the mint. NO notice, Approve
- *      live. Byte-identical to the shipped safe screenshot.
- *   2. NOTICE (`asset-notice`) — the only covering coin carries a RARE SAT. It is
- *      NAMED; Approve stays live (cat21-wallet keeps payment and ordinals
- *      addresses separate, so the SDK returns a notice the human can act on,
- *      never a one-address block — that state cannot arise here and is not
- *      manufactured). A rare sat is used, not an inscription: a rare-sat seed
- *      builds a raw tx with no ord wallet to collide with the multiclass spec's
- *      inscription seed, and a rare-sat coin is not cat-protected, so it reaches
- *      the funding preview and the four-class scan flags it.
- *   3. INSUFFICIENT (`insufficient`) — no covering coin. The add-funds notice
- *      shows and Approve stays LIVE (no coin to lose; the service blocks a click
- *      and a cap violation would surface first). Only a coin whose contents are
- *      unknown (scan in flight / failed) holds the CTA.
- *
- * A FRESH random mnemonic per test makes the funding pool exactly what the test
- * seeds (see the multiclass spec). Prereq: the regtest stack WITH the full ord
- * (:8081) up (`--with-ord-stock`).
+ * Fresh mnemonic per test. Prereq: regtest stack with full ord (:8081),
+ * `--with-ord-stock`.
  */
 
 const OUT_DIR =

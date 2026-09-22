@@ -68,19 +68,11 @@ interface Cat21ConfirmationDialogProps {
    * for mint (no cat yet) or when the cat cannot be drawn.
    */
   catImageSrc?: string;
-  /**
-   * The funding-safety notice, rendered between the detail rows and the action
-   * buttons. Set from the container's `simulate*` preview: names what a flagged
-   * funding coin carries (asset-notice), or why the action can't be funded
-   * (insufficient / scan-failed). Absent on a clean funding, so the safe dialog
-   * stays byte-identical to the common path.
-   */
+  /** Funding-safety notice, rendered between the rows and the buttons. Absent on
+   * a clean funding. */
   fundingNotice?: ReactNode;
-  /**
-   * Disables the approve button because funding can't proceed (insufficient
-   * funds, or a coin couldn't be content-checked). The reason is shown inside
-   * `fundingNotice`; this only gates the button. Reject stays enabled.
-   */
+  /** Gate the approve button when funding can't proceed; the reason is in
+   * `fundingNotice`. Reject stays enabled. */
   approveDisabled?: boolean;
   /** Called when the user clicks the approve button. */
   onApprove(): void;

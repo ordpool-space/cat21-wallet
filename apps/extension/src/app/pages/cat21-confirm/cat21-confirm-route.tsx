@@ -157,15 +157,9 @@ export function Cat21ConfirmRoute() {
   });
   const catQueryLoading = catQuery.isLoading;
 
-  // Pre-approve funding picture (mint wired first). Runs the SAME `simulateMint`
-  // the manual execute repeats, so the notice the human reads cannot disagree
-  // with what Approve does. `ready` renders nothing (the safe dialog stays
-  // byte-identical to the common path); `asset-notice` names what the funding
-  // coin carries; `insufficient` / `expert-required` block the CTA with a reason.
   const { chain } = useCurrentNetworkState();
-  // Hold the preview until the funding UTXO query settles (same query the deps'
-  // `spendableUtxos` reads, deduped): running it on the still-loading empty set
-  // would cache a wrong `insufficient` for a funded wallet.
+  // Gate on fundingQueryLoading: a preview over the still-loading empty utxo set
+  // caches a wrong `insufficient` for a funded wallet.
   const fundingState = useCat21FundingPreview(intent, deps, fundingQueryLoading);
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
@@ -403,14 +397,8 @@ export function Cat21ConfirmRoute() {
   const renderedCat = catQuery.data ? mapOrdCat21ToCat21Asset(catQuery.data).thumbnailSrc : '';
   const catImageSrc = renderedCat || undefined;
 
-  // The funding notice + CTA gate, both derived from the ONE preview model so
-  // they cannot disagree. Only mint has a preview today (others are
-  // `not-applicable` → `none` → no notice, CTA ungated). `ready` renders nothing
-  // (safe dialog byte-identical to the shipped screenshots); `asset-notice`
-  // names what the coin carries with the CTA still live (a separate-payment-
-  // address wallet lets the human proceed); `checking` (preview in flight) and
-  // `blocked` (insufficient / scan failed) hold the CTA so a click can't outrun
-  // the funding-safety answer.
+  // Notice + CTA gate from one model so they cannot disagree. Only mint has a
+  // preview today; others are `not-applicable` (no notice, CTA ungated).
   const fundingModel = describeFundingNotice(fundingState);
   const fundingNotice =
     fundingModel.kind === 'none' ? undefined : (

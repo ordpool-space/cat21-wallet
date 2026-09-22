@@ -399,10 +399,8 @@ export class Cat21RpcService {
             intent.tip && intent.tip.value > 0
               ? { address: intent.tip.address, valueSats: intent.tip.value }
               : undefined,
-          // Manual: a human has seen the funding notice (the popup ran the same
-          // `simulateMint` and named what the coin carries) and clicked, so let
-          // the core proceed on an asset coin. Autonomous: no topology -> the
-          // core keeps blocking an asset-only funding situation.
+          // Manual only: a human saw the funding notice and clicked, so let the
+          // core proceed on an asset coin. Autonomous passes none and blocks.
           fundingTopology:
             mode === 'manual'
               ? resolveManualFundingTopology(accountCtx.paymentAddress, accountCtx.ordinalsAddress)
@@ -835,20 +833,11 @@ export function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet' | 'regtest'
 }
 
 /**
- * The wallet's address layout, for the SDK core's notice-vs-block decision on a
- * funding coin that carries assets. cat21-wallet keeps a native-segwit payment
- * address apart from its taproot ordinals address, so this resolves to
- * `separate-payment-address`, where the core downgrades an asset-only funding
- * situation to `asset-notice` (proceed, but NAME what the coin carries) instead
- * of the one-address `expert-required` block. `isOneAddressWallet` is asked
- * rather than assumed so a future single-address configuration still resolves
- * correctly; with no ordinals address to compare, fall back to the wallet's real
- * separate-address shape.
- *
- * Threaded ONLY onto the MANUAL execute path (a human sees the notice and
- * decides). The autonomous path passes nothing and keeps the blocking default —
- * an unattended agent must not auto-spend an asset coin to the miners until an
- * explicit opt-in policy exists.
+ * The wallet's address layout for the SDK core's notice-vs-block decision.
+ * `separate-payment-address` downgrades an asset-only funding to `asset-notice`;
+ * `one-address-for-everything` keeps the `expert-required` block. Derived via
+ * `isOneAddressWallet`; no ordinals address falls back to separate-address.
+ * Thread onto the MANUAL execute path only; autonomous passes nothing.
  */
 export function resolveManualFundingTopology(
   paymentAddress: string,

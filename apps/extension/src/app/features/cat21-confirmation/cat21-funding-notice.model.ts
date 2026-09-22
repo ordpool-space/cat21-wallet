@@ -1,16 +1,8 @@
 import type { MintStatus, UtxoAssetDetail } from 'ordpool-sdk/core';
 
 /**
- * The funding preview's state, as the confirmation route sees it. It is the SDK
- * `simulate*` outcome, plus the states that exist BEFORE a resolved outcome:
- *
- *   - `not-applicable` — this action has no funding preview wired (only mint
- *     today). The dialog behaves exactly as before: no notice, CTA ungated.
- *   - `loading` — the simulate is in flight. Funding safety is not yet known, so
- *     the CTA must be held (the HARD RULE's "still scanning → DISABLED").
- *   - `error`  — the simulate / content scan failed. Fail closed: block, do not
- *     let a click proceed on an unknown funding picture.
- *   - the four `MintStatus` values once resolved.
+ * The funding preview state: the resolved `MintStatus`, plus `not-applicable`
+ * (no preview wired), `loading` (simulate in flight), and `error` (scan failed).
  */
 export type FundingPreviewState =
   | { status: 'not-applicable' }
@@ -19,14 +11,9 @@ export type FundingPreviewState =
   | { status: MintStatus; assets: UtxoAssetDetail | null };
 
 /**
- * The pure decision behind the funding-safety notice, split from the React
- * component so the branching — which is the safety-relevant part — is unit
- * testable without a render harness (the wallet's vitest setup can't resolve
- * `leather-styles/jsx`, and this logic has nothing to do with styling anyway).
- *
- * The component renders straight from this model and overlays only the ONE thing
- * that can't be decided synchronously: a rune's etching-transaction link, which
- * needs an ord lookup (`resolveRuneEtchingTxid`).
+ * What the notice renders, decided purely so it is unit-testable without a
+ * render harness (vitest can't resolve `leather-styles/jsx`). The component adds
+ * only the async rune etching link on top.
  */
 export type FundingNoticeModel =
   | { kind: 'none' }
@@ -41,12 +28,8 @@ export interface FundingAssetRow {
   label: 'Inscription' | 'Rune' | 'Cat' | 'Rare sat';
   /** Display text: a truncated id, a rune name, or a rare-sat description. */
   name: string;
-  /**
-   * The txid this row links to, when it is known synchronously (an inscription
-   * or cat id embeds its txid). `null` for a rare sat (nothing to link) and for
-   * a rune (its etching tx is resolved asynchronously by the component; until
-   * then the row is plain text — the reserved-rune guard renders as text too).
-   */
+  /** Sync tx link (inscription/cat ids embed a txid). `null` for a rare sat and
+   * for a rune (etching tx resolved async by the component). */
   linkTxid: string | null;
   /** Set for a rune row so the component can resolve its etching-tx link. */
   runeName?: string;
@@ -70,28 +53,7 @@ export function txidOfInscriptionId(inscriptionId: string): string {
   return inscriptionId.replace(/i\d+$/u, '');
 }
 
-/**
- * Map the funding preview state to what the notice shows:
- *   - `not-applicable` / `ready` → nothing (clean funding; dialog byte-identical).
- *   - `loading`                  → a "checking" line (CTA HELD while unknown).
- *   - `error` / `expert-required`→ `unavailable`, "content-check failed" (CTA
- *                                   HELD — the coin's contents are unknown, so a
- *                                   click could spend an asset without the notice
- *                                   ever showing; fail closed. A separate-payment-
- *                                   address wallet never reaches `expert-required`
- *                                   for the asset-only case — that becomes
- *                                   `asset-notice` — so this only comes from a
- *                                   scan that failed).
- *   - `insufficient`             → `insufficient`, "add funds". CTA stays LIVE:
- *                                   there is provably NO covering coin to spend,
- *                                   so a click cannot lose an asset — the service
- *                                   blocks it, and (caps run before funding in the
- *                                   pipeline) an over-cap intent surfaces its cap
- *                                   message first, which is the more actionable
- *                                   answer.
- *   - `asset-notice`             → the named-asset rows (CTA live; informed
- *                                   consent on a separate-payment-address wallet).
- */
+/** Map preview state to notice content. CTA gating is `isApproveBlocked`. */
 export function describeFundingNotice(state: FundingPreviewState): FundingNoticeModel {
   if (state.status === 'not-applicable') return { kind: 'none' };
   if (state.status === 'loading') return { kind: 'checking' };
@@ -135,13 +97,9 @@ export function describeFundingNotice(state: FundingPreviewState): FundingNotice
 }
 
 /**
- * The CTA is HELD only when a click could spend a funding coin whose contents
- * have NOT been shown to the user: while the scan is in flight (`checking`), and
- * when the scan could not complete (`unavailable`) so the coin's contents are
- * unknown. It stays LIVE for `none` (clean / no preview), `assets` (contents
- * shown — informed consent on a separate-payment-address wallet), and
- * `insufficient` (no covering coin exists, so nothing can be lost; the service
- * blocks the click and any cap violation surfaces first).
+ * Hold the CTA only when a click could spend a coin whose contents are unknown:
+ * `checking` (scan in flight) and `unavailable` (scan failed). `insufficient`
+ * stays live: no covering coin exists to lose, and the service blocks the click.
  */
 export function isApproveBlocked(model: FundingNoticeModel): boolean {
   return model.kind === 'checking' || model.kind === 'unavailable';

@@ -11,30 +11,14 @@ import {
 import type { Cat21Intent, Cat21MintIntent } from '@background/cat21/types';
 
 /**
- * The pre-approve funding picture the confirmation dialog renders BEFORE the
- * user clicks. It is the SDK's `simulate*` (content-checked selection + two-pass
- * fee, no signing), the same computation `execute*` repeats, so what the dialog
- * shows cannot disagree with what the click does — which is why the simulate
- * inputs mirror the execute inputs EXACTLY (recipient, fee rate, tip, topology).
- *
- * Returns a `FundingPreviewState` the route feeds to `describeFundingNotice` for
- * the notice and to `isApproveBlocked` for the CTA gate: `loading` and `error`
- * hold the CTA (funding safety not yet known / a scan that failed), a resolved
- * status names assets or blocks. A non-mint intent is `not-applicable` (no
- * funding preview wired yet), leaving the dialog exactly as before.
- *
- * `fundingTopology` is threaded on this MANUAL surface (a human sees the notice
- * and decides). The autonomous path passes none and keeps the blocking default;
- * the two are the same core, split only by what the caller passes.
+ * Pre-approve funding preview via the SDK's `simulateMint` (content-checked
+ * selection + fee, no signing), with the same inputs `executeMint` uses so the
+ * notice matches what Approve does. Returns a `FundingPreviewState` for
+ * `describeFundingNotice` and `isApproveBlocked`. Non-mint intents are
+ * `not-applicable`.
  */
 
-/**
- * True for the mint intent (funds postage + fee from the payment address, no
- * cat input). A proper type guard so the mint branch narrows `intent` to
- * `Cat21MintIntent` and its `recipient` / `feeRate` / `tip` are typed. Mint is
- * the only funding shape with a `recipient` and no `catId`; transfer carries
- * both, the offer/buy shapes carry `catId`, accept-offer carries neither.
- */
+/** Mint is the only funding intent with a `recipient` and no `catId`. */
 function isMintIntent(intent: Cat21Intent): intent is Cat21MintIntent {
   return 'recipient' in intent && !('catId' in intent);
 }
@@ -43,23 +27,16 @@ export function useCat21FundingPreview(
   intent: Cat21Intent | undefined,
   deps: Cat21RpcDeps,
   /**
-   * Whether the funding UTXO query is still loading. The preview must NOT run
-   * until it settles: `deps.spendableUtxos` returns [] while the query loads, so
-   * a preview that ran early would compute `insufficient` on an empty set and
-   * cache it — leaving a FUNDED wallet's dialog stuck on "insufficient" for the
-   * popup's life, since the key does not depend on the utxo data. While loading,
-   * the hook holds at `loading` (CTA held); when it settles the query runs once
-   * against the real spendable set.
+   * Whether the funding UTXO query is still loading. Must gate the preview:
+   * while loading `deps.spendableUtxos` returns [], and simulate reads that as
+   * `insufficient` and caches it (the query key ignores utxo data).
    */
   fundingLoading: boolean
 ): FundingPreviewState {
   const enabled = intent != null && isMintIntent(intent) && !fundingLoading;
   const query = useQuery({
-    // The key varies on the intent only. `deps` (its ports) is memoised by
-    // `useCat21RpcDeps` and stable for a given account; putting function
-    // identities in a serialised key would be wrong, not more correct. The
-    // `enabled` gate below holds the query until funding has loaded, so the
-    // queryFn always reads a settled spendable set.
+    // Key varies on the intent; deps' ports are stable memoised. The enabled
+    // gate holds the query until funding has loaded.
     // eslint-disable-next-line @tanstack/query/exhaustive-deps
     queryKey: ['cat21-funding-preview', intent],
     enabled,
@@ -79,9 +56,7 @@ export function useCat21FundingPreview(
           paymentAddress: ctx.paymentAddress,
           recipientAddress: intent.recipient,
           feeRatePerVbyte: intent.feeRate,
-          // Mirror the execute mapping (cat21-rpc.service mint) so the preview's
-          // coverage target + coin pick match what Approve actually funds — a
-          // tip changes both.
+          // A tip changes the coverage target and coin pick; mirror execute.
           tip:
             intent.tip && intent.tip.value > 0
               ? { address: intent.tip.address, valueSats: intent.tip.value }
@@ -99,7 +74,6 @@ export function useCat21FundingPreview(
   });
 
   if (intent == null || !isMintIntent(intent)) return { status: 'not-applicable' };
-  // A mint intent whose funding is still loading (query held): hold the CTA.
   if (fundingLoading) return { status: 'loading' };
   if (query.isError) return { status: 'error' };
   if (query.data) return query.data;

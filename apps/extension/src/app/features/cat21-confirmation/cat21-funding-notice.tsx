@@ -6,39 +6,20 @@ import { openInNewTab } from '@app/common/utils/open-in-new-tab';
 
 import { type FundingAssetRow, type FundingNoticeModel } from './cat21-funding-notice.model';
 
-/**
- * The funding-safety notice shown on a manual cat action, rendered straight from
- * the `FundingNoticeModel` the route derives from the SDK `simulate*` preview:
- *
- *   - `none`     — a clean coin covers it (or no preview is wired). Renders
- *     NOTHING, so the safe dialog is byte-identical to the common path.
- *   - `checking` — the preview is in flight; a brief line while the CTA is held.
- *   - `blocked`  — insufficient funds, or a coin couldn't be content-checked.
- *   - `assets`   — the only covering coin carries assets. Each is NAMED (not
- *     counted) and, where a transaction exists to point at, linked. cat21-wallet
- *     is a separate-payment-address wallet, so the CTA stays live: the person
- *     decides after seeing what the coin carries.
- */
+/** Funding-safety notice, rendered from the `FundingNoticeModel`. */
 interface Cat21FundingNoticeProps {
   model: FundingNoticeModel;
-  /**
-   * Explorer link for a txid, or `null` when there is no public explorer for the
-   * active network (regtest) — the asset then renders named but unlinked, which
-   * still delivers the safety property (the person sees WHAT the coin carries).
-   */
+  /** Explorer link for a txid; `null` where the network has no public explorer
+   * (regtest), so the asset renders named but unlinked. */
   linkForTxid(txid: string): string | null;
   /** Base URL of an ord JSON instance, to resolve a rune's etching transaction. */
   ordBaseUrl: string;
 }
 
 /**
- * Resolve each rune name to its etching transaction, so a rune row can link to
- * the tx that created it. Returns a name→txid map; a name absent from the map
- * (reserved runes like UNCOMMON•GOODS, an unknown name, or a lookup that has not
- * resolved yet) renders as plain text. `resolveRuneEtchingTxid` returns `null`
- * for all three, which is exactly the reserved-rune guard: never link an
- * all-zero etching. `null` is deliberately NOT cached (a transient miss must not
- * freeze into a dead row).
+ * name→txid for rune etching links. A name absent from the map (reserved rune,
+ * unknown, or not yet resolved: `resolveRuneEtchingTxid` returns `null` for all
+ * three) renders as plain text. `null` is not cached, so a transient miss retries.
  */
 function useRuneEtchingTxids(
   runeNames: readonly string[],
@@ -129,10 +110,8 @@ export function Cat21FundingNotice({ model, linkForTxid, ordBaseUrl }: Cat21Fund
   }
 
   if (model.kind === 'insufficient' || model.kind === 'unavailable') {
-    // Both render the same "can't fund" box; the CTA gate (isApproveBlocked)
-    // differs — `insufficient` leaves Approve live (no coin to lose, the service
-    // blocks and a cap violation surfaces first), `unavailable` holds it (the
-    // coin's contents are unknown). The distinct testid makes that observable.
+    // Same box, distinct testid so the CTA gate (isApproveBlocked) is observable:
+    // `insufficient` leaves Approve live, `unavailable` holds it.
     return (
       <Flex
         direction="column"
