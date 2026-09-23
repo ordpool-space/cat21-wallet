@@ -11,16 +11,25 @@ import {
 import type { Cat21Intent, Cat21MintIntent } from '@background/cat21/types';
 
 /**
- * Pre-approve funding preview via the SDK's `simulateMint` (content-checked
- * selection + fee, no signing), with the same inputs `executeMint` uses so the
- * notice matches what Approve does. Returns a `FundingPreviewState` for
- * `describeFundingNotice` and `isApproveBlocked`. Non-mint intents are
- * `not-applicable`.
+ * Funding preview via the SDK's `simulateMint` (content-checked selection +
+ * fee, no signing), same inputs as `executeMint` so the notice matches Approve.
+ * Returns a `FundingPreviewState` for `describeFundingNotice` /
+ * `isApproveBlocked`. Applies to manual mint only; non-mint and autonomous
+ * intents are `not-applicable` (autonomous auto-confirms, never shows the
+ * dialog).
  */
 
 /** Mint is the only funding intent with a `recipient` and no `catId`. */
 function isMintIntent(intent: Cat21Intent): intent is Cat21MintIntent {
   return 'recipient' in intent && !('catId' in intent);
+}
+
+/**
+ * The preview drives the human dialog only. An autonomous intent auto-confirms
+ * without the dialog, so previewing it is a wasted simulate + scan.
+ */
+function previewApplies(intent: Cat21Intent | undefined): intent is Cat21MintIntent {
+  return intent != null && isMintIntent(intent) && intent.mode !== 'autonomous';
 }
 
 export function useCat21FundingPreview(
@@ -33,7 +42,7 @@ export function useCat21FundingPreview(
    */
   fundingLoading: boolean
 ): FundingPreviewState {
-  const enabled = intent != null && isMintIntent(intent) && !fundingLoading;
+  const enabled = previewApplies(intent) && !fundingLoading;
   const query = useQuery({
     // Key varies on the intent; deps' ports are stable memoised. The enabled
     // gate holds the query until funding has loaded.
@@ -41,7 +50,7 @@ export function useCat21FundingPreview(
     queryKey: ['cat21-funding-preview', intent],
     enabled,
     queryFn: async (): Promise<FundingPreviewState> => {
-      if (intent == null || !isMintIntent(intent)) return { status: 'not-applicable' };
+      if (!previewApplies(intent)) return { status: 'not-applicable' };
       const ctx = deps.getAccountContext();
       if (!ctx.paymentPublicKey) return { status: 'not-applicable' };
       const ports = {
@@ -73,7 +82,7 @@ export function useCat21FundingPreview(
     },
   });
 
-  if (intent == null || !isMintIntent(intent)) return { status: 'not-applicable' };
+  if (!previewApplies(intent)) return { status: 'not-applicable' };
   if (fundingLoading) return { status: 'loading' };
   if (query.isError) return { status: 'error' };
   if (query.data) return query.data;

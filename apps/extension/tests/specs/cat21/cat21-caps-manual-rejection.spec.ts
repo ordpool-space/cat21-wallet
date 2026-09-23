@@ -61,8 +61,11 @@ test.describe('CAT-21 caps bind the real manual (Path 2) pipeline', () => {
     //    surfaced as a humanised sentence (§7.6: no raw code reaches the
     //    user), and nothing was signed or broadcast (the reject happens
     //    before the builder runs).
+    // The pipeline runs behind live network calls; the cap denial is
+    // deterministic but network-bound in arrival, so wait for the state with a
+    // network-sized bound rather than the 5s expect default.
     const error = page.getByTestId('cat21-confirmation-error');
-    await expect(error).toBeVisible();
+    await expect(error).toBeVisible({ timeout: 20_000 });
     await expect(error).toContainText('per-action spending limit');
     await expect(error).not.toContainText('spend-above-action-cap');
   });
@@ -94,8 +97,11 @@ test.describe('CAT-21 caps bind the real manual (Path 2) pipeline', () => {
     // funding message ("Add funds…") is distinct from the cap message, so this
     // still discriminates cap-rejection from funding-failure (§7.6: no raw
     // code reaches the user).
+    // Reaches funding selection (a live UTXO scan) before failing, so the
+    // humanised message is network-bound in arrival: wait for the state with a
+    // network-sized bound rather than the 5s expect default.
     const error = page.getByTestId('cat21-confirmation-error');
-    await expect(error).toBeVisible();
+    await expect(error).toBeVisible({ timeout: 20_000 });
     await expect(error).toContainText('Add funds');
     await expect(error).not.toContainText('funding-pick-failed');
   });

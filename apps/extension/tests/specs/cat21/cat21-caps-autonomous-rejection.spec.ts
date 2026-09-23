@@ -73,8 +73,13 @@ test.describe('CAT-21 caps bind the real autonomous (Path 3 / NMH) pipeline', ()
     //    over-cap autonomous mint is rejected, never signed. The running
     //    extension surfaces the cap denial as a humanised sentence (§7.6:
     //    the raw `spend-above-action-cap` code never reaches the user).
+    // The autoconfirm fires only after the real native-segwit UTXO query
+    // settles (route gate `intentNeedsFunding && fundingQueryLoading`), a live
+    // network round-trip. The cap denial is deterministic but its arrival is
+    // network-bound, so wait for the visible state with a network-sized bound,
+    // not the 5s expect default.
     const error = page.getByTestId('cat21-confirmation-error');
-    await expect(error).toBeVisible();
+    await expect(error).toBeVisible({ timeout: 20_000 });
     await expect(error).toContainText('per-action spending limit');
     await expect(error).not.toContainText('spend-above-action-cap');
   });
