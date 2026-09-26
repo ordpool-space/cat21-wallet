@@ -18,7 +18,11 @@ interface Sip9DetailsPageProps {
 export function Sip9DetailsPage({ view, onBack }: Sip9DetailsPageProps) {
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
-  const asset = view.asset as Sip9Asset;
+  /* HACK -- Cat21: NonFungibleCryptoAsset widened to include InscriptionAsset per
+   * ADR-12. This page only renders when the caller has routed by `view.protocol
+   * === 'sip9'`; the runtime narrow below makes that contract typesafe. */
+  if (view.asset.protocol !== 'sip9') return null;
+  const asset: Sip9Asset = view.asset;
   const title = view.title || 'Stacks NFT';
   const subtitle = view.subtitle;
 

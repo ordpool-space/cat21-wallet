@@ -6,6 +6,11 @@ export const COMMIT_SHA = process.env.COMMIT_SHA;
 export const IS_DEV_ENV = process.env.WALLET_ENVIRONMENT === 'development';
 export const IS_TEST_ENV = process.env.WALLET_ENVIRONMENT === 'testing';
 export const MIXPANEL_TOKEN = process.env.MIXPANEL_TOKEN ?? '';
+// HACK -- Cat21 (audit C1): retained for upstream-Leather merge
+// compatibility; consumed by the real `@sentry/react` Init upstream
+// but stripped to a no-op stub locally. The export stays so the merge
+// surface remains diff-friendly per HARD RULE #3.
+// ts-unused-exports:disable-next-line
 export const SENTRY_DSN = process.env.SENTRY_DSN ?? '';
 export const WALLET_ENVIRONMENT = process.env.WALLET_ENVIRONMENT ?? 'unknown';
 

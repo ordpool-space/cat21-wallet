@@ -32,5 +32,11 @@ export const persistConfig: PersistConfig<LocalRootState> & HiddenUntypeDeserial
     'wallets',
     'keychains',
     'manageTokens',
+    // HACK -- Cat21 (audit H2): persist the agent-policy slice
+    // across MV3 service-worker suspend. Without this, `spentToday`
+    // resets to `{}` on every wake, neutralising the daily-cap gate
+    // (an agent could blow through the daily cap by triggering
+    // worker idle).
+    'agentPolicy',
   ],
 };

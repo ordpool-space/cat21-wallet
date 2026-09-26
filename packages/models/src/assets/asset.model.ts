@@ -1,4 +1,4 @@
-import { InscriptionMimeType } from '../inscription-mime-type.model';
+import { Cat21MimeType } from '../cat21-mime-type.model';
 import { Sip9Asset } from './sip9-asset.model';
 
 export const CryptoAssetChains = {
@@ -13,14 +13,13 @@ export const FungibleCryptoAssetProtocols = {
   nativeBtc: 'nativeBtc',
   nativeStx: 'nativeStx',
   sip10: 'sip10',
-  brc20: 'brc20',
-  src20: 'src20',
-  rune: 'rune',
 } as const;
 export const NonFungibleCryptoAssetProtocols = {
-  stamp: 'stamp',
   sip9: 'sip9',
-  inscription: 'inscription',
+  /* HACK -- Cat21: 'cat21' protocol per ADR-12. Cats surface as a dedicated
+   * non-fungible protocol so the existing collectibles UI can render them
+   * without a separate code path. */
+  cat21: 'cat21',
 } as const;
 export const CryptoAssetProtocols = {
   ...FungibleCryptoAssetProtocols,
@@ -59,26 +58,6 @@ export interface StxAsset extends BaseFungibleCryptoAsset {
   readonly name: 'Stacks';
   readonly symbol: 'STX';
 }
-export interface Brc20Asset extends BaseFungibleCryptoAsset {
-  readonly chain: 'bitcoin';
-  readonly protocol: 'brc20';
-  readonly symbol: string;
-}
-export interface Src20Asset extends BaseFungibleCryptoAsset {
-  readonly chain: 'bitcoin';
-  readonly protocol: 'src20';
-  readonly id: string;
-  readonly symbol: string;
-  readonly deploy_tx: string;
-  readonly deploy_img: string;
-}
-export interface RuneAsset extends BaseFungibleCryptoAsset {
-  readonly chain: 'bitcoin';
-  readonly protocol: 'rune';
-  readonly spacedRuneName: string;
-  readonly runeName: string;
-  readonly symbol: string;
-}
 export interface Sip10Asset extends BaseFungibleCryptoAsset {
   readonly chain: 'stacks';
   readonly protocol: 'sip10';
@@ -90,23 +69,22 @@ export interface Sip10Asset extends BaseFungibleCryptoAsset {
   readonly symbol: string;
 }
 export type NativeCryptoAsset = BtcAsset | StxAsset;
-export type FungibleCryptoAsset =
-  | NativeCryptoAsset
-  | Sip10Asset
-  | Brc20Asset
-  | Src20Asset
-  | RuneAsset;
+export type FungibleCryptoAsset = NativeCryptoAsset | Sip10Asset;
 
 // NFT asset types
 export interface BaseNonFungibleCryptoAsset extends BaseCryptoAsset {
   readonly category: 'nft';
   readonly protocol: NonFungibleCryptoAssetProtocol;
 }
-export interface InscriptionAsset extends BaseNonFungibleCryptoAsset {
+
+/* HACK -- Cat21: Cat21Asset per ADR-12. cat21-ord serves cats as
+ * inscription-shaped records on the wire; the parsed type surfaced to the
+ * collectibles pipeline carries cat-flavoured field names. */
+export interface Cat21Asset extends BaseNonFungibleCryptoAsset {
   readonly chain: 'bitcoin';
-  readonly protocol: 'inscription';
+  readonly protocol: 'cat21';
   readonly id: string;
-  readonly mimeType: InscriptionMimeType;
+  readonly mimeType: Cat21MimeType;
   readonly number: number;
   readonly address: string;
   readonly title: string;
@@ -121,16 +99,8 @@ export interface InscriptionAsset extends BaseNonFungibleCryptoAsset {
   readonly genesisTimestamp: number;
   readonly genesisBlockHeight: number;
 }
-export interface StampAsset extends BaseNonFungibleCryptoAsset {
-  readonly chain: 'bitcoin';
-  readonly protocol: 'stamp';
-  readonly stamp: number;
-  readonly stampUrl: string;
-  readonly stampExplorerUrl: string;
-  readonly blockHeight: number;
-}
 
-export type NonFungibleCryptoAsset = InscriptionAsset | StampAsset | Sip9Asset;
+export type NonFungibleCryptoAsset = Sip9Asset | Cat21Asset;
 
 export type CryptoAsset = FungibleCryptoAsset | NonFungibleCryptoAsset;
 

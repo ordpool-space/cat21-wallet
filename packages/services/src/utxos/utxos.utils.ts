@@ -1,10 +1,6 @@
 import { BitcoinTransaction, OwnedUtxo, Utxo, UtxoId } from '@leather.io/models';
-import { isDefined, sumNumbers } from '@leather.io/utils';
+import { sumNumbers } from '@leather.io/utils';
 
-import {
-  BisInscription,
-  BisRuneValidOutput,
-} from '../infrastructure/api/best-in-slot/best-in-slot-api.client';
 import { LeatherApiUtxo } from '../infrastructure/api/leather/leather-api.client';
 import { MempoolDescriptorUtxo } from '../infrastructure/api/mempool/mempool-api.schema';
 import {
@@ -13,15 +9,6 @@ import {
   readTxOwnedVins,
 } from '../transactions/bitcoin-transactions.utils';
 import { UtxoTotals } from './utxos.service';
-
-export function getUtxoIdFromSatpoint(satpoint: string) {
-  const splits = satpoint?.split(':');
-  if (!splits || splits.length !== 3) return; // invalid satpoint
-  return {
-    txid: splits[0],
-    vout: Number(splits[1]),
-  };
-}
 
 export function getUtxoIdFromOutpoint(outpoint: string) {
   const splits = outpoint?.split(':');
@@ -117,33 +104,16 @@ export function getKeyOrigin(fingerprint: string, path: string) {
   return `${fingerprint}/${path.replace('m/', '')}`;
 }
 
-export function getInscriptionProtectedUtxoIds(
-  inscriptions: BisInscription[],
-  discardedInscriptions: string[]
-) {
-  const protectedInscriptions = inscriptions.filter(
-    inscription => !discardedInscriptions.includes(inscription.satpoint)
-  );
-  const protectedUtxoIds = protectedInscriptions
-    .map(inscription => getUtxoIdFromSatpoint(inscription.satpoint))
-    .filter(isDefined);
-  return selectUniqueUtxoIds(protectedUtxoIds);
-}
-
-export function getRuneProtectedUtxoIds(
-  runeOutputs: BisRuneValidOutput[],
-  discardAllRunes: boolean
-) {
-  return discardAllRunes
-    ? []
-    : selectUniqueUtxoIds(runeOutputs.map(r => getUtxoIdFromOutpoint(r.output)).filter(isDefined));
-}
-
 export function getUtxoTotals(
   accountFingerprint: string,
   totalUtxos: OwnedUtxo[],
-  protectedUtxos: OwnedUtxo[],
-  btcTxs: BitcoinTransaction[]
+  btcTxs: BitcoinTransaction[],
+  /* HACK -- Cat21: optional `catBearingUtxoIds` per ADR-12 + Phase 3.0 safety.
+   * UTXOs identified by cat21-ord as holding a cat are routed into the
+   * `protected` bucket and removed from `available`, so the BTC send flow
+   * cannot accidentally spend a cat. When omitted, the bucket stays empty
+   * (legacy/test behaviour). */
+  catBearingUtxoIds: UtxoId[] = []
 ): UtxoTotals {
   const outboundUtxos = getOutboundUtxos(btcTxs, accountFingerprint);
   const unconfirmedUtxos = totalUtxos.filter(isUnconfirmedUtxo);
@@ -152,7 +122,8 @@ export function getUtxoTotals(
     ...outboundUtxos,
   ];
   const dustUtxos = confirmedUtxos.filter(isDustUtxo);
-  const unspendableUtxos = selectUniqueUtxoIds([...outboundUtxos, ...protectedUtxos, ...dustUtxos]);
+  const protectedUtxos = confirmedUtxos.filter(filterMatchesAnyUtxoId(catBearingUtxoIds));
+  const unspendableUtxos = selectUniqueUtxoIds([...outboundUtxos, ...dustUtxos, ...protectedUtxos]);
   const availableUtxos = confirmedUtxos.filter(filterOutMatchesAnyUtxoId(unspendableUtxos));
   return {
     confirmed: confirmedUtxos,

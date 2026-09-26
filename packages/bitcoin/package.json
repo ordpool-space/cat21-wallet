@@ -2,7 +2,7 @@
   "name": "@leather.io/bitcoin",
   "author": "Leather.io contact@leather.io",
   "description": "Shared bitcoin utilities",
-  "version": "0.37.6",
+  "version": "0.37.7",
   "license": "MIT",
   "homepage": "https://github.com/leather.io/mono/tree/dev/packages/bitcoin",
   "repository": {
@@ -16,6 +16,7 @@
     "build:watch": "tsdown --no-clean --watch",
     "format": "prettier . --write --ignore-path ../../.prettierignore",
     "format:check": "prettier . --check --ignore-path ../../.prettierignore",
+    "gen:btc-auth-fixture": "vitest run auth-fixture.gen 2>&1 | sed -n '/^{$/,/^}$/p'",
     "lint": "eslint --cache --max-warnings 0",
     "lint:fix": "pnpm lint --fix",
     "test:coverage": "vitest run --coverage",
@@ -27,6 +28,7 @@
   },
   "bugs": "https://github.com/leather-io/mono/issues",
   "dependencies": {
+    "@bitcoinerlab/descriptors": "1.1.1",
     "@bitcoinerlab/secp256k1": "1.0.2",
     "@leather.io/constants": "workspace:*",
     "@leather.io/crypto": "workspace:*",

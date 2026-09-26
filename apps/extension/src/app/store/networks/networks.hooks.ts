@@ -23,15 +23,14 @@ import { PersistedNetworkConfiguration } from './networks.slice';
 
 export function getStacksNetworkFromChainId(chainId: number) {
   if (chainId === ChainId.Mainnet) return STACKS_MAINNET;
-  if (chainId === ChainId.Testnet) return STACKS_TESTNET;
-  throw new Error(`Unknown chain ID: ${chainId}`);
+  return STACKS_TESTNET;
 }
 
 export function useCurrentNetworkState() {
   const currentNetwork = useCurrentNetwork();
 
   return useMemo(() => {
-    const isTestnet = currentNetwork.chain.stacks.chainId === ChainId.Testnet;
+    const isTestnet = currentNetwork.chain.stacks.chainId !== ChainId.Mainnet;
     const isNakamotoTestnet =
       currentNetwork.chain.stacks.url === HIRO_API_BASE_URL_NAKAMOTO_TESTNET;
     return { ...currentNetwork, isTestnet, isNakamotoTestnet };
@@ -58,6 +57,7 @@ export function useCurrentStacksNetworkState(): StacksNetwork {
   );
 }
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export function useNetworksActions() {
   const dispatch = useAppDispatch();
 

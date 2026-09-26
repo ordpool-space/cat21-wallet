@@ -1,0 +1,98 @@
+name: extension:cat21-e2e
+
+# Real-extension Playwright proof that the CAT-21 agent-policy caps bind the
+# running extension on both signing paths (Path 2 manual + Path 3 autonomous
+# NMH). Unlike extension:integration-tests (disabled until the repo mnemonic
+# var is set), these specs seed a signed-in test account via
+# `signInWithTestAccount`, so they need NO EXTENSION_INTEGRATION_TEST_MNEMONIC.
+# They build the extension from source and load it unpacked — the real
+# keychain, the real Redux policy store, the real Cat21RpcService pipeline.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/extension/**'
+      - 'packages/**'
+      - '.github/workflows/extension:cat21-e2e.yml'
+  pull_request:
+    paths:
+      - 'apps/extension/**'
+      - 'packages/**'
+      - '.github/workflows/extension:cat21-e2e.yml'
+  workflow_dispatch:
+
+env:
+  DO_NOT_TRACK: 1
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cat21-e2e:
+    name: cat21-caps-e2e
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/extension
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/provision
+
+      - name: build-packages
+        working-directory: ./
+        run: pnpm turbo build --filter=@leather.io/extension^...
+
+      - name: build-styles
+        run: pnpm run prepare:build
+
+      - name: build-extension-in-test-mode
+        run: pnpm build:test
+        env:
+          WALLET_ENVIRONMENT: testing
+          LAUNCH_DARKLY_KEY: ${{ vars.PUBLIC_EXTENSION_LAUNCH_DARKLY_KEY }}
+          BITFLOW_API_HOST: ${{ vars.PUBLIC_BITFLOW_API_HOST }}
+          BITFLOW_API_KEY: ${{ vars.PUBLIC_BITFLOW_API_KEY }}
+          BITFLOW_READONLY_CALL_API_HOST: ${{ vars.PUBLIC_BITFLOW_READONLY_CALL_API_HOST }}
+          BITFLOW_READONLY_CALL_API_KEY: ${{ vars.PUBLIC_BITFLOW_READONLY_CALL_API_KEY }}
+          BITFLOW_KEEPER_API_KEY: ${{ vars.PUBLIC_BITFLOW_KEEPER_API_KEY }}
+          BITFLOW_KEEPER_API_HOST: ${{ vars.PUBLIC_BITFLOW_KEEPER_API_HOST }}
+          BITFLOW_PROVIDER_ADDRESS: ${{ vars.PUBLIC_BITFLOW_PROVIDER_ADDRESS }}
+
+      - name: get-installed-playwright-version
+        id: playwright-version
+        run: echo "PLAYWRIGHT_VERSION=$(node -e "console.log(require('./package.json').devDependencies['@playwright/test'])")" >> "$GITHUB_ENV"
+
+      - name: cache-playwright-binaries
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-cache-1-${{ env.PLAYWRIGHT_VERSION }}
+
+      - name: install-playwright-browsers
+        run: pnpm playwright install chromium --with-deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+
+      # Playwright can only test extensions headed (see
+      # https://playwright.dev/docs/chrome-extensions), so a virtual display
+      # (xvfb) is required on the headless CI runner. PW_CHROMIUM_EXE stays
+      # unset here, so the fixture uses the bundled browser + --use-gl=egl.
+      - name: run-cat21-caps-e2e
+        run: xvfb-run pnpm playwright test tests/specs/cat21 --workers=1
+
+      - name: upload-report-on-failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cat21-e2e-report
+          path: apps/extension/test-results
+          retention-days: 3
+          if-no-files-found: ignore

@@ -43,25 +43,35 @@ export const TaprootUtxoWarningDialog = createCallable<void, TaprootUtxoWarningR
           py="space.06"
           data-testid={SendCryptoAssetSelectors.TaprootUtxoWarningDialog}
         >
-          <styled.h3 textStyle="heading.05">This transaction includes taproot UTXOs</styled.h3>
+          {/* HACK -- Cat21: rewritten from Leather's generic "these UTXOs may
+              contain inscriptions/runes/BRC-20" copy, which contradicted our
+              "only cats" posture by implying we check for three things we can't
+              see. The wallet indexes cats and nothing else (cat21-ord), so the
+              honest statement is that it is BLIND to other assets, not that it
+              checks for them. Leather's support mailto removed (another
+              company's inbox); points to our own public repo issues instead. */}
+          <styled.h3 textStyle="heading.05">This wallet only indexes cats</styled.h3>
 
           <styled.p textStyle="body.02" color="ink.text-subdued">
-            This transaction spends from taproot UTXOs. These UTXOs may contain ordinal
-            inscriptions, rune, or BRC-20 tokens.
+            You're spending taproot coins. This wallet indexes cats and nothing else, so it can't
+            see inscriptions, runes, rare sats or stamps: if one of these coins holds one, this
+            transaction could spend it by accident.
           </styled.p>
           <styled.p textStyle="body.02" color="ink.text-subdued">
-            If you want to protect these assets, cancel this transaction and transfer them to
-            another wallet.
+            If you're not sure what's on these coins, cancel and move them to a wallet built for
+            those assets first.
           </styled.p>
           <styled.p textStyle="body.02" color="ink.text-subdued">
-            Reach out to our support (
+            Questions? Open an issue on our{' '}
             <a
               className={css({ textDecorationLine: 'underline' })}
-              href="mailto:support@leather.io?subject=Runes%20or%20inscription%20check%20and%2For%20migration"
+              href="https://github.com/ordpool-space/cat21-wallet/issues"
+              target="_blank"
+              rel="noreferrer"
             >
-              support@leather.io
+              GitHub
             </a>
-            ) if you need help migrating your assets or understanding what this means.
+            .
           </styled.p>
         </Stack>
       </Sheet>

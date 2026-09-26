@@ -5,6 +5,7 @@ import { uniqueArray } from '@leather.io/utils';
 
 import { useStacksClient } from '../stacks-client';
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export function useGetTransactionByIdQuery(txid: string) {
   const client = useStacksClient();
   return useQuery(createGetTransactionByIdQueryOptions({ client, txid }));

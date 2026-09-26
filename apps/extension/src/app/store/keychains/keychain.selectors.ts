@@ -30,10 +30,12 @@ const selectStacksKeychainDescriptors = createSelector([selectStacksKeychains], 
   keychains.map(keychain => keychain.descriptor)
 );
 
+/** @knipignore -- HACK Cat21: consumer wiring lands later; retain export. */
 export function useBitcoinKeychainDescriptors() {
   return useSelector(selectBitcoinKeychainDescriptors);
 }
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export function useStacksKeychainDescriptors() {
   return useSelector(selectStacksKeychainDescriptors);
 }

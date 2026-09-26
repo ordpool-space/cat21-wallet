@@ -4,30 +4,31 @@ import { ActivityService } from './activity/activity.service';
 import { BlockchainActivityService } from './activity/blockchain-activity.service';
 import { AssetListService } from './asset-list/asset-list.service';
 import { FungibleAssetInfoService } from './assets/fungible-asset-info.service';
-import { RuneAssetService } from './assets/rune-asset.service';
 import { Sip10AssetService } from './assets/sip10-asset.service';
 import { AccountBalancesService } from './balances/account-balances.service';
 import { BtcBalancesService } from './balances/btc-balances.service';
-import { RunesBalancesService } from './balances/runes-balances.service';
 import { Sip10BalancesService } from './balances/sip10-balances.service';
 import { StxBalancesService } from './balances/stx-balances.service';
 import { BnsService } from './bns/bns.service';
 import { BitcoinCoinSelectionService } from './coin-selection/bitcoin-coin-selection.service';
+import { Cat21AssetService } from './collectibles/cat21-asset.service';
 import { CollectiblesService } from './collectibles/collectibles.service';
-import { InscriptionsService } from './collectibles/inscriptions.service';
+/* HACK -- Cat21: Cat21AssetService + Cat21OrdApiClient re-registered per
+ * ADR-12. autobind picks them up automatically, but the accessor functions
+ * below give the consumer side a stable lookup name. */
 import { Sip9sService } from './collectibles/sip9s.service';
-import { StampsService } from './collectibles/stamps.service';
 import { BitcoinTransactionFeesService } from './fees/bitcoin-transaction-fees.service';
 import { StacksTransactionFeesService } from './fees/stacks-transaction-fees.service';
-import { BestInSlotApiClient } from './infrastructure/api/best-in-slot/best-in-slot-api.client';
 import { BnsV2ApiClient } from './infrastructure/api/bns-v2/bns-v2-api.client';
+import { Cat21OrdApiClient } from './infrastructure/api/cat21-ord/cat21-ord-api.client';
 import { HiroStacksApiClient } from './infrastructure/api/hiro/hiro-stacks-api.client';
 import { LeatherApiClient } from './infrastructure/api/leather/leather-api.client';
 import { LeatherAuthApiClient } from './infrastructure/api/leather/leather-auth-api.client';
+import type { AuthSessionService } from './infrastructure/auth/auth-session.service';
+import { SignInService } from './infrastructure/auth/sign-in.service';
 import { HttpCacheService } from './infrastructure/cache/http-cache.service';
 import { Environment } from './infrastructure/environment';
 import { SettingsService } from './infrastructure/settings/settings.service';
-import type { TokenAuthService } from './infrastructure/token-auth.service';
 import { Types } from './inversify.types';
 import { MarketDataService } from './market/market-data.service';
 import { MarketHistoryService } from './market/market-history.service';
@@ -54,7 +55,7 @@ export interface InitServicesContainerOptions {
   env: Environment;
   settingsService: Newable<SettingsService>;
   cacheService: Newable<HttpCacheService>;
-  tokenAuthService?: Newable<TokenAuthService>;
+  authSessionService?: Newable<AuthSessionService>;
 }
 
 export function initServicesContainer(options: InitServicesContainerOptions): Container {
@@ -69,10 +70,10 @@ export function initServicesContainer(options: InitServicesContainerOptions): Co
       .bind<HttpCacheService>(Types.CacheService)
       .to(options.cacheService)
       .inSingletonScope();
-    if (options.tokenAuthService) {
+    if (options.authSessionService) {
       servicesContainer
-        .bind(Types.TokenAuthService)
-        .to(options.tokenAuthService)
+        .bind(Types.AuthSessionService)
+        .to(options.authSessionService)
         .inSingletonScope();
     }
   }
@@ -104,14 +105,8 @@ export function getStxBalancesService() {
 export function getSip10BalancesService() {
   return getServicesContainer().get(Sip10BalancesService);
 }
-export function getRunesBalancesService() {
-  return getServicesContainer().get(RunesBalancesService);
-}
 export function getSip10AssetService() {
   return getServicesContainer().get(Sip10AssetService);
-}
-export function getRuneAssetService() {
-  return getServicesContainer().get(RuneAssetService);
 }
 export function getUtxosService() {
   return getServicesContainer().get(UtxosService);
@@ -185,20 +180,24 @@ export function getGraniteV1BorrowService() {
 export function getYieldService() {
   return getServicesContainer().get(YieldService);
 }
-export function getInscriptionsService() {
-  return getServicesContainer().get(InscriptionsService);
-}
 export function getSip9sService() {
   return getServicesContainer().get(Sip9sService);
-}
-export function getStampsService() {
-  return getServicesContainer().get(StampsService);
 }
 export function getStacksProtocolService() {
   return getServicesContainer().get(StacksProtocolService);
 }
 export function getMultisigService() {
   return getServicesContainer().get(MultisigService);
+}
+export function getSignInService() {
+  return getServicesContainer().get(SignInService);
+}
+/* HACK -- Cat21: cat-asset surface accessors per ADR-12. */
+export function getCat21AssetService() {
+  return getServicesContainer().get(Cat21AssetService);
+}
+export function getCat21OrdApiClient() {
+  return getServicesContainer().get(Cat21OrdApiClient);
 }
 
 /*
@@ -212,9 +211,6 @@ export function getLeatherAuthApiClient() {
 }
 export function getHiroStacksApiClient() {
   return getServicesContainer().get(HiroStacksApiClient);
-}
-export function getBisApiClient() {
-  return getServicesContainer().get(BestInSlotApiClient);
 }
 export function getBnsV2ApiClient() {
   return getServicesContainer().get(BnsV2ApiClient);
