@@ -116,12 +116,20 @@ export function PsbtSigner(props: PsbtSignerProps) {
         footerBorder
         footer={
           <ButtonRow flexDirection="row">
-            <Button flexGrow={1} onClick={onCancel} variant="outline">
+            {/* HACK -- Cat21: stable testids so the ordpool regtest specs target
+                the signPsbt Deny/Confirm buttons by id, not a role+name regex. */}
+            <Button
+              flexGrow={1}
+              onClick={onCancel}
+              variant="outline"
+              data-testid="sign-psbt-deny-button"
+            >
               Cancel
             </Button>
             <Button
               flexGrow={1}
               aria-busy={isBroadcasting}
+              data-testid="sign-psbt-confirm-button"
               onClick={() =>
                 onSignPsbt({
                   addressNativeSegwitTotal,
