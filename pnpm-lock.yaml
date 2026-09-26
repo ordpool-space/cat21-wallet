@@ -385,8 +385,8 @@ importers:
         specifier: 2.71.1
         version: 2.71.1
       ordpool-sdk:
-        specifier: github:ordpool-space/ordpool-sdk#d5ff63e577e0becb07ec956814b200a43deb815f
-        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/d5ff63e577e0becb07ec956814b200a43deb815f(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
+        specifier: github:ordpool-space/ordpool-sdk#a52004428226ea45b392192a77ca87245ab8ab4f
+        version: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/a52004428226ea45b392192a77ca87245ab8ab4f(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3))
       os-browserify:
         specifier: 0.3.0
         version: 0.3.0
@@ -16451,8 +16451,8 @@ packages:
     resolution: {integrity: sha512-weP+BZ8MVNnlCm8c0Qdc1WSWq4Qn7I+9CJGm7Qali6g44e/PUzbjNqJX5NJ9ljlNMosfJvg1fKEGILklK9cwnw==}
     engines: {node: '>=18'}
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/d5ff63e577e0becb07ec956814b200a43deb815f:
-    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/d5ff63e577e0becb07ec956814b200a43deb815f}
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/a52004428226ea45b392192a77ca87245ab8ab4f:
+    resolution: {tarball: https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/a52004428226ea45b392192a77ca87245ab8ab4f}
     version: 0.1.0
     peerDependencies:
       '@noble/curves': '>=1'
@@ -38880,7 +38880,7 @@ snapshots:
       string-width: 7.2.0
       strip-ansi: 7.1.2
 
-  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/d5ff63e577e0becb07ec956814b200a43deb815f(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
+  ordpool-sdk@https://codeload.github.com/ordpool-space/ordpool-sdk/tar.gz/a52004428226ea45b392192a77ca87245ab8ab4f(@noble/curves@1.8.2)(@playwright/test@1.58.2)(@scure/btc-signer@1.6.0)(rxjs@7.8.1)(sats-connect@4.2.1(typescript@5.9.3)):
     dependencies:
       '@noble/curves': 1.8.2
       '@noble/hashes': 1.5.0
