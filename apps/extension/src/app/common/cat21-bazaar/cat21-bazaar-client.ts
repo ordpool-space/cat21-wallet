@@ -171,9 +171,8 @@ export async function unlistCat21(args: {
 /**
  * GET /api/v1/listings/cat/:catNumber — public read, no auth.
  * `null` when the cat has no active listing: the backend answers 200 with a
- * `null` body, and a backend on the cat21-indexer release before that change
- * answers 404. Both mean "not listed". Used to render the "already listed for
- * X sats" state on the sell form.
+ * `null` body. Used to render the "already listed for X sats" state on the
+ * sell form.
  */
 export async function fetchCat21ListingForCat(args: {
   catNumber: number;
@@ -187,9 +186,6 @@ export async function fetchCat21ListingForCat(args: {
     if (res.data === null) return { ok: true, value: null };
     return { ok: true, value: { askSats: res.data.askSats, payTo: res.data.payTo } };
   } catch (err) {
-    if (isAxiosError(err) && err.response?.status === 404) {
-      return { ok: true, value: null };
-    }
     return { ok: false, error: mapHttpError(err) };
   }
 }

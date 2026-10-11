@@ -195,11 +195,11 @@ describe('fetchCat21ListingForCat', () => {
     expect(res).toEqual({ ok: true, value: null });
   });
 
-  it('404 → value null (no listing is not an error)', async () => {
+  it('404 is a failure: the backend answers an unlisted cat with 200 and null', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
     vi.mocked(axios.get).mockRejectedValueOnce(axiosError(404));
     const res = await fetchCat21ListingForCat({ catNumber: 42 });
-    expect(res).toEqual({ ok: true, value: null });
+    expect(res.ok).toBe(false);
   });
 
   it('a non-404 server error is a real failure, not a silent "no listing"', async () => {
