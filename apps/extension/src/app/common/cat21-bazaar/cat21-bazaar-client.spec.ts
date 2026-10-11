@@ -188,6 +188,13 @@ describe('fetchCat21ListingForCat', () => {
     expect(res).toEqual({ ok: true, value: { askSats: 21_000, payTo: 'bc1qpayment' } });
   });
 
+  it('200 with a null body → value null (no listing is not an error)', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.get).mockResolvedValueOnce({ data: null });
+    const res = await fetchCat21ListingForCat({ catNumber: 42 });
+    expect(res).toEqual({ ok: true, value: null });
+  });
+
   it('404 → value null (no listing is not an error)', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
     vi.mocked(axios.get).mockRejectedValueOnce(axiosError(404));
