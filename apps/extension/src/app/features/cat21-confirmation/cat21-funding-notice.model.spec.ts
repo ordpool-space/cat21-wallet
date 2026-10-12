@@ -79,6 +79,19 @@ describe('describeFundingNotice', () => {
     expect(isApproveBlocked(model)).toBe(true);
   });
 
+  // HARD RULE #8 spec stubs: `expert-required` carries the SDK's
+  // `expertRequiredCause`, and the notice reads it instead of assuming a scan miss.
+  it.todo(
+    'expert-required, cause unknown-content: unavailable with the scan-failed reason, CTA HELD'
+  );
+  it.todo(
+    'expert-required, cause unnamed-assets: unavailable with its own reason (assets found, none named), CTA HELD'
+  );
+  it.todo(
+    'expert-required, cause named-assets (one-address account): a held notice that NAMES each asset with the same rows as asset-notice'
+  );
+  it.todo('expert-required, cause null: fails closed to the scan-failed reason, CTA HELD');
+
   it('shows "add funds" on insufficient but LEAVES the CTA live (no coin to lose)', () => {
     // There is provably no covering coin, so a click cannot lose an asset — the
     // service blocks it, and a cap violation (checked before funding) surfaces

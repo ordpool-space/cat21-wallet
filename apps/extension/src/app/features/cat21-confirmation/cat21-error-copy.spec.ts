@@ -12,6 +12,19 @@ describe('humanizeCat21Error', () => {
     );
   });
 
+  // HARD RULE #8 spec stubs: the three SDK expert-required messages are not a
+  // lack of funds, so none of them reads "Add funds".
+  it.todo(
+    'maps "Select a funding UTXO (what the covering coins hold could not be checked)" to a try-again-later step'
+  );
+  it.todo(
+    'maps "Select a funding UTXO (the covering coins carry assets the scan could not name)" to its own step, not add funds'
+  );
+  it.todo(
+    'maps "Select a funding UTXO (the available coins carry assets)" to its own step, not add funds'
+  );
+  it.todo('keeps "Add funds" for Insufficient funds behind funding-pick-failed');
+
   it('maps a locked wallet to an unlock step', () => {
     expect(humanizeCat21Error('agent-disabled', 'wallet-locked')).toBe(
       'Unlock your wallet, then try again.'

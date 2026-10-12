@@ -32,7 +32,9 @@ const here = path.dirname(fileURLToPath(import.meta.url));
  *      live. Rare sat (not inscription): its seed builds a raw tx that does not
  *      collide with the multiclass spec's ord wallet, and it is not cat-protected
  *      so it reaches the preview. A one-address block cannot arise on this
- *      separate-address wallet.
+ *      separate-address wallet; the blocks that can (a coin whose scan failed,
+ *      or whose assets the scan did not name) are pinned at the wallet <-> SDK
+ *      seam by `funding-topology-contract.spec.ts`.
  *   3. INSUFFICIENT: no covering coin, add-funds notice, Approve live.
  *
  * Fresh mnemonic per test. Prereq: regtest stack with full ord (:8081),

@@ -6,7 +6,10 @@ import {
   KnownOrdinalWalletType,
   type MintCoreParams,
   Network,
+  type UtxoAssetDetail,
+  type UtxoClassification,
   type UtxosPort,
+  expertRequiredCause,
   simulateMint,
 } from 'ordpool-sdk/core';
 import { describe, expect, it } from 'vitest';
@@ -69,28 +72,91 @@ function params(over: Partial<MintCoreParams> = {}): MintCoreParams {
 function utxosPort(coins: CoreFundingUtxo[]): UtxosPort {
   return { spendableUtxos: () => Promise.resolve(coins) };
 }
-function scanPort(verdicts: Record<string, 'clean' | 'has-assets'> = {}): ContentScanPort {
+function scanPort(verdicts: Record<string, UtxoClassification> = {}): ContentScanPort {
   return { classify: outpoint => Promise.resolve(verdicts[outpoint] ?? 'clean') };
 }
 
-/** One covering coin that carries assets: the pool where topology decides. */
-function dirtyOnly() {
+const INSCRIPTION_ID = `${'ab'.repeat(32)}i0`;
+
+/**
+ * The object form the wallet's production port returns
+ * (`classifyOutpointVerdict`): `has-assets` WITH a detail that names the
+ * inscription, so the core can put the name in front of the user.
+ */
+const NAMED: UtxoClassification = {
+  verdict: 'has-assets',
+  assets: { inscriptionIds: [INSCRIPTION_ID], runeNames: [], catIds: [], rareSat: null },
+};
+
+/** One covering coin that carries NAMED assets: the pool where topology decides. */
+function dirtyOnly(classification: UtxoClassification = NAMED) {
   const asset = coin('d', 100_000);
   return {
     asset,
-    ports: { utxos: utxosPort([asset]), scan: scanPort({ [op(asset)]: 'has-assets' }) },
+    ports: { utxos: utxosPort([asset]), scan: scanPort({ [op(asset)]: classification }) },
   };
 }
 
+/** One covering coin whose scan REJECTS: content unknown (ord unreachable or not indexed). */
+function unknownOnly() {
+  const asset = coin('e', 100_000);
+  const scan: ContentScanPort = {
+    classify: () => Promise.reject(new Error('ord has not indexed this output')),
+  };
+  return { asset, ports: { utxos: utxosPort([asset]), scan } };
+}
+
 describe('funding-topology contract (wallet <-> SDK simulate*)', () => {
-  it('MANUAL (separate-payment-address): a dirty-only pool previews asset-notice with a spendable coin', async () => {
+  it('MANUAL (separate-payment-address): a NAMED-asset-only pool previews asset-notice with a spendable coin and the names', async () => {
     // The manual dialog threads isOneAddressWallet -> 'separate-payment-address'.
-    // A coin comes back, which is what lets the CTA stay enabled behind a notice.
+    // A coin comes back, which is what lets the CTA stay enabled behind a notice,
+    // and the detail rides along, which is what the notice renders.
     const { asset, ports } = dirtyOnly();
     const sim = await simulateMint(params({ fundingTopology: 'separate-payment-address' }), ports);
 
     expect(sim.status).toBe('asset-notice');
     expect(sim.fundingUtxo?.txid).toBe(asset.txid);
+    expect(sim.recommendation.recommended?.assets?.inscriptionIds).toEqual([INSCRIPTION_ID]);
+    expect(expertRequiredCause(sim.recommendation)).toBe('named-assets');
+  });
+
+  it('MANUAL (separate-payment-address): a scan that REJECTS blocks with bucket failed and cause unknown-content', async () => {
+    // A coin whose content is unknown is never behind a notice, on any topology:
+    // a notice that cannot say what the coin holds informs nobody.
+    const { asset, ports } = unknownOnly();
+    const sim = await simulateMint(params({ fundingTopology: 'separate-payment-address' }), ports);
+
+    expect(sim.status).toBe('expert-required');
+    expect(sim.fundingUtxo).toBeNull();
+    expect(sim.recommendation.recommended?.txid).toBe(asset.txid);
+    expect(sim.recommendation.recommended?.bucket).toBe('failed');
+    expect(expertRequiredCause(sim.recommendation)).toBe('unknown-content');
+  });
+
+  it('MANUAL (separate-payment-address): a BARE has-assets verdict blocks with cause unnamed-assets', async () => {
+    // The bare string says something is there and not what, so there is nothing
+    // for a notice to name.
+    const { ports } = dirtyOnly('has-assets');
+    const sim = await simulateMint(params({ fundingTopology: 'separate-payment-address' }), ports);
+
+    expect(sim.status).toBe('expert-required');
+    expect(sim.fundingUtxo).toBeNull();
+    expect(sim.recommendation.recommended?.bucket).toBe('assets');
+    expect(expertRequiredCause(sim.recommendation)).toBe('unnamed-assets');
+  });
+
+  it('MANUAL (separate-payment-address): a detail that names nothing blocks like a bare verdict', async () => {
+    const nothingNamed: UtxoAssetDetail = {
+      inscriptionIds: [],
+      runeNames: [],
+      catIds: [],
+      rareSat: null,
+    };
+    const { ports } = dirtyOnly({ verdict: 'has-assets', assets: nothingNamed });
+    const sim = await simulateMint(params({ fundingTopology: 'separate-payment-address' }), ports);
+
+    expect(sim.status).toBe('expert-required');
+    expect(expertRequiredCause(sim.recommendation)).toBe('unnamed-assets');
   });
 
   it('OMITTED topology: a dirty-only pool previews expert-required with no coin (safe default for a caller that forgot)', async () => {
@@ -106,6 +172,10 @@ describe('funding-topology contract (wallet <-> SDK simulate*)', () => {
 
     expect(sim.status).toBe('expert-required');
     expect(sim.fundingUtxo).toBeNull();
+    // Blocked, and the assets are still named: the autonomous path passes no
+    // topology, so this is the answer an agent stands on.
+    expect(expertRequiredCause(sim.recommendation)).toBe('named-assets');
+    expect(sim.recommendation.recommended?.assets?.inscriptionIds).toEqual([INSCRIPTION_ID]);
   });
 
   it('a clean coin previews ready with the topology threaded, so the quiet path is unchanged', async () => {

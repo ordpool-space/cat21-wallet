@@ -1,6 +1,6 @@
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
-import { CAT21_POSTAGE_SATS, getDummyKeypair } from 'ordpool-sdk/core';
+import { CAT21_POSTAGE_SATS, type UtxoClassification, getDummyKeypair } from 'ordpool-sdk/core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Cat21OfferValidation } from './builders/accept-offer-validator';
@@ -118,6 +118,20 @@ interface SpyDeps extends Cat21RpcDeps {
   broadcast: ReturnType<typeof vi.fn> & Cat21RpcDeps['broadcast'];
   recordSpend: ReturnType<typeof vi.fn> & Cat21RpcDeps['recordSpend'];
 }
+
+/**
+ * A coin carrying a NAMED inscription, in the object form the production port
+ * (`classifyOutpointVerdict`) returns.
+ */
+const NAMED_ASSETS: UtxoClassification = {
+  verdict: 'has-assets',
+  assets: {
+    inscriptionIds: [`${'ab'.repeat(32)}i0`],
+    runeNames: [],
+    catIds: [],
+    rareSat: null,
+  },
+};
 
 function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
   const signedTx: SignedTx = { hex: 'deadbeef', weight: 600 };
@@ -300,10 +314,10 @@ describe('Cat21RpcService.mint', () => {
       }
     });
 
-    it('AUTONOMOUS: "funding-pick-failed" when only an asset coin covers', async () => {
+    it('AUTONOMOUS: "funding-pick-failed" when only a named-asset coin covers', async () => {
       // Autonomous passes no funding topology, so an asset-only coin is
       // expert-required and execute refuses it. No consent, no spend.
-      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve('has-assets' as const)) });
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
       const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
@@ -313,16 +327,63 @@ describe('Cat21RpcService.mint', () => {
       }
     });
 
-    it('MANUAL: proceeds when only an asset coin covers (notice-and-proceed)', async () => {
-      // Manual threads separate-payment-address, so an asset-only coin is
-      // asset-notice and execute proceeds. The dialog showed the notice before
-      // calling mint; the service trusts that consent.
-      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve('has-assets' as const)) });
+    it('MANUAL: proceeds when only a named-asset coin covers (notice-and-proceed)', async () => {
+      // Manual threads separate-payment-address, so a coin whose assets the scan
+      // NAMED is asset-notice and execute proceeds. The dialog showed the notice
+      // naming them before calling mint; the service trusts that consent.
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
       const result = await service.mint(makeIntent(), 'popup');
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.value.kind).toBe('broadcast');
     });
+
+    it('MANUAL: refuses when the only covering coin scans as has-assets without names', async () => {
+      // Nothing named means nothing a notice could have shown, so even the
+      // separate-payment-address manual path blocks. The SDK's cause-specific
+      // message rides in the detail behind the funding-pick-failed prefix.
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve('has-assets' as const)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.detail).toBe(
+          'funding-pick-failed: Select a funding UTXO (the covering coins carry assets the scan could not name)'
+        );
+      }
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('MANUAL: refuses when the only covering coin cannot be scanned (content unknown)', async () => {
+      deps = makeDeps({
+        classifyOutpoint: vi.fn(() => Promise.reject(new Error('ord has not indexed this output'))),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.detail).toBe(
+          'funding-pick-failed: Select a funding UTXO (what the covering coins hold could not be checked)'
+        );
+      }
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+    });
+
+    // HARD RULE #8 spec stubs: the agent receives the cause as a typed field,
+    // not only as prose inside `detail`.
+    it.todo(
+      'AUTONOMOUS: a named-asset block denies with funding.cause named-assets, the recommended outpoint and the named assets'
+    );
+    it.todo(
+      'AUTONOMOUS: an unnamed-asset block denies with funding.cause unnamed-assets and assets null'
+    );
+    it.todo(
+      'AUTONOMOUS: an unknown-content block denies with funding.cause unknown-content and assets null'
+    );
+    it.todo('nothing covers: funding.cause is absent, detail keeps Insufficient funds');
+    it.todo('transfer and buy carry the same funding block as mint (one mapping, three flows)');
 
     it('returns "intent-invariant-violated: no-payment-public-key" when the pubkey is absent', async () => {
       deps = makeDeps({

@@ -834,10 +834,13 @@ export function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet' | 'regtest'
 
 /**
  * The wallet's address layout for the SDK core's notice-vs-block decision.
- * `separate-payment-address` downgrades an asset-only funding to `asset-notice`;
- * `one-address-for-everything` keeps the `expert-required` block. Derived via
- * `isOneAddressWallet`; no ordinals address falls back to separate-address.
- * Thread onto the MANUAL execute path only; autonomous passes nothing.
+ * `separate-payment-address` lets a funding whose only covering coin carries
+ * NAMED assets proceed as `asset-notice`; `one-address-for-everything` keeps
+ * that coin behind the `expert-required` block. A covering coin whose assets
+ * are unnamed, or whose scan failed, is `expert-required` on either layout
+ * (`expertRequiredCause`). Derived via `isOneAddressWallet`; no ordinals
+ * address falls back to separate-address. Thread onto the MANUAL execute path
+ * only; autonomous passes nothing.
  */
 export function resolveManualFundingTopology(
   paymentAddress: string,
@@ -879,8 +882,9 @@ class BroadcastError extends Error {}
  *   - `SignError`      → `broadcast-failed: sign-failed`
  *   - `BroadcastError` → `broadcast-failed`
  *   - funding/selection throws (only asset coins cover, nothing covers,
- *     insufficient funds, `Select a funding UTXO`) →
- *     `intent-invariant-violated: funding-pick-failed`
+ *     insufficient funds, and the SDK's three `expertRequiredMessage` texts,
+ *     which all start `Select a funding UTXO`) →
+ *     `intent-invariant-violated: funding-pick-failed: <the SDK message>`
  *   - anything else → `intent-invariant-violated: build-failed`
  */
 function mapCoreError(err: unknown): Cat21RpcResult {
