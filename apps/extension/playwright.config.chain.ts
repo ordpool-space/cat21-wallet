@@ -17,13 +17,21 @@ import { defineConfig, devices } from '@playwright/test';
  *   PW_CHROMIUM_EXE=~/Library/Caches/ms-playwright/chromium-1234/chrome-mac/Chromium.app/Contents/MacOS/Chromium \
  *     pnpm --filter @leather.io/extension exec playwright test --config playwright.config.chain.ts
  */
+/**
+ * The per-wait bound. Playwright's own waits read it through `expect.timeout`;
+ * the `ordpool-sdk/e2e` helpers that poll bitcoind, electrs and ord outside
+ * Playwright read it from `ORDPOOL_E2E_TIMEOUT_MS`, which has no default there.
+ */
+const WAIT_TIMEOUT_MS = 30_000;
+process.env.ORDPOOL_E2E_TIMEOUT_MS = String(WAIT_TIMEOUT_MS);
+
 export default defineConfig({
   globalSetup: './tests/global-playwright-setup.js',
   testDir: './tests/specs/cat21-chain',
   // Real on-chain round-trips (fund, mine, electrs sync, cat21-ord index)
   // are slow; give each test room without inviting hangs.
   timeout: 180 * 1000,
-  expect: { timeout: 30_000 },
+  expect: { timeout: WAIT_TIMEOUT_MS },
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: 0,
