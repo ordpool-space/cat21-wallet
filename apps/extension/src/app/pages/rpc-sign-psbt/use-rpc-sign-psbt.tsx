@@ -37,7 +37,7 @@ interface BroadcastSignedPsbtTxArgs {
 }
 export function useRpcSignPsbt() {
   const navigate = useNavigate();
-  const { broadcast, descriptor, origin, psbtHex, requestId, signAtIndex, tabId } =
+  const { allowedSighash, broadcast, descriptor, origin, psbtHex, requestId, signAtIndex, tabId } =
     useRpcSignPsbtParams();
   const { signPsbt, getPsbtAsTransaction } = usePsbtSigner();
   const signDescriptorPsbt = useSignDescriptorPsbt();
@@ -187,7 +187,14 @@ export function useRpcSignPsbt() {
       const tx = getPsbtAsTransaction(psbtHex);
 
       try {
+        // The signer restricts each input to defaultAllowedSighashTypes plus the
+        // request's allowedSighash and leaves any other sighash unsigned, so a
+        // disallowed type can never be signed. TODO(B1-3): port upstream's
+        // getInputsToSignWithDisallowedSighash pre-check (rejectDisallowedSighash
+        // in rpc-sign-psbt.tsx) for a clean upfront reject instead of a
+        // finalize-time failure.
         const signedTx = await signPsbt({
+          allowedSighash,
           tx,
           signingConfig: getDefaultSigningConfig(hexToBytes(psbtHex), signAtIndex),
         });
