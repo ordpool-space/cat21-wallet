@@ -1,6 +1,7 @@
 import * as btc from '@scure/btc-signer';
 import { hexToBytes } from '@stacks/common';
 
+import { isWshDescriptor } from '@leather.io/bitcoin';
 import { RpcErrorCode, createRpcErrorResponse, signPsbt } from '@leather.io/rpc';
 import { ensureArray, isDefined, isUndefined } from '@leather.io/utils';
 
@@ -78,6 +79,22 @@ export const signPsbtHandler = defineRpcRequestHandler(signPsbt.method, async (r
     return;
   }
 
+  if (isDefined(request.params.descriptor) && !isWshDescriptor(request.params.descriptor)) {
+    void trackRpcRequestError({ endpoint: request.method, error: 'Invalid descriptor' });
+
+    void chrome.tabs.sendMessage(
+      getTabIdFromPort(port),
+      createRpcErrorResponse('signPsbt', {
+        id: request.id,
+        error: {
+          code: RpcErrorCode.INVALID_PARAMS,
+          message: 'Only wsh() descriptors are supported',
+        },
+      })
+    );
+    return;
+  }
+
   const requestParams: RequestParams = [
     ['hex', request.params.hex],
     ['requestId', request.id],
@@ -95,9 +112,18 @@ export const signPsbtHandler = defineRpcRequestHandler(signPsbt.method, async (r
     requestParams.push(['network', request.params.network.toString()]);
   }
 
+  if (isDefined(request.params.descriptor)) {
+    requestParams.push(['descriptor', request.params.descriptor]);
+  }
+
   if (isDefined(request.params.signAtIndex))
     ensureArray(request.params.signAtIndex).forEach(index =>
       requestParams.push(['signAtIndex', index.toString()])
+    );
+
+  if (isDefined(request.params.allowedSighash))
+    request.params.allowedSighash.forEach(sighash =>
+      requestParams.push(['allowedSighash', sighash.toString()])
     );
 
   void trackRpcRequestSuccess({ endpoint: request.method });

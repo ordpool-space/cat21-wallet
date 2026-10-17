@@ -37,6 +37,31 @@ export function AccountActions() {
       <FundButtons />
       <TransferButtons />
 
+      {/* HACK -- Cat21: Mint entry on the home action row. Lands on
+          RouteUrls.Cat21Mint, a recipient + feeRate form that submits
+          to Cat21MintConfirm (the existing SDK-gated confirm route).
+          Sits before Swap so the cat-flow buttons cluster ahead of
+          upstream Leather actions. */}
+      <ActionButton
+        data-testid="cat21-mint-home-button"
+        onClick={() => void navigate(RouteUrls.Cat21Mint)}
+        variant="outline"
+      >
+        Mint cat
+      </ActionButton>
+
+      {/* HACK -- Cat21: My-cats list entry on the home action row
+          (iter 13f). Lists cats at the active account from cat21-ord;
+          per-row Transfer / List-for-sale buttons deep-link the
+          iter-13d/e form pages with the catId prefilled. */}
+      <ActionButton
+        data-testid="cat21-list-home-button"
+        onClick={() => void navigate(RouteUrls.Cat21List)}
+        variant="outline"
+      >
+        My cats
+      </ActionButton>
+
       <BasicTooltip label={swapsEnabled ? '' : <SwapsDisabledTooltipLabel />} side="left" asChild>
         <ActionButton
           data-testid={HomePageSelectors.SwapBtn}

@@ -10,9 +10,11 @@ export * from './accounts/account-addresses';
 export * from './assets/sort-assets';
 export * from './assets/asset-display-name';
 export * from './assets/balance-helpers';
-export * from './assets/inscription-helpers';
 export * from './assets/asset-id';
 export * from './assets/sip10-name-overrides';
+/* HACK -- Cat21: cat21-helpers per ADR-12. Content-type / mime classification
+ * and Cat21Asset construction. Replaces upstream's removed inscription-helpers. */
+export * from './assets/cat21-helpers';
 export * from './truncate-middle';
 export * from './time';
 export * from './market-data';
