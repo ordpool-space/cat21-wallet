@@ -70,14 +70,19 @@ export type OrdAddressCat21s = z.infer<typeof ordAddressCat21sSchema>;
  * `GET /output/<outpoint>` — UTXO classification. Cat-bearing outputs list the
  * cat IDs they carry; cat-free outputs list an empty array.
  *
- * `cats` for the same middleware reason as above. Only the two fields the
- * send-flow reads are modelled; `sat_ranges` and the rest arrive untouched via
- * `.passthrough()`. An unmodelled field cannot fail a parse, which is the
- * cheapest fix for `Option<Vec>` fields that serialise to null.
+ * `cats` for the same middleware reason as above. `indexed` is cat21-ord's own
+ * "have I processed this output's block" flag: it answers 200 with an empty
+ * `cats` both for a cat-free output AND for one it has not caught up to (a
+ * lagging / restarting / reorged indexer), so the send-flow must read `indexed`
+ * to tell "no cat" from "no answer" and fail closed on the latter. `sat_ranges`
+ * and the rest arrive untouched via `.passthrough()`. An unmodelled field
+ * cannot fail a parse, which is the cheapest fix for `Option<Vec>` fields that
+ * serialise to null.
  */
 export const ordOutputSchema = z
   .object({
     value: z.number(),
+    indexed: z.boolean(),
     cats: z.array(z.string()),
   })
   .passthrough();

@@ -17,10 +17,12 @@ import { Cat21OutputProbe, fetchCatBearingUtxoIds } from './fetch-cat-bearing-ut
  * cannot encode a shape the real server never sends.
  */
 
-function outputWith(cats: string[]): OrdOutput {
-  // Minimal real-shaped OrdOutput: value + cats are the two modelled fields; the
-  // rest arrive via passthrough and the helper never reads them.
-  return { value: 546, cats } as OrdOutput;
+function outputWith(cats: string[], indexed = true): OrdOutput {
+  // Minimal real-shaped OrdOutput: value, indexed and cats are the modelled
+  // fields; the rest arrive via passthrough and the helper never reads them.
+  // `indexed` defaults to true (a caught-up output); pass false to model a
+  // lagging cat21-ord that answers 200 before it has processed the block.
+  return { value: 546, indexed, cats } as OrdOutput;
 }
 
 function probe(byOutpoint: Record<string, OrdOutput | Error>): {
@@ -82,6 +84,31 @@ describe('fetchCatBearingUtxoIds', () => {
     const result = await fetchCatBearingUtxoIds(client, [A, B, C]);
 
     expect(result).toEqual([A, C]);
+  });
+
+  it('treats an unindexed output (indexed:false, empty cats) as cat-bearing (A15: no answer is not no cat)', async () => {
+    // cat21-ord is behind: it returns 200 with an empty `cats` for an output it
+    // has not processed, byte-identical to a genuinely cat-free one. A cat that
+    // just landed is really there, so the coin must be withheld from the spend
+    // pool until the index catches up, not spent for fees.
+    const { client } = probe({
+      [`${A.txid}:${A.vout}`]: outputWith([], false), // lagging: unindexed, empty cats
+      [`${B.txid}:${B.vout}`]: outputWith([]), // caught up, proven cat-free
+    });
+
+    const result = await fetchCatBearingUtxoIds(client, [A, B]);
+
+    expect(result).toEqual([A]);
+  });
+
+  it('treats an unindexed output that also lists cats as cat-bearing', async () => {
+    const { client } = probe({
+      [`${A.txid}:${A.vout}`]: outputWith([`${A.txid}i0`], false),
+    });
+
+    const result = await fetchCatBearingUtxoIds(client, [A]);
+
+    expect(result).toEqual([A]);
   });
 
   it('treats a probe that throws as cat-bearing (fail-safe: never spend an unverifiable utxo)', async () => {

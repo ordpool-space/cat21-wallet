@@ -109,6 +109,15 @@ describe('ordOutputSchema', () => {
     expect(parsed.cats).toEqual([]);
   });
 
+  it('models the indexed flag the send-flow fails closed on', () => {
+    expect(ordOutputSchema.parse(outputWithCat).indexed).toBe(true);
+    expect(ordOutputSchema.parse(outputWithoutCat).indexed).toBe(true);
+  });
+
+  it('rejects a body with no indexed flag, so an unindexed output cannot read as cat-free', () => {
+    expect(() => ordOutputSchema.parse({ value: 546, cats: [] })).toThrow();
+  });
+
   it('survives a null sat_ranges, which the server sends as Option<Vec>', () => {
     // Not modelled, so it cannot fail the parse. Pinned because modelling it
     // as a required array is exactly what broke this endpoint before.

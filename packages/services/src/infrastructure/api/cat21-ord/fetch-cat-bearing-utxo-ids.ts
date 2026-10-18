@@ -28,10 +28,19 @@ export interface Cat21OutputProbe {
  * JSON, so the upstream name never arrives. A non-empty array means the output
  * holds a cat.
  *
- * Failure mode: if cat21-ord cannot be reached or the per-UTXO probe throws,
- * the safe answer is "treat the UTXO as cat-bearing" — i.e. the BTC send
- * flow won't touch it. This is the right default: if we cannot verify a UTXO
- * is cat-free, we don't risk spending a cat by mistake.
+ * `out.indexed` gates that read. cat21-ord answers 200 with an empty `cats`
+ * both for a genuinely cat-free output AND for one it has not caught up to (a
+ * lagging / restarting / reorged indexer), and the two are byte-identical. An
+ * `indexed: false` answer is "no answer", not "no cat", so a cat that just
+ * landed would read as cat-free and the BTC send flow would spend it for fees.
+ * Treating an unindexed output as cat-bearing closes that, the same way a
+ * thrown probe does.
+ *
+ * Failure mode: if cat21-ord cannot be reached, the per-UTXO probe throws, or
+ * the output is not yet indexed, the safe answer is "treat the UTXO as
+ * cat-bearing" — i.e. the BTC send flow won't touch it. This is the right
+ * default: if we cannot verify a UTXO is cat-free, we don't risk spending a cat
+ * by mistake.
  */
 export async function fetchCatBearingUtxoIds(
   client: Cat21OutputProbe,
@@ -44,7 +53,7 @@ export async function fetchCatBearingUtxoIds(
     utxos.map(async utxo => {
       try {
         const out = await client.fetchOutput(`${utxo.txid}:${utxo.vout}`, options);
-        return { utxo, hasCat: out.cats.length > 0 };
+        return { utxo, hasCat: out.indexed !== true || out.cats.length > 0 };
       } catch {
         return { utxo, hasCat: true };
       }
