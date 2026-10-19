@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useStore } from 'react-redux';
 
 import { hex } from '@scure/base';
@@ -20,6 +20,8 @@ import {
 } from '@leather.io/services';
 
 import { postBidToCat21Bazaar } from '@app/common/cat21-bazaar/cat21-bazaar-client';
+import { clearCat21Session, getOrCreateCat21Session } from '@app/common/cat21-bazaar/cat21-session';
+import { useCat21SessionSigner } from '@app/common/cat21-bazaar/use-cat21-session-signer';
 import { useBitcoinClient } from '@app/query/bitcoin/clients/bitcoin-client';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
 import { type RootState, useAppDispatch } from '@app/store';
@@ -137,6 +139,17 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
   // can answer without awaiting. `enabled: !!catIdHint` keeps mint
   // popups from issuing the query at all.
   const signBitcoinTx = useSignBitcoinTx();
+  // BIP-322 session signer for the Bazaar, the same hook the listing
+  // publish/unlist flows use. The bid POST is session-guarded (it files a bid
+  // under the buyer's ordinals address, the upsert key), so it needs a token
+  // proving control of that address. Held in a ref, not a memo dep: the signer
+  // is a fresh closure every render (it closes over the unmemoized
+  // useSignBitcoinTx), and the deps object below is deliberately kept stable so
+  // the agent-policy gate is not rebuilt each render. postBid reads the latest
+  // signer off the ref when it actually runs (a user action, long after render).
+  const { signBip322 } = useCat21SessionSigner();
+  const signBip322Ref = useRef(signBip322);
+  signBip322Ref.current = signBip322;
   // A buy-offer PSBT arrives with the seller's cat input (input 0) carrying
   // only its witnessUtxo — the buyer who built it cannot know the seller's
   // taproot internal key, so a taproot cat input has no `tapInternalKey`. The
@@ -327,27 +340,37 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         const signedTx = await signBitcoinTx(psbt, inputIndexes);
         return signedTx.toPSBT();
       },
-      // Unauthenticated bid POST to the Bazaar (the SIGHASH_ALL sigs are
-      // the auth). Translates the wallet's coarse network label to the bid
-      // DTO's enum via `toBidNetwork` (mainnet⇒mainnet, regtest⇒regtest, any
-      // other⇒testnet3), so a regtest bid matches a BACKEND_NETWORK=regtest
-      // backend. Throws on rejection so the service's try/catch maps it to a
-      // typed 'broadcast-failed' denial.
+      // Session-authenticated bid POST to the Bazaar. The SIGHASH_ALL sigs
+      // commit the funds (the backend verifies them cryptographically), and a
+      // session token proves control of the buyer's ordinals address so the
+      // bid can only be filed under an address this wallet owns. Translates the
+      // wallet's coarse network label to the bid DTO's enum via `toBidNetwork`
+      // (mainnet⇒mainnet, regtest⇒regtest, any other⇒testnet3), so a regtest
+      // bid matches a BACKEND_NETWORK=regtest backend. Throws on rejection so
+      // the service's try/catch maps it to a typed 'broadcast-failed' denial.
       postBid: async postArgs => {
-        const result = await postBidToCat21Bazaar({
-          request: {
-            network: toBidNetwork(postArgs.network),
-            catTxid: postArgs.catTxid,
-            catVout: postArgs.catVout,
-            cats: postArgs.cats,
-            headlineCatNumber: postArgs.headlineCatNumber,
-            bidSats: postArgs.bidSats,
-            buyerOrdinalsAddress: postArgs.buyerOrdinalsAddress,
-            buyerPaymentAddress: postArgs.buyerPaymentAddress,
-            sellerPaymentAddress: postArgs.sellerPaymentAddress,
-            psbtBase64: postArgs.psbtBase64,
-          },
-        });
+        const request = {
+          network: toBidNetwork(postArgs.network),
+          catTxid: postArgs.catTxid,
+          catVout: postArgs.catVout,
+          cats: postArgs.cats,
+          headlineCatNumber: postArgs.headlineCatNumber,
+          bidSats: postArgs.bidSats,
+          buyerOrdinalsAddress: postArgs.buyerOrdinalsAddress,
+          buyerPaymentAddress: postArgs.buyerPaymentAddress,
+          sellerPaymentAddress: postArgs.sellerPaymentAddress,
+          psbtBase64: postArgs.psbtBase64,
+        };
+        const address = postArgs.buyerOrdinalsAddress;
+        let headers = await getOrCreateCat21Session({ address, signBip322: signBip322Ref.current });
+        let result = await postBidToCat21Bazaar({ request, headers });
+        // A cached token the backend rejects (expired, rotated): clear it, sign
+        // a fresh one once, retry. Same recovery the listing flow uses.
+        if (!result.ok && result.error.code === 'session-rejected') {
+          clearCat21Session(address);
+          headers = await getOrCreateCat21Session({ address, signBip322: signBip322Ref.current });
+          result = await postBidToCat21Bazaar({ request, headers });
+        }
         if (!result.ok) {
           throw new Error(
             result.error.detail ? `${result.error.code}: ${result.error.detail}` : result.error.code

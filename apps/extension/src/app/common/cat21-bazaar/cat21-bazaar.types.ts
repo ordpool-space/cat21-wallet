@@ -107,7 +107,9 @@ export type Cat21BazaarBidErrorCode =
   | 'cats-bundle-drift'
   /** 429 — rate limited (5 bid posts/min/IP). */
   | 'rate-limited'
-  /** Anything else the backend rejected (bad DTO, unknown code). */
+  /** 401 — the session token is missing, expired or invalid; re-sign and retry. */
+  | 'session-rejected'
+  /** Anything else the backend rejected (bad DTO, unknown code, 403 address mismatch). */
   | 'rejected'
   /** Fetch failed / backend unreachable. */
   | 'network-error';

@@ -93,6 +93,11 @@ function mapBidHttpError(err: unknown): Cat21BazaarBidError {
   }
   const { status, data } = err.response;
   if (status === 429) return { code: 'rate-limited' };
+  // 401 means the session token is missing/expired/invalid: the caller clears
+  // it and retries with a fresh one. A 403 (session address != buyer) is a
+  // genuine wrong-address, not a stale token, so it falls through to 'rejected'
+  // and is NOT retried.
+  if (status === 401) return { code: 'session-rejected' };
   const raw = (data ?? {}) as { message?: string | string[]; code?: string };
   const candidates = [
     ...(typeof raw.code === 'string' ? [raw.code] : []),
@@ -106,19 +111,25 @@ function mapBidHttpError(err: unknown): Cat21BazaarBidError {
 
 /**
  * POST /api/v1/bids — publish (or overwrite) a buyer's bid on a cat
- * UTXO. UNAUTHENTICATED: the half-signed PSBT's SIGHASH_ALL signatures
- * ARE the auth, so no session headers. Re-bidding at a new price from
- * the same buyer ordinals address overwrites the previous bid (backend
- * upserts on `(network, cat_txid, cat_vout, buyer_ordinals_address)`).
+ * UTXO. Auth is twofold: the half-signed PSBT's SIGHASH_ALL signatures
+ * commit the funds (the backend verifies them cryptographically against
+ * the chain), AND a session token proving control of the buyer's
+ * ordinals address, so a bid can only be filed under an address the
+ * caller owns — the backend upserts on
+ * `(network, cat_txid, cat_vout, buyer_ordinals_address)`, so without
+ * this anyone could overwrite a rival's bid on the same cat. Session
+ * headers are built by the caller via `getOrCreateCat21Session`, same
+ * as the listing publish/unlist flows.
  */
 export async function postBidToCat21Bazaar(args: {
   request: Cat21BazaarCreateBidRequest;
+  headers: Cat21SessionHeaders;
   baseUrl?: string;
 }): Promise<{ ok: true } | { ok: false; error: Cat21BazaarBidError }> {
   const baseUrl = args.baseUrl ?? CAT21_BAZAAR_BASE_URL;
   try {
     await axios.post(`${baseUrl}/api/v1/bids`, args.request, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...args.headers },
     });
     return { ok: true };
   } catch (err) {

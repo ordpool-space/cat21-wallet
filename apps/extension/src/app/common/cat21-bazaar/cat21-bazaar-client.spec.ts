@@ -233,15 +233,34 @@ const BID_REQUEST: Cat21BazaarCreateBidRequest = {
 };
 
 describe('postBidToCat21Bazaar', () => {
-  it('POSTs to <base>/api/v1/bids with the request body and NO session headers', async () => {
+  it('POSTs to <base>/api/v1/bids with the request body and all three session headers', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
     vi.mocked(axios.post).mockResolvedValueOnce({ status: 201 });
 
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
 
     expect(res).toEqual({ ok: true });
     expect(axios.post).toHaveBeenCalledWith(`${CAT21_BAZAAR_BASE_URL}/api/v1/bids`, BID_REQUEST, {
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...HEADERS },
+    });
+  });
+
+  it('401 → session-rejected (caller clears the token and retries)', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(axiosError(401));
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
+    expect(res).toEqual({ ok: false, error: { code: 'session-rejected' } });
+  });
+
+  it('403 session-address-mismatch → rejected, NOT retried', async () => {
+    vi.mocked(axios.isAxiosError).mockReturnValue(true);
+    vi.mocked(axios.post).mockRejectedValueOnce(
+      axiosError(403, { code: 'session-address-mismatch' })
+    );
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
+    expect(res).toEqual({
+      ok: false,
+      error: { code: 'rejected', detail: 'session-address-mismatch' },
     });
   });
 
@@ -250,35 +269,35 @@ describe('postBidToCat21Bazaar', () => {
     vi.mocked(axios.post).mockRejectedValueOnce(
       axiosError(400, { message: 'psbt-price-mismatch' })
     );
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
     expect(res).toEqual({ ok: false, error: { code: 'psbt-price-mismatch' } });
   });
 
   it('400 cats-bundle-drift → mapped verbatim (buyer must re-observe)', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
     vi.mocked(axios.post).mockRejectedValueOnce(axiosError(400, { code: 'cats-bundle-drift' }));
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
     expect(res).toEqual({ ok: false, error: { code: 'cats-bundle-drift' } });
   });
 
   it('400 with an unknown backend code → rejected with the code in detail', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
     vi.mocked(axios.post).mockRejectedValueOnce(axiosError(400, { message: 'some-new-code' }));
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
     expect(res).toEqual({ ok: false, error: { code: 'rejected', detail: 'some-new-code' } });
   });
 
   it('429 → rate-limited', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
     vi.mocked(axios.post).mockRejectedValueOnce(axiosError(429));
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
     expect(res).toEqual({ ok: false, error: { code: 'rate-limited' } });
   });
 
   it('no response (network failure) → network-error', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(false);
     vi.mocked(axios.post).mockRejectedValueOnce(new Error('ECONNREFUSED'));
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error.code).toBe('network-error');
   });
@@ -294,7 +313,7 @@ describe('postBidToCat21Bazaar', () => {
         statusCode: 400,
       })
     );
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
     expect(res).toEqual({
       ok: false,
       error: { code: 'rejected', detail: 'catTxid must be 64-char lowercase hex' },
@@ -318,14 +337,14 @@ describe('postBidToCat21Bazaar', () => {
   ] as const)('passes through the bid rejection code %s verbatim', async code => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
     vi.mocked(axios.post).mockRejectedValueOnce(axiosError(400, { code }));
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
     expect(res).toEqual({ ok: false, error: { code } });
   });
 
   it('falls back to http-<status> when the bid error body is empty', async () => {
     vi.mocked(axios.isAxiosError).mockReturnValue(true);
     vi.mocked(axios.post).mockRejectedValueOnce(axiosError(400, undefined));
-    const res = await postBidToCat21Bazaar({ request: BID_REQUEST });
+    const res = await postBidToCat21Bazaar({ request: BID_REQUEST, headers: HEADERS });
     expect(res).toEqual({ ok: false, error: { code: 'rejected', detail: 'http-400' } });
   });
 });
