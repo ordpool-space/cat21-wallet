@@ -23,6 +23,12 @@ on:
   workflow_dispatch:
 
 env:
+  # Harden installs against transient registry blips like ECONNRESET: more
+  # retries over a longer backoff window than npm's default of 2.
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
   DO_NOT_TRACK: 1
 
 permissions:
