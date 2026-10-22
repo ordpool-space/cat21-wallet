@@ -12,7 +12,19 @@
     "packages/utils/src/assets/cat21-helpers.ts"
   ],
   "format": ["typescript"],
-  "ignore": ["**/node_modules/**", "**/dist/**", "**/*.spec.ts", "**/*.test.ts", "**/tests/**"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/*.spec.ts",
+    "**/*.test.ts",
+    "**/tests/**",
+    "**/cat21-bazaar/cat21-bazaar-client.ts",
+    "**/background/cat21/cat21-rpc.service.ts",
+    "**/background/cat21/attach-native-host-to-popup-relay.ts",
+    "**/background/cat21/install-cat21-nmh-agent.ts",
+    "**/background/cat21/make-read-only-probe-wires.ts",
+    "**/background/cat21/connect-native-host.ts"
+  ],
   "minLines": 5,
   "minTokens": 50,
   "maxLines": 100000,

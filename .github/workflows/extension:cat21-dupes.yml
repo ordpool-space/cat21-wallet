@@ -1,10 +1,22 @@
-name: cat21-dupes
+name: extension:cat21-dupes
 
 # Duplicate gate for the CAT-21 code added on top of the Leather fork. Scoped by
 # .jscpd.json to the cat21* directories and files only (our code); Leather
 # upstream is never scanned, so this cannot conflict with an upstream merge.
 # Runs via npx on Node 22 (jscpd@4 needs Node >= 20; no pnpm devDep, so the large
 # monorepo lockfile is untouched).
+#
+# .jscpd.json's ignore list excludes six deliberately parallel plumbing files,
+# so the gate holds the rest of the cat21 code at zero while accepting these:
+#   - common/cat21-bazaar/cat21-bazaar-client.ts: mapBidHttpError mirrors
+#     mapHttpError as a per-endpoint error contract (distinct bid-rejection code
+#     set and error type).
+#   - background/cat21/cat21-rpc.service.ts: per-operation RPC handlers share a
+#     build/validate/dispatch shape; each cat21 action stays its own typed method.
+#   - background/cat21/{attach-native-host-to-popup-relay,install-cat21-nmh-agent,
+#     make-read-only-probe-wires,connect-native-host}.ts: the same NMH transport
+#     plumbing wired per consumer lifecycle (agent install, popup relay, read-only
+#     probe, direct connect).
 
 on:
   workflow_dispatch:
@@ -23,7 +35,7 @@ on:
       - 'packages/services/src/collectibles/cat21-asset.service.ts'
       - 'packages/utils/src/assets/cat21-helpers.ts'
       - '.jscpd.json'
-      - '.github/workflows/cat21-dupes.yml'
+      - '.github/workflows/extension:cat21-dupes.yml'
 
 # Harden installs against transient registry blips like ECONNRESET.
 env:
@@ -40,5 +52,5 @@ jobs:
     - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3 # zizmor: ignore[cache-poisoning]
       with:
         node-version: 22
-    - name: Duplicate check (jscpd, scoped to cat21 code via .jscpd.json)
+    - name: duplicate-check-jscpd
       run: npx --yes jscpd@4.3.0

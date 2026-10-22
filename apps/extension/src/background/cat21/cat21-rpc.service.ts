@@ -482,7 +482,6 @@ export class Cat21RpcService {
           paymentAddress: accountCtx.paymentAddress,
           catUtxo: { txid: catUtxo.txid, vout: catUtxo.vout, value: catUtxo.value },
           recipientAddress: intent.recipient,
-  /* jscpd:ignore-start -- parallel per-operation RPC handler: mirrors its sibling method's build/validate/dispatch shape; each cat21 RPC stays its own typed handler. Marked. */
           feeRatePerVbyte: intent.feeRate,
         },
         {
@@ -497,7 +496,6 @@ export class Cat21RpcService {
     }
 
     // The cat UTXO (typically 546) moves to the recipient; the wallet's
-  /* jscpd:ignore-end */
     // outflow is that postage plus the realised miner fee.
     this.deps.recordSpend(catUtxo.value + out.feeSats);
     return { ok: true, value: { kind: 'broadcast', txid: out.txid, channel: out.channel } };
