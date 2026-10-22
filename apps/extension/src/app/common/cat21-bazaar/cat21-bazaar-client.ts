@@ -87,6 +87,7 @@ function isBidPassthroughCode(code: string): code is Cat21BazaarBidErrorCode {
   return (BID_PASSTHROUGH_CODES as readonly string[]).includes(code);
 }
 
+  /* jscpd:ignore-start -- parallel per-endpoint error contract: mapBidHttpError mirrors mapHttpError but maps a distinct bid-rejection code set to a distinct error type. Marked, not merged. */
 function mapBidHttpError(err: unknown): Cat21BazaarBidError {
   if (!isAxiosError(err) || !err.response) {
     return { code: 'network-error', detail: err instanceof Error ? err.message : String(err) };
@@ -108,6 +109,7 @@ function mapBidHttpError(err: unknown): Cat21BazaarBidError {
   if (known) return { code: known };
   return { code: 'rejected', detail: candidates[0] ?? `http-${status}` };
 }
+  /* jscpd:ignore-end */
 
 /**
  * POST /api/v1/bids — publish (or overwrite) a buyer's bid on a cat

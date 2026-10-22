@@ -1,0 +1,44 @@
+name: cat21-dupes
+
+# Duplicate gate for the CAT-21 code added on top of the Leather fork. Scoped by
+# .jscpd.json to the cat21* directories and files only (our code); Leather
+# upstream is never scanned, so this cannot conflict with an upstream merge.
+# Runs via npx on Node 22 (jscpd@4 needs Node >= 20; no pnpm devDep, so the large
+# monorepo lockfile is untouched).
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/extension/src/background/cat21/**'
+      - 'apps/extension/src/app/features/cat21-confirmation/**'
+      - 'apps/extension/src/app/common/cat21-bazaar/**'
+      - 'apps/extension/src/app/pages/cat21-mint/**'
+      - 'apps/extension/src/app/pages/cat21-agent-policy-wizard/**'
+      - 'apps/extension/src/app/pages/cat21-shared/**'
+      - 'apps/extension/src/app/pages/cat21-transfer/**'
+      - 'apps/extension/src/app/pages/cat21-list/**'
+      - 'packages/services/src/collectibles/cat21-asset.service.ts'
+      - 'packages/utils/src/assets/cat21-helpers.ts'
+      - '.jscpd.json'
+      - '.github/workflows/cat21-dupes.yml'
+
+# Harden installs against transient registry blips like ECONNRESET.
+env:
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
+
+jobs:
+  dupes:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Duplicate check (jscpd, scoped to cat21 code via .jscpd.json)
+      run: npx --yes jscpd@4.3.0

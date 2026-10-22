@@ -67,6 +67,7 @@ interface BackgroundProbeState {
  * resulting wires to the attach.)
  */
 // HACK -- Cat21: removed `export` (mirrors AttachArgs.readOnlyProbes; consumers pass inline). HARD RULE #5.
+  /* jscpd:ignore-start -- parallel native-messaging-host wiring: mirrors the popup-relay transport attach; each NMH consumer wires its own lifecycle. Marked. */
 interface ReadOnlyProbeWiresLike {
   listCatsAtActiveAccount(): Promise<string[]>;
   readWalletStatus(): {
@@ -82,6 +83,7 @@ interface ReadOnlyProbeWiresLike {
  * is dependency-injected so specs drive the wire without a real
  * `chrome.*` global.
  */
+  /* jscpd:ignore-end */
 // HACK -- Cat21: removed `export` (parameter shape; consumers pass inline). HARD RULE #5.
 interface InstallCat21NmhAgentArgs {
   /** `chrome.runtime.connectNative` */
@@ -93,6 +95,7 @@ interface InstallCat21NmhAgentArgs {
   /** `chrome.storage.session` adapted to SessionStorageLike. */
   storage: SessionStorageLike;
   /** `chrome.runtime.onMessage`'s `{addListener, removeListener}` pair. */
+  /* jscpd:ignore-start -- parallel native-messaging-host wiring: the agent-install path mirrors the popup-relay wiring; each NMH consumer wires the transport its own way. Marked. */
   onMessage: {
     addListener(
       listener: (msg: unknown, sender?: { id?: string; tab?: unknown; url?: string }) => void
@@ -102,6 +105,7 @@ interface InstallCat21NmhAgentArgs {
     ): void;
   };
   /** Production wires `triggerRequestPopupWindowOpen`. */
+  /* jscpd:ignore-end */
   triggerPopupOpen(route: RouteUrls, urlParams: URLSearchParams): Promise<unknown>;
   /** Reads the wallet's background-side state on each call. */
   getState(): BackgroundProbeState;

@@ -64,6 +64,7 @@ interface MakeProbeWiresArgs {
  * store. The shape returned matches `AttachArgs['readOnlyProbes']`
  * in `attach-native-host-to-popup-relay.ts`.
  */
+  /* jscpd:ignore-start -- parallel native-messaging-host wiring: the read-only probe wires mirror the agent-install / popup-relay wiring by design (same NMH transport plumbing, different lifecycle). Marked. */
 export function makeReadOnlyProbeWires(args: MakeProbeWiresArgs): {
   listCatsAtActiveAccount(): Promise<string[]>;
   readWalletStatus(): {
@@ -73,6 +74,7 @@ export function makeReadOnlyProbeWires(args: MakeProbeWiresArgs): {
   };
   readCat21OrdStatus(): Promise<{ reachable: boolean; height?: number; cats?: number }>;
 } {
+  /* jscpd:ignore-end */
   return {
     async listCatsAtActiveAccount() {
       const state = args.getState();

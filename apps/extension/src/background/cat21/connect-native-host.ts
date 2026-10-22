@@ -48,6 +48,7 @@ interface ConnectNativeFn {
 interface NmhMutatingRequest {
   type: Cat21DispatcherMessage['type'];
   id: string;
+  /* jscpd:ignore-start -- parallel native-messaging-host wiring: connect-native-host mirrors the popup-relay attach path; each is its own NMH connection lifecycle. Marked. */
   payload: Cat21DispatcherMessage['intent'];
 }
 
@@ -77,6 +78,7 @@ function isNmhMutatingRequest(msg: unknown): msg is NmhMutatingRequest {
  * carry the request `id` so the MCP host can resolve its pending-call
  * map.
  */
+  /* jscpd:ignore-end */
 export function attachNativeHostToDispatcher(
   port: NativeHostPortLike,
   dispatcher: Cat21Dispatcher

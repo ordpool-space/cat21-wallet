@@ -1,0 +1,24 @@
+{
+  "path": [
+    "apps/extension/src/background/cat21",
+    "apps/extension/src/app/features/cat21-confirmation",
+    "apps/extension/src/app/common/cat21-bazaar",
+    "apps/extension/src/app/pages/cat21-mint",
+    "apps/extension/src/app/pages/cat21-agent-policy-wizard",
+    "apps/extension/src/app/pages/cat21-shared",
+    "apps/extension/src/app/pages/cat21-transfer",
+    "apps/extension/src/app/pages/cat21-list",
+    "packages/services/src/collectibles/cat21-asset.service.ts",
+    "packages/utils/src/assets/cat21-helpers.ts"
+  ],
+  "format": ["typescript"],
+  "ignore": ["**/node_modules/**", "**/dist/**", "**/*.spec.ts", "**/*.test.ts", "**/tests/**"],
+  "minLines": 5,
+  "minTokens": 50,
+  "maxLines": 100000,
+  "maxSize": "10mb",
+  "threshold": 0,
+  "reporters": ["console"],
+  "gitignore": true,
+  "ignorePattern": ["import\\s[^;]*?\\sfrom\\s'[^']+';"]
+}
