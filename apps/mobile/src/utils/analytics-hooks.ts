@@ -4,6 +4,7 @@ import { useAccountTotalBalance } from '@/queries/balance/account-balance.query'
 import { useBtcAccountBalance } from '@/queries/balance/btc-balance.query';
 import { useStxAccountBalance } from '@/queries/balance/stx-balance.query';
 import { analytics } from '@/utils/analytics';
+import { countBy, filter, identity, map, pipe } from 'remeda';
 
 import { makeAccountIdentifer } from '@leather.io/crypto';
 import { AccountId, Money, NonFungibleCryptoAsset } from '@leather.io/models';
@@ -76,57 +77,31 @@ export function useCollectiblesAnalytics({
   useEffect(() => {
     if (!collectibles.length) return;
 
-    type ProtocolKey = NonFungibleCryptoAsset['protocol'];
-    interface ProtocolBreakdown {
-      total: number;
-      byContentType: Record<string, number>;
-    }
-    const breakdown: Partial<Record<ProtocolKey, ProtocolBreakdown>> = {};
-
-    collectibles.forEach(collectible => {
-      const protocol = collectible.protocol;
-      const entry =
-        breakdown[protocol] ??
-        (breakdown[protocol] = {
-          total: 0,
-          byContentType: {},
-        });
-
-      entry.total += 1;
-
-      function getContentType() {
-        if ('mimeType' in collectible && collectible.mimeType) {
-          return collectible.mimeType;
-        }
-        if ('content' in collectible && collectible.content?.contentType) {
-          return collectible.content.contentType;
-        }
-        return;
-      }
-      const contentType = getContentType();
-
-      if (contentType) {
-        entry.byContentType[contentType] = (entry.byContentType[contentType] ?? 0) + 1;
-      }
-    });
-
-    const formattedBreakdown = Object.entries(breakdown).reduce<
-      Partial<Record<ProtocolKey, { total: number; byContentType?: Record<string, number> }>>
-    >((acc, [protocol, data]) => {
-      if (!data) return acc;
-      const { total, byContentType } = data;
-      acc[protocol as ProtocolKey] = {
-        total,
-        ...(Object.keys(byContentType).length ? { byContentType } : {}),
-      };
-      return acc;
-    }, {});
+    // HACK -- Cat21: upstream Leather Remeda 2.21.2 + TS 5.9.3 inference
+    // dead-end on `countBy(identity())` — verified pristine in
+    // leather-io/mono@dev 2026-06-17. The added `(collectibles as any)`
+    // and outer cast unblock the inference without changing behaviour.
+    // Bonus: NonFungibleCryptoAsset's Cat21 branch lacks `.content`, so
+    // we widen to `any` for the contentType pluck. HARD RULE #5 — file
+    // is upstream; revert on next upstream sync if Remeda fixes the
+    // inference and we drop the Cat21 union widening.
+    const byContentType = pipe(
+      collectibles as any[],
+      map((collectible: any) => collectible.content?.contentType),
+      filter(isDefined),
+      countBy(identity())
+    ) as Record<string, number>;
 
     analytics.track('collectibles_summary', {
       platform: 'mobile',
       walletAccountId: accountId,
       totalCollectibles: collectibles.length,
-      byProtocol: formattedBreakdown,
+      byProtocol: {
+        sip9: {
+          total: collectibles.length,
+          ...(Object.keys(byContentType).length ? { byContentType } : {}),
+        },
+      },
     });
   }, [accountId, collectibles]);
 }
