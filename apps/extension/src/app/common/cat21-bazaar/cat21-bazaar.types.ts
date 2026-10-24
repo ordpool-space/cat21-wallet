@@ -85,9 +85,10 @@ export interface Cat21BazaarCreateBidRequest {
 }
 
 /**
- * Bid-mutation error taxonomy. Bid POST is unauthenticated so there's
- * no `session-rejected` on the POST path (DELETE, session-guarded,
- * reuses the listing session codes). Superset of the backend's bid
+ * Bid-mutation error taxonomy. The bid POST is session-guarded (a
+ * BIP-322 session token proving control of the buyer's ordinals
+ * address), so a 401 maps to `session-rejected`, the same as the
+ * session-guarded listing DELETE. Superset of the backend's bid
  * rejection codes plus transport failures. UI copy maps from these.
  */
 export type Cat21BazaarBidErrorCode =

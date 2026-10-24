@@ -65,9 +65,13 @@ machine. It bridges:
 The MCP host runs locally. It does not contact any remote service. It
 is sandboxed at the Chrome layer by `allowed_origins` pinned to your
 specific CAT-21 wallet extension ID. An MCP client connecting to the
-host can only invoke the read-only tool surface in v1 (`list_cats`,
-`wallet_status`, `cat21_ord_status`); the host cannot sign or
-broadcast.
+host can invoke both the read-only probes (`list_cats`, `wallet_status`,
+`cat21_ord_status`) and the mutating cat actions (`cat21_mint`,
+`cat21_transfer`, `cat21_create_offer`, `cat21_accept_offer`,
+`cat21_buy`). A mutating action signs and broadcasts only after you
+approve it in the wallet's confirmation popup, or silently within the
+per-account policy limits you configure when autonomous agent mode is
+enabled; it can never act while the wallet is locked.
 
 ## Data sharing
 
