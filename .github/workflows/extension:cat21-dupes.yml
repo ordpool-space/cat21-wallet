@@ -51,6 +51,6 @@ jobs:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3 # zizmor: ignore[cache-poisoning]
       with:
-        node-version: 26
+        node-version: 22
     - name: duplicate-check-jscpd
       run: npx --yes jscpd@4.3.0
