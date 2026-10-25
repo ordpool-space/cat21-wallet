@@ -4,7 +4,7 @@ import { type RouteUrls, RouteUrls as Routes } from '@shared/route-urls';
 
 import { attachNativeHostToPopupRelay } from './attach-native-host-to-popup-relay';
 import { type SessionStorageLike } from './popup-bridge';
-import type { Cat21MintIntent } from './types';
+import type { Cat21BuyIntent, Cat21MintIntent } from './types';
 
 function makeFakePort() {
   const listeners: ((msg: unknown) => void)[] = [];
@@ -102,6 +102,14 @@ const mintIntent: Cat21MintIntent = {
   feeRate: 7,
 };
 
+const buyIntent: Cat21BuyIntent = {
+  catId: 'a'.repeat(64) + 'i0',
+  bidSats: 50_000,
+  sellerPaymentAddress: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+  feeRate: 7,
+  catNumber: 42,
+};
+
 describe('attachNativeHostToPopupRelay', () => {
   it('round-trips one cat21_mint NMH call through the popup-result bus', async () => {
     const port = makeFakePort();
@@ -152,6 +160,57 @@ describe('attachNativeHostToPopupRelay', () => {
       payload: {
         ok: true,
         value: { kind: 'broadcast', txid: 'deadbeef', channel: 'mempool' },
+      },
+    });
+    expect(Object.keys(storage.state)).toEqual([]);
+  });
+
+  it('routes a cat21_buy NMH call to the buy-confirm popup and relays its result', async () => {
+    // Regression: the relay's mutating-type guard omitted cat21_buy, so an
+    // NMH buy was silently dropped and the agent hung until the host's 60s
+    // timeout. It must open the buy-confirm popup like the other four.
+    const port = makeFakePort();
+    const storage = makeFakeStorage();
+    const bus = makeFakeOnMessage();
+    const openedRoutes: RouteUrls[] = [];
+
+    attachNativeHostToPopupRelay({
+      port,
+      storage,
+      onMessage: bus.onMessage,
+      readOnlyProbes: throwingProbes(),
+      verifyResultBusSender: acceptOwnSpecExt,
+      triggerPopupOpen(route, urlParams) {
+        openedRoutes.push(route);
+        const requestId = urlParams.get('cat21RequestId');
+        setTimeout(() => {
+          bus.deliver({
+            source: 'cat21-result-bus',
+            requestId,
+            result: {
+              ok: true,
+              value: { kind: 'bid', bidSats: 50_000, catNumber: 42, psbtBase64: 'cHNidP8=' },
+            },
+          });
+        }, 0);
+        return Promise.resolve();
+      },
+    });
+
+    port.fire({ type: 'cat21_buy', id: 'nmh-buy', payload: buyIntent });
+
+    for (let i = 0; i < 50 && port.postMessage.mock.calls.length === 0; i++) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    expect(openedRoutes).toEqual([Routes.Cat21BuyConfirm]);
+    expect(port.postMessage).toHaveBeenCalledTimes(1);
+    expect(port.postMessage).toHaveBeenCalledWith({
+      type: 'cat21_buy:result',
+      id: 'nmh-buy',
+      payload: {
+        ok: true,
+        value: { kind: 'bid', bidSats: 50_000, catNumber: 42, psbtBase64: 'cHNidP8=' },
       },
     });
     expect(Object.keys(storage.state)).toEqual([]);

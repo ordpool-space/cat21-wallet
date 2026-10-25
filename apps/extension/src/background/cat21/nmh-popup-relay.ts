@@ -48,13 +48,13 @@ import {
 import type { Cat21RpcResult } from './types';
 
 /**
- * The four NMH mutating request types we relay. Mirrors
- * `Cat21DispatcherMessage['type']` from `cat21-dispatcher.ts`.
+ * The NMH mutating request types we relay into the popup, one per
+ * mutating method the MCP host exposes (`tools/src/mcp-host/protocol.ts`).
  */
 // HACK -- Cat21: removed `export` (used as the parameter shape; consumers read fields via inference). HARD RULE #5 — restore on broader use.
 interface RelayableNmhRequest {
   id: string;
-  type: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer';
+  type: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer' | 'cat21_buy';
   payload: import('./types').Cat21Intent;
 }
 

@@ -37,7 +37,7 @@ import type { Cat21Intent, Cat21RpcResult } from './types';
  * iter-9 path can be retired in one delete.
  */
 interface NmhMutatingRequest {
-  type: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer';
+  type: 'cat21_mint' | 'cat21_transfer' | 'cat21_create_offer' | 'cat21_accept_offer' | 'cat21_buy';
   id: string;
   payload: Cat21Intent;
 }
@@ -49,7 +49,8 @@ function isNmhMutatingRequest(msg: unknown): msg is NmhMutatingRequest {
     (m.type === 'cat21_mint' ||
       m.type === 'cat21_transfer' ||
       m.type === 'cat21_create_offer' ||
-      m.type === 'cat21_accept_offer') &&
+      m.type === 'cat21_accept_offer' ||
+      m.type === 'cat21_buy') &&
     typeof m.id === 'string' &&
     typeof m.payload === 'object' &&
     m.payload !== null
