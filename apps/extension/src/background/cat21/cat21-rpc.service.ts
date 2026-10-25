@@ -232,9 +232,11 @@ export interface Cat21RpcDeps {
   broadcast(signedTxHex: string): Promise<BroadcastResult>;
   /**
    * Posts a buyer-signed buy-offer PSBT to the CAT-21 Bazaar as a bid.
-   * Unauthenticated — the buyer's SIGHASH_ALL signatures on inputs
-   * 1..N ARE the auth (no session token). Wired to the Bazaar client;
-   * tests stub it. Throws on rejection (mapped Bazaar error).
+   * The buyer's SIGHASH_ALL signatures on inputs 1..N authenticate the
+   * bid's spend; the POST itself is session-guarded by a BIP-322 token
+   * proving control of the buyer's ordinals address (the bid upsert key),
+   * so a rival cannot overwrite it. Wired to the Bazaar client; tests stub
+   * it. Throws on rejection (mapped Bazaar error).
    */
   postBid(args: Cat21PostBidArgs): Promise<void>;
   /** Per-account daily-spend tracker (updated on every accepted action). */
@@ -637,7 +639,8 @@ export class Cat21RpcService {
    *      funding selection, two-pass fee, buy-offer PSBT, and buyer-input
    *      signing (SIGHASH_ALL on inputs 1..N; input 0 stays for the
    *      seller). No broadcast — the artifact is a bid.
-   *   5. postBid(...) — unauthenticated; the SIGHASH_ALL sigs are the auth
+   *   5. postBid(...) — SIGHASH_ALL sigs auth the spend; the POST is
+   *      session-guarded (BIP-322 token = the buyer's ordinals address)
    *   6. Return `{ kind: 'bid', ... }`.
    */
   async buy(intent: Cat21BuyIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {

@@ -1,5 +1,5 @@
-import { getPublicKey } from '@noble/secp256k1';
 import { hexToBytes } from '@noble/hashes/utils';
+import { getPublicKey } from '@noble/secp256k1';
 import * as btc from '@scure/btc-signer';
 import { describe, expect, it } from 'vitest';
 
