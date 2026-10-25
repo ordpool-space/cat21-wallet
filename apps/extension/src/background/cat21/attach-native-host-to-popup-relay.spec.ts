@@ -216,6 +216,109 @@ describe('attachNativeHostToPopupRelay', () => {
     expect(Object.keys(storage.state)).toEqual([]);
   });
 
+  it('serializes concurrent autonomous requests: the second popup opens only after the first round-trip completes', async () => {
+    // HARD RULE #12: two concurrent autonomous popups would each check a stale
+    // persisted spentToday before either records its spend, jointly breaching
+    // the daily cap. The relay drains autonomous round-trips one at a time.
+    const port = makeFakePort();
+    const storage = makeFakeStorage();
+    const bus = makeFakeOnMessage();
+    const openedRequestIds: string[] = [];
+
+    attachNativeHostToPopupRelay({
+      port,
+      storage,
+      onMessage: bus.onMessage,
+      readOnlyProbes: throwingProbes(),
+      verifyResultBusSender: acceptOwnSpecExt,
+      triggerPopupOpen(_route, urlParams) {
+        // Record only; the test delivers each result by hand to control timing.
+        openedRequestIds.push(urlParams.get('cat21RequestId') ?? '');
+        return Promise.resolve();
+      },
+    });
+
+    const autoMint: Cat21MintIntent = { ...mintIntent, mode: 'autonomous' };
+    port.fire({ type: 'cat21_mint', id: 'auto-1', payload: autoMint });
+    port.fire({ type: 'cat21_mint', id: 'auto-2', payload: autoMint });
+
+    // The first opens; the second stays queued (no result delivered yet).
+    for (let i = 0; i < 20 && openedRequestIds.length === 0; i++) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+    expect(openedRequestIds).toHaveLength(1);
+
+    // Delivering the first's result advances the queue, opening the second.
+    bus.deliver({
+      source: 'cat21-result-bus',
+      requestId: openedRequestIds[0],
+      result: { ok: true, value: { kind: 'broadcast', txid: 'tx1', channel: 'mempool' } },
+    });
+    for (let i = 0; i < 20 && openedRequestIds.length === 1; i++) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+    expect(openedRequestIds).toHaveLength(2);
+
+    // Delivering the second's result lets both round-trips post.
+    bus.deliver({
+      source: 'cat21-result-bus',
+      requestId: openedRequestIds[1],
+      result: { ok: true, value: { kind: 'broadcast', txid: 'tx2', channel: 'mempool' } },
+    });
+    for (let i = 0; i < 20 && port.postMessage.mock.calls.length < 2; i++) {
+      await new Promise(r => setTimeout(r, 0));
+    }
+    expect(port.postMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('frees the autonomous queue with a denial when a round-trip never posts a result (120s timeout)', async () => {
+    // Guards the head-of-line-blocking branch: a crashed/abandoned autonomous
+    // popup never posts a result, so without the timeout the queue would stall
+    // every later autonomous request. The 120s bound frees it with a denial.
+    vi.useFakeTimers();
+    try {
+      const port = makeFakePort();
+      const storage = makeFakeStorage();
+      const bus = makeFakeOnMessage();
+      const openedRequestIds: string[] = [];
+
+      attachNativeHostToPopupRelay({
+        port,
+        storage,
+        onMessage: bus.onMessage,
+        readOnlyProbes: throwingProbes(),
+        verifyResultBusSender: acceptOwnSpecExt,
+        triggerPopupOpen(_route, urlParams) {
+          // Open the popup but never deliver a result — simulate a crash.
+          openedRequestIds.push(urlParams.get('cat21RequestId') ?? '');
+          return Promise.resolve();
+        },
+      });
+
+      const autoMint: Cat21MintIntent = { ...mintIntent, mode: 'autonomous' };
+      port.fire({ type: 'cat21_mint', id: 'auto-stuck', payload: autoMint });
+      port.fire({ type: 'cat21_mint', id: 'auto-next', payload: autoMint });
+
+      // The first opens and hangs (no result); the second waits behind it.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(openedRequestIds).toHaveLength(1);
+
+      // Past the 120s bound: the first is denied and the queue advances.
+      await vi.advanceTimersByTimeAsync(120_000);
+      expect(port.postMessage).toHaveBeenCalledWith({
+        type: 'cat21_mint:result',
+        id: 'auto-stuck',
+        payload: {
+          ok: false,
+          value: { reason: 'broadcast-failed', detail: expect.stringContaining('exceeded') },
+        },
+      });
+      expect(openedRequestIds).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('writes a typed broadcast-failed denial back over the port when the popup-open call throws', async () => {
     const port = makeFakePort();
     const storage = makeFakeStorage();

@@ -119,7 +119,91 @@ interface AttachArgs {
   verifyResultBusSender(sender: { id?: string; tab?: unknown; url?: string } | undefined): boolean;
 }
 
+/**
+ * Upper bound on a QUEUED (autonomous) round-trip. Past this it is treated as
+ * an abandoned popup (crashed or killed, never posting a result), the
+ * serialization queue is freed, and the agent gets a typed denial instead of a
+ * stuck queue. Set above the MCP host's own 60s `MUTATION_TIMEOUT_MS` so it
+ * never preempts a round-trip the host still legitimately awaits. Only
+ * autonomous requests are bounded: they auto-confirm and never wait for a
+ * human, so a timeout here means a genuine stall, never a slow human whose real
+ * broadcast would then be mis-reported as failed.
+ */
+const RELAY_AUTONOMOUS_ROUNDTRIP_TIMEOUT_MS = 120_000;
+
+function relayDeps(args: AttachArgs) {
+  return {
+    storage: args.storage,
+    triggerPopupOpen: async (route: RouteUrls, urlParams: URLSearchParams) => {
+      await args.triggerPopupOpen(route, urlParams);
+    },
+    waitForPopupResult: (requestId: string) =>
+      subscribeToCat21Result(args.onMessage, requestId, args.verifyResultBusSender),
+  };
+}
+
+/**
+ * One mutating round-trip that NEVER rejects, so it is safe to chain onto the
+ * autonomous serialization queue. A throw (or, when `bounded`, the timeout)
+ * becomes a typed `broadcast-failed` denial over the port — the agent sees a
+ * result rather than a hang, and the queue advances.
+ */
+async function relayOneMutatingRequest(
+  msg: NmhMutatingRequest,
+  args: AttachArgs,
+  bounded: boolean
+): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const roundTrip = relayNmhMessageThroughPopup(msg, args.port, relayDeps(args));
+    if (!bounded) {
+      await roundTrip;
+      return;
+    }
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(new Error(`relay round-trip exceeded ${RELAY_AUTONOMOUS_ROUNDTRIP_TIMEOUT_MS}ms`)),
+        RELAY_AUTONOMOUS_ROUNDTRIP_TIMEOUT_MS
+      );
+    });
+    await Promise.race([roundTrip, timeout]);
+  } catch (err) {
+    const denied: Cat21RpcResult = {
+      ok: false,
+      value: {
+        reason: 'broadcast-failed',
+        detail: `relay-error: ${err instanceof Error ? err.message : String(err)}`,
+      },
+    };
+    try {
+      args.port.postMessage({ type: `${msg.type}:result`, id: msg.id, payload: denied });
+    } catch {
+      // The NMH port is gone (a disconnected port throws synchronously on
+      // postMessage). There is no one to deliver to; swallow it so this
+      // function keeps its never-reject contract and a dead port cannot
+      // poison the autonomous serialization queue for later requests.
+    }
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export function attachNativeHostToPopupRelay(args: AttachArgs): void {
+  // Autonomous mutating round-trips are drained one at a time. The per-account
+  // daily-spend cap is checked in the popup against a persisted `spentToday`
+  // snapshot and recorded only after broadcast, so two concurrent autonomous
+  // popups would both read a stale snapshot and could jointly breach the cap
+  // (HARD RULE #12). The background is the single point every Path-3 call
+  // passes through and is single-threaded, so serializing here closes that
+  // window at the source. Only `mode: 'autonomous'` requests are queued: they
+  // auto-confirm and reliably post a result, so the queue never
+  // head-of-line-blocks on a human. Manual (human-confirmed) NMH requests and
+  // read-only probes stay concurrent — a human cannot rapid-fire concurrent
+  // approvals, and a timeout on a human-paced popup could mis-report a real
+  // broadcast as failed.
+  let autonomousQueue: Promise<void> = Promise.resolve();
+
   args.port.onMessage.addListener(msg => {
     // Route 1 — read-only probe (list_cats / wallet_status /
     // cat21_ord_status). No popup, no keychain, just a one-shot
@@ -138,35 +222,15 @@ export function attachNativeHostToPopupRelay(args: AttachArgs): void {
       // need wallet involvement get a branch here.
       return;
     }
-    void (async () => {
-      try {
-        await relayNmhMessageThroughPopup(msg, args.port, {
-          storage: args.storage,
-          triggerPopupOpen: async (route, urlParams) => {
-            await args.triggerPopupOpen(route, urlParams);
-          },
-          waitForPopupResult: requestId =>
-            subscribeToCat21Result(args.onMessage, requestId, args.verifyResultBusSender),
-        });
-      } catch (err) {
-        // Translate any thrown error into a typed denial so the agent
-        // sees a result rather than a hang. The reason string deliberately
-        // uses the existing `broadcast-failed` union member so MCP
-        // clients don't have to learn a new shape; `detail` carries the
-        // human-readable text.
-        const denied: Cat21RpcResult = {
-          ok: false,
-          value: {
-            reason: 'broadcast-failed',
-            detail: `relay-error: ${err instanceof Error ? err.message : String(err)}`,
-          },
-        };
-        args.port.postMessage({
-          type: `${msg.type}:result`,
-          id: msg.id,
-          payload: denied,
-        });
-      }
-    })();
+    if (msg.payload.mode === 'autonomous') {
+      // `relayOneMutatingRequest` is written to never reject; the trailing
+      // `.catch` is defence in depth so no unforeseen rejection can poison the
+      // chain and silently drop every later autonomous request.
+      autonomousQueue = autonomousQueue
+        .then(() => relayOneMutatingRequest(msg, args, true))
+        .catch(() => undefined);
+      return;
+    }
+    void relayOneMutatingRequest(msg, args, false);
   });
 }
