@@ -1005,11 +1005,13 @@ describe('Cat21RpcService.acceptOffer', () => {
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
-    it('records spend=pricePaidSats (deal-size proxy for daily-cap policy)', async () => {
+    it('records spend=0 (accepting is a receive, not a spend, so it never consumes the daily spend cap)', async () => {
       await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
-      // SDK delegate returns pricePaidSats=100_000 in the default makeDeps;
-      // matches intent.expectedPriceSats so we land on the ok path.
-      expect(deps.recordSpend).toHaveBeenCalledWith(100_000);
+      // The seller's BTC outflow is zero (ord's balance_change == amount is a
+      // receive; the buyer funds the fee). pricePaidSats=100_000 in makeDeps is
+      // the price the seller RECEIVES; it must not land in spentToday.
+      expect(deps.recordSpend).toHaveBeenCalledWith(0);
+      expect(deps.recordSpend).not.toHaveBeenCalledWith(100_000);
     });
   });
 

@@ -611,16 +611,19 @@ export class Cat21RpcService {
       return denied('inbound-offer-mismatch', `${validation.reason}: ${validation.detail ?? ''}`);
     }
 
-    // The seller doesn't spend BTC, but the policy daily cap exists to
-    // backstop autonomous agents from accepting an unbounded number of
-    // offers per day; using pricePaidSats as the deal-size proxy lets
-    // the cap fire on activity volume, not just on outflow.
+    // Accepting a buy-offer is a RECEIVE: the seller gives up the cat and the
+    // buyer's inputs pay the fee, so the seller's BTC outflow is zero. It does
+    // not consume the daily SPEND cap (`spentToday` tracks outflow; the check
+    // side in `cat21IntentToAgentContext` already treats accept as a receive
+    // and gates it on the floor price, not the spend cap). Record 0 so a day of
+    // selling cannot burn the spend budget and block real mints/transfers/buys.
+    // Capping accept VOLUME, if ever wanted, needs its own counter.
     return this.signAndBroadcast({
       mode,
       psbt: psbtBytes,
       intent,
       inputIndexes: [0],
-      spendSats: validation.pricePaidSats,
+      spendSats: 0,
     });
   }
 
