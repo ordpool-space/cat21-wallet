@@ -19,6 +19,7 @@ export function useToggleNotificationsEnabled() {
   return () => dispatch(settingsActions.toggleNotificationsEnabled());
 }
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export function useToggleNetworkBadgeAlwaysOn() {
   const dispatch = useDispatch();
   return () => dispatch(settingsActions.toggleNetworkBadgeAlwaysOn());

@@ -20,3 +20,7 @@ tmp
 .cursorrules
 test-results
 copilot-instructions.md
+
+# Cat21: private keypair for extension signing (NEVER commit)
+.keys/
+apps/extension/*.txt

@@ -20,6 +20,11 @@ function setClientId(id: string) {
   }
 }
 
+// HACK -- Cat21 (audit C1): retained for upstream-Leather merge
+// compatibility; consumed by Mixpanel telemetry init upstream, which
+// is stripped to a no-op stub locally. The export stays so the merge
+// surface remains diff-friendly per HARD RULE #3.
+// ts-unused-exports:disable-next-line
 export function getClientId() {
   let id: string | null = null;
   try {

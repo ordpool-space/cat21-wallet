@@ -21,11 +21,81 @@ runs:
         node-version: ${{ inputs.NODE_VERSION }}
         registry-url: 'https://registry.npmjs.org/'
         cache: 'pnpm'
+        # The salt file lets us evict a poisoned pnpm store without
+        # touching the lockfile. Incident: the d3cdfbcda run packed
+        # ordpool-sdk into the store WITHOUT its prepare-built
+        # dist-core/ (the provision still passed --ignore-scripts at
+        # that commit); every same-lockfile run after restored that
+        # half-baked entry and failed webpack with "Can't resolve
+        # 'ordpool-sdk/core'…/wallet/signers". Bump the salt to force
+        # a fresh store.
+        cache-dependency-path: |
+          pnpm-lock.yaml
+          .github/pnpm-cache-salt
+
+    # ordpool-sdk is consumed via a SHA-pinned github tarball
+    # (apps/extension/package.json → "ordpool-sdk":
+    # "github:ordpool-space/ordpool-sdk#<sha>"). Since SDK
+    # 2026-07-17, dist-core/ (the `ordpool-sdk/core` entry the
+    # extension imports) is NOT in git — the SDK's `prepare` script
+    # generates it at install time. Reproducible per-commit.
+    #
+    # No `--ignore-scripts` here: pnpm 10 default-denies install
+    # scripts for every dependency NOT in the root package.json's
+    # `pnpm.onlyBuiltDependencies` allowlist (currently
+    # better-sqlite3, ordpool-sdk, sqlite3). That per-package
+    # allowlist is a strictly tighter gate than the old blanket
+    # flag, and it lets the SDK's prepare hook run.
+
+    # Purge a restored-but-stale pnpm store when the salt changes.
+    # Cache-key tricks can't evict a poisoned store: setup-node falls
+    # back to prefix restore-keys, so an old cache (e.g. the one the
+    # d3cdfbcda run saved with a scripts-skipped, dist-core-less
+    # ordpool-sdk entry) keeps coming back under new keys, and pnpm
+    # reuses the existing store entry rather than re-preparing.
+    # Stamping the salt INSIDE the store and rm-rf'ing on mismatch is
+    # the only reliable eviction.
+    - name: pnpm-store-salt-guard
+      shell: bash
+      run: |
+        SALT=$(head -1 .github/pnpm-cache-salt)
+        STORE=$(pnpm store path)
+        STAMP="$STORE/.cache-salt"
+        if [ -d "$STORE" ] && [ "$(cat "$STAMP" 2>/dev/null || true)" != "$SALT" ]; then
+          echo "pnpm store salt mismatch (want $SALT) — purging restored store"
+          rm -rf "$STORE"
+        fi
+        mkdir -p "$STORE"
+        echo "$SALT" > "$STAMP"
 
     - env:
         PROVISION_MOBILE: ${{ inputs.PROVISION_MOBILE }}
       shell: bash
-      run: pnpm install --ignore-scripts
+      run: pnpm install
+
+    # Fail HERE — not 30 minutes later inside webpack — if the SDK's
+    # prepare hook didn't produce a complete dist-core/. Requiring
+    # the module walks the full CommonJS graph, so any missing file
+    # (e.g. wallet/signers/index.js from a half-prepared store entry)
+    # throws with the exact unresolved path.
+    - name: verify-ordpool-sdk-core
+      shell: bash
+      run: |
+        if ! node -e "require(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] })); console.log('ordpool-sdk/core OK — full require graph resolved')"; then
+          echo '--- diagnostic: node/npm versions'
+          node --version; npm --version; pnpm --version
+          # exports map blocks ./package.json — resolve the exported
+          # ./core entry (dist-core/core.js) and walk up one dir.
+          SDK_DIR=$(dirname "$(dirname "$(node -e "console.log(require.resolve('ordpool-sdk/core', { paths: ['apps/extension'] }))")")")
+          echo "--- diagnostic: SDK dir = $SDK_DIR"
+          echo '--- diagnostic: top-level entries'
+          ls -la "$SDK_DIR"
+          echo '--- diagnostic: dist-core recursive file list (sorted)'
+          find "$SDK_DIR/dist-core" -type f | sed "s|$SDK_DIR/||" | sort
+          echo '--- diagnostic: package.json files field'
+          node -e "console.log(JSON.stringify(require('$SDK_DIR/package.json').files))"
+          exit 1
+        fi
 
     - name: build-panda
       shell: bash

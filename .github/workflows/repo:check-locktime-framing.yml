@@ -1,0 +1,24 @@
+name: repo:check-locktime-framing
+
+# Fails the build if any banned "nLockTime=21 orphans the cat" style
+# phrase appears in tracked source/tests/docs. See workspace HQ HARD
+# RULE "nLockTime=21 is PROTOCOL for MINT, CONVENTION for everything
+# else" and scripts/check-locktime-framing.sh for the full list.
+#
+# Sibling of the identical guards in cat21-indexer and ordpool-sdk.
+# The wallet's default branch is main (no stage_prod), so push only
+# watches main.
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: run-locktime-framing-guard
+        run: scripts/check-locktime-framing.sh

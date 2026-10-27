@@ -4,6 +4,7 @@ export * from './bip322/sign-message-bip322-bitcoinjs';
 
 export * from './coin-selection/calculate-max-spend';
 export * from './coin-selection/coin-selection';
+export * from './descriptors/wsh-descriptor';
 export * from './coin-selection/coin-selection.utils';
 
 export * from './fees/bitcoin-fees';
@@ -26,6 +27,9 @@ export * from './psbt/utils';
 export * from './signer/bitcoin-payer';
 
 export * from './transactions/generate-unsigned-transaction';
+/* HACK -- Cat21: CAT-21 mint + offer builders + validator moved to
+ * ordpool-sdk per CLAUDE.md scope cut (2026-06-14). The wallet signs
+ * what the SDK delivers; it does not build cat-shaped PSBTs. */
 
 export * from './validation/address-validation';
 export * from './validation/amount-validation';

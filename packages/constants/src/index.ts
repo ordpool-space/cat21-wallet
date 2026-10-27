@@ -6,6 +6,7 @@ import type {
   BtcAsset,
   CryptoCurrency,
   Currency,
+  NetworkModes,
   StxAsset,
 } from '@leather.io/models';
 
@@ -15,6 +16,21 @@ export const ZERO_INDEX = 0;
 
 export const HIRO_EXPLORER_URL = 'https://explorer.hiro.so';
 export const MEMPOOL_BASE_URL = 'https://mempool.space';
+/**
+ * Explorer the wallet sends users to for mainnet transactions and blocks.
+ * ordpool.space decodes the CAT-21 marker on a transaction; mempool.space
+ * does not. mempool.space stays in MEMPOOL_BASE_URL for API traffic
+ * (fee estimation, network-form defaults), which is not user-facing.
+ */
+export const ORDPOOL_BASE_URL = 'https://ordpool.space';
+/** Cat detail pages, the public home of a cat. */
+export const CAT21_SITE_URL = 'https://cat21.space';
+/**
+ * The CAT-21 protocol marker. Block 21 was mined in 2009, so nLockTime=21 has
+ * no consensus meaning and is pure marker bytes. The renderer needs it because
+ * the parser refuses any transaction that is not a mint.
+ */
+export const CAT21_LOCK_TIME = 21;
 export const ORD_IO_URL = 'https://ord.io';
 export const GAMMA_URL = 'https://gamma.io';
 export const GAMMA_API_URL: string = `${GAMMA_URL}/api`;
@@ -35,6 +51,12 @@ export const BTC_DECIMALS = 8;
 export const STX_DECIMALS = 6;
 export const SATS_IN_BTC = 100_000_000;
 export const BITCOIN_MINIMUM_SPEND_IN_SATS = 546;
+
+export const HD_KEY_VERSIONS_BY_NETWORK: Record<NetworkModes, { private: number; public: number }> =
+  {
+    mainnet: { private: 0x0488ade4, public: 0x0488b21e },
+    testnet: { private: 0x04358394, public: 0x043587cf },
+  };
 
 // Units of `Money` should be declared in their smallest unit. Similar to
 // Rosetta, we model currencies with their respective resolution

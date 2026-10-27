@@ -15,6 +15,7 @@ export function deriveStacksSalt(keychain: HDKey) {
 
 const stxIdentityDerivationWithAccount = `m/888'/0'/{account}'`;
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export const getIdentityDerivationPath = makeAccountIndexDerivationPathFactory(
   stxIdentityDerivationWithAccount
 );
