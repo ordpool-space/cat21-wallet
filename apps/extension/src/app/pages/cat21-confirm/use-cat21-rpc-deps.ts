@@ -49,6 +49,7 @@ import {
   toBidNetwork,
   toNetworkLabel,
 } from './cat21-rpc-deps.helper';
+import { finalizeRemainingInputs } from './finalize-remaining-inputs';
 import { resolveCatFundingUtxo } from './resolve-cat-funding-utxo';
 
 /**
@@ -319,7 +320,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         const tx = btc.Transaction.fromPSBT(psbt);
         addMissingTapInternalKeys(tx, getAssumedSigningConfig(psbt, inputsToSign));
         const signedTx = await signBitcoinTx(tx.toPSBT(), inputsToSign);
-        signedTx.finalize();
+        finalizeRemainingInputs(signedTx);
         return { hex: signedTx.hex, weight: signedTx.weight };
       },
       signSilently: async (psbt, inputIndexes) => {
@@ -327,7 +328,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
         const tx = btc.Transaction.fromPSBT(psbt);
         addMissingTapInternalKeys(tx, getAssumedSigningConfig(psbt, inputsToSign));
         const signedTx = await signBitcoinTx(tx.toPSBT(), inputsToSign);
-        signedTx.finalize();
+        finalizeRemainingInputs(signedTx);
         return { hex: signedTx.hex, weight: signedTx.weight };
       },
       // Buy-offer signer: signs ONLY the buyer's funding inputs

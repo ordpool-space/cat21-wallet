@@ -153,10 +153,19 @@ function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
     ),
     signWithConfirmation: vi.fn(() => Promise.resolve(signedTx)),
     signSilently: vi.fn(() => Promise.resolve(signedTx)),
-    // Buy-offer signer default: echo a small non-empty PSBT byte array
-    // (the service only base64-encodes it, never re-parses). Distinct
-    // sentinel bytes so a positive-equality assert catches leaks.
-    signBuyOfferInputs: vi.fn(() => Promise.resolve(new Uint8Array([1, 2, 3, 4]))),
+    // Buy-offer signer default: the SDK's createOffer finalises the buyer
+    // inputs into the ord-acceptable shape, so the signer must return a
+    // parseable PSBT whose buyer input (1) is finalised under SIGHASH_ALL.
+    // The account key here is a dummy (no real signing), so a
+    // structurally-valid SIGHASH_ALL witness stands in; real buyer signing +
+    // the exact finalised bytes are covered by the chain-e2e buy lanes.
+    signBuyOfferInputs: vi.fn((psbt: Uint8Array) => {
+      const tx = btc.Transaction.fromPSBT(psbt, { allowUnknownInputs: true });
+      tx.updateInput(1, {
+        finalScriptWitness: [new Uint8Array([0x30, 0x01]), new Uint8Array(33)],
+      });
+      return Promise.resolve(tx.toPSBT());
+    }),
     postBid: vi.fn(() => Promise.resolve()),
     broadcast: vi.fn(() => Promise.resolve(broadcastResult)),
     recordSpend: vi.fn(),
@@ -1239,8 +1248,14 @@ describe('Cat21RpcService.buy', () => {
       // The seller cat UTXO the service pinned (from resolveCatUtxo).
       expect(result.value.catTxid).toBe(defaultCatUtxo().txid);
       expect(result.value.catVout).toBe(0);
-      // base64 of the sentinel bytes [1,2,3,4] the signer returned.
-      expect(result.value.psbtBase64).toBe('AQIDBA==');
+      // The bid carries a parseable buy-offer PSBT: seller cat (input 0) + the
+      // finalised buyer funding input (1). The exact finalised bytes are
+      // covered by the chain-e2e buy lanes (real buyer signing).
+      const offerTx = btc.Transaction.fromPSBT(
+        new Uint8Array(Buffer.from(result.value.psbtBase64, 'base64')),
+        { allowUnknownInputs: true }
+      );
+      expect(offerTx.inputsLength).toBe(2);
       // Buyer inputs are 1..N — one funding UTXO ⇒ index [1]. Input 0
       // (the seller's cat) is NEVER signed by the buyer.
       const signArgs = deps.signBuyOfferInputs.mock.calls[0];
@@ -1263,8 +1278,10 @@ describe('Cat21RpcService.buy', () => {
         buyerOrdinalsAddress: ACCOUNT_ORDINALS_ADDR,
         buyerPaymentAddress: ACCOUNT_PAYMENT_ADDR,
         sellerPaymentAddress: p2wpkhMainnet.address,
-        psbtBase64: 'AQIDBA==',
       });
+      // The posted bid carries the finalised buy-offer PSBT (exact bytes:
+      // chain-e2e); here just that it is a non-empty base64 payload.
+      expect(postArgs.psbtBase64.length).toBeGreaterThan(0);
     });
 
     it('records the spend (bid + fee) on success', async () => {
