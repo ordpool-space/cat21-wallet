@@ -99,7 +99,7 @@
     "base64url": "3.0.1",
     "bignumber.js": "9.1.2",
     "bitcoin-address-validation": "2.2.3",
-    "bitcoinjs-lib": "6.1.5",
+    "bitcoinjs-lib": "6.1.10",
     "bn.js": "5.2.1",
     "browserify-fs": "1.0.0",
     "buffer": "6.0.3",
