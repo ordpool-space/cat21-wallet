@@ -10,6 +10,7 @@ import { logger } from '@shared/logger';
 import { getAddressesHandler } from './rpc-methods/get-addresses';
 /* HACK -- Cat21: stxGetAddressesHandler import dropped per ADR-1 + ADR-7 hide non-BTC-L1.
  * Original: `import { getAddressesHandler, stxGetAddressesHandler } from './rpc-methods/get-addresses';` */
+import { getInfoHandler } from './rpc-methods/get-info';
 import { openHandler } from './rpc-methods/open';
 import { openSwapHandler } from './rpc-methods/open-swap';
 import { sendTransferHandler } from './rpc-methods/send-transfer';
@@ -81,6 +82,7 @@ export async function rpcMessageHandler(request: RpcRequests, port: chrome.runti
 }
 
 registerRpcRequestHandler(...getAddressesHandler);
+registerRpcRequestHandler(...getInfoHandler);
 registerRpcRequestHandler(...openHandler);
 registerRpcRequestHandler(...openSwapHandler);
 registerRpcRequestHandler(...sendTransferHandler);

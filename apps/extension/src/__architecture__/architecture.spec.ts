@@ -72,6 +72,7 @@ describe('HARD RULE #6 — browser surface is Leather, cat21_* is internal-only'
 
     expect(registered.sort()).toEqual([
       'getAddresses',
+      'getInfo',
       'open',
       'openSwap',
       'sendTransfer',
