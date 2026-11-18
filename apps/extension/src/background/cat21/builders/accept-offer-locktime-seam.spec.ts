@@ -1,8 +1,9 @@
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
-import { validateCat21BuyOfferPsbt } from 'ordpool-sdk/core';
+import { toPaymentAddress, validateCat21BuyOfferPsbt } from 'ordpool-sdk/core';
 import { describe, expect, it } from 'vitest';
 
+import { walletNetworkToSdkNetwork } from '../cat21-rpc.service';
 import type { Cat21AcceptOfferIntent } from '../types';
 import { validateAcceptOffer } from './accept-offer-validator';
 
@@ -82,7 +83,15 @@ function accept(lockTime: number) {
       expectedSellerPaymentAddress: addressOf(SELLER_PAYMENT),
       network: 'mainnet',
     },
-    validateCat21BuyOfferPsbt
+    // The production adapter (use-cat21-rpc-deps.ts), so the seam is the real one.
+    args =>
+      validateCat21BuyOfferPsbt({
+        psbt: args.psbt,
+        expectedSellerUtxo: args.expectedSellerUtxo,
+        floorPriceSats: args.floorPriceSats,
+        expectedSellerPaymentAddress: toPaymentAddress(args.expectedSellerPaymentAddress),
+        network: walletNetworkToSdkNetwork(args.network),
+      })
   );
 }
 
