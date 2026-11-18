@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://api.hiro.so/metadata/v1/nft/SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1/749544",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.382Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"token_uri\":\"https://nft-ad-1.aibtc.dev/aibtcdev-1.json\",\"metadata\":{\"sip\":16,\"name\":\"aibtcdev-1\",\"description\":\"AI meets Bitcoin: Build, trade, explore and govern on-chain. First Edition. Join us at https://aibtc.dev\",\"image\":\"https://nft-ad-1.aibtc.dev/aibtcdev-prompt2dao.png\",\"cached_image\":\"https://assets.hiro.so/api/mainnet/token-metadata-api/SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1/749544.png\",\"cached_thumbnail_image\":\"https://assets.hiro.so/api/mainnet/token-metadata-api/SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1/749544-thumb.png\",\"attributes\":[{\"trait_type\":\"generation\",\"value\":\"first\",\"display_type\":\"\"}],\"properties\":{\"category\":\"image\",\"collection\":\"AIBTC\",\"collection_image\":\"https://nft-ad-1.aibtc.dev/aibtcdev-prompt2dao.png\"}}}"
+}

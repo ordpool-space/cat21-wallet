@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://staging.api.leather.io/v1/tokens/sip10s/SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.token-special-vote",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.880Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"principal\":\"SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.token-special-vote\",\"assetIdentifier\":\"SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.token-special-vote::special-vote\",\"name\":\"special-vote token\",\"symbol\":\"special-vote\",\"decimals\":8,\"image\":\"\"}"
+}

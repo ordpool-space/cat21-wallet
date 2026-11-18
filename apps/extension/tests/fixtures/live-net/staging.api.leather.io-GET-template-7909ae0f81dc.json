@@ -1,0 +1,11 @@
+{
+  "match": "template",
+  "method": "GET",
+  "url": "https://staging.api.leather.io/v1/transactions/bitcoin/descriptors/tr(<descriptor>)?network=mainnet&page=1&pageSize=150",
+  "source": "CI run 44324166558 (extension:cat21-chain-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:35:23.056Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"meta\":{\"page\":1,\"pageSize\":150,\"totalPages\":1,\"totalItems\":0},\"data\":[]}"
+}

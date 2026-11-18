@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://api.hiro.so/extended/v2/addresses/SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE/balances/stx",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.061Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"balance\":\"0\",\"total_miner_rewards_received\":\"0\",\"lock_tx_id\":\"\",\"locked\":\"0\",\"lock_height\":0,\"burnchain_lock_height\":0,\"burnchain_unlock_height\":0}"
+}

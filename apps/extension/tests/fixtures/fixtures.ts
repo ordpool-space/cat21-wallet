@@ -6,10 +6,10 @@ import { OnboardingPage } from '@tests/page-object-models/onboarding.page';
 import { SendPage } from '@tests/page-object-models/send.page';
 import { SettingsPage } from '@tests/page-object-models/settings.page';
 import { SwapPage } from '@tests/page-object-models/swap.page';
-import { createHash } from 'node:crypto';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { installLiveNetStubs, liveNetKey } from './live-net-stubs';
 
 interface TestFixtures {
   context: BrowserContext;
@@ -25,57 +25,6 @@ interface TestFixtures {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-/* HACK -- Cat21: live-response capture (audit T11, step 2a). HQ allows a
-   stubbed response only from a captured real one under version control, with
-   source and capture date. With CAT21_LIVE_NET_CAPTURE set, every live response
-   the recorder sees is written to apps/extension/live-net-capture/ (one JSON
-   file per method + URL: capture time, status, content type, body as utf8 or
-   base64, or omitted above the size cap) for CI to upload; the stubs are built
-   from those files. Off by default. */
-const LIVE_NET_CAPTURE_DIR = process.env.CAT21_LIVE_NET_CAPTURE
-  ? path.join(__dirname, '../../live-net-capture')
-  : null;
-const MAX_CAPTURED_BODY_BYTES = 256 * 1024;
-
-async function captureLiveResponse(
-  dir: string,
-  method: string,
-  url: URL,
-  response: { status(): number; headers(): Record<string, string>; body(): Promise<Buffer> }
-): Promise<void> {
-  const contentType = response.headers()['content-type'] ?? '';
-  let record: Record<string, unknown>;
-  try {
-    const body = await response.body();
-    const encoding = /json|text|javascript|xml/u.test(contentType) ? 'utf8' : 'base64';
-    const tooLarge = body.byteLength > MAX_CAPTURED_BODY_BYTES;
-    record = {
-      capturedAt: new Date().toISOString(),
-      method,
-      url: url.href,
-      status: response.status(),
-      contentType,
-      bodyBytes: body.byteLength,
-      bodyEncoding: tooLarge ? 'omitted' : encoding,
-      body: tooLarge ? null : body.toString(encoding),
-    };
-  } catch (error) {
-    // Keep the failure in the capture rather than lose the entry silently.
-    record = {
-      capturedAt: new Date().toISOString(),
-      method,
-      url: url.href,
-      captureError: error instanceof Error ? error.message : String(error),
-    };
-  }
-  const name = createHash('sha256').update(`${method} ${url.href}`).digest('hex').slice(0, 16);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(
-    path.join(dir, `${url.hostname}-${method}-${name}.json`),
-    JSON.stringify(record, null, 2)
-  );
-}
 
 /**
  * Loads the extension into the browser context. Use this test function with
@@ -106,25 +55,23 @@ export const test = base.extend<TestFixtures>({
         ...(overrideExe ? [] : ['--use-gl=egl']),
       ],
     });
-    /* HACK -- Cat21: live-network recorder (audit T11, step 1). HQ: no test
-       talks to a real system. Before stubbing or blocking anything, record
-       which non-local hosts each spec actually reaches, on green runs, so the
-       inventory comes from observation, not from a guess. Records method,
-       host and the first path segment (no query, no address-bearing tail),
-       attaches the list to the test, and prints one `LIVE-NET` line to grep in
-       CI. It fails nothing; the guard that does comes once every entry is
-       stubbed from captured data or blocked.
-       A request counts as live by where its RESPONSE came from, not by its
-       URL: a request a spec's route rewrote to a local service keeps its
-       original URL but is fulfilled with no server address, so it is not
-       live. Only a response from a non-loopback peer is. */
+    /* HACK -- Cat21: live-network guard (audit T11). HQ: no test talks to a
+       real system. `installLiveNetStubs` answers every non-local request no
+       spec route handled, from captured fixtures, and reports the ones it has
+       no fixture for. Independently, every finished request whose RESPONSE
+       came from a non-loopback peer is live: a route-fulfilled response has no
+       server address, so a stub or a spec's rewrite to a local service is not
+       live, and only traffic that bypassed every route is. Either kind fails
+       the test at teardown, with no allowance for "expected" hosts. Each
+       test also gets the list attached and prints one LIVE-NET line. */
     const liveRequests = new Set<string>();
+    const unstubbedRequests = new Set<string>();
     const pending: Promise<void>[] = [];
+    await installLiveNetStubs(context, key => unstubbedRequests.add(key));
     context.on('requestfinished', request => {
       const url = new URL(request.url());
       if (!url.protocol.startsWith('http')) return;
-      const firstSegment = url.pathname.split('/').filter(Boolean)[0] ?? '';
-      const key = `${request.method()} ${url.hostname} /${firstSegment}`;
+      const key = liveNetKey(request.method(), url);
       pending.push(
         (async () => {
           const response = await request.response();
@@ -132,9 +79,6 @@ export const test = base.extend<TestFixtures>({
           if (peer == null) return; // fulfilled by a route, never left the box
           if (peer.ipAddress === '127.0.0.1' || peer.ipAddress === '::1') return;
           liveRequests.add(key);
-          if (LIVE_NET_CAPTURE_DIR && response) {
-            await captureLiveResponse(LIVE_NET_CAPTURE_DIR, request.method(), url, response);
-          }
         })().catch(() => {
           // The response could not be read (e.g. its page closed): keep the
           // entry, marked, rather than lose a request that may have been live.
@@ -144,15 +88,24 @@ export const test = base.extend<TestFixtures>({
     });
     await use(context);
     await Promise.all(pending);
-    const inventory = [...liveRequests].sort();
+    const live = [...liveRequests].sort();
+    const unstubbed = [...unstubbedRequests].sort();
     await testInfo.attach('live-network-requests', {
-      body: JSON.stringify(inventory, null, 2),
+      body: JSON.stringify({ live, unstubbed }, null, 2),
       contentType: 'application/json',
     });
     // eslint-disable-next-line no-console
-    console.log(`LIVE-NET ${testInfo.titlePath.join(' > ')} :: ${JSON.stringify(inventory)}`);
+    console.log(
+      `LIVE-NET ${testInfo.titlePath.join(' > ')} :: ${JSON.stringify({ live, unstubbed })}`
+    );
     await context.close();
     await context.browser()?.close();
+    if (live.length > 0 || unstubbed.length > 0) {
+      throw new Error(
+        `This test reached the network outside the stubs (tests/fixtures/live-net-stubs.ts). ` +
+          `Live: ${JSON.stringify(live)}. Unstubbed (aborted): ${JSON.stringify(unstubbed)}.`
+      );
+    }
   },
   page: async ({ context }, use) => {
     const pages = context.pages();

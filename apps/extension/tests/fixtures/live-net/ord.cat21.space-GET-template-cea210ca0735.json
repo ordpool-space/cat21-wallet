@@ -1,0 +1,11 @@
+{
+  "match": "template",
+  "method": "GET",
+  "url": "https://ord.cat21.space/address/<btc-address>",
+  "source": "CI run 44324166558 (extension:cat21-chain-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:36:07.056Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"outputs\":[],\"cats\":[],\"cat_numbers\":[],\"sat_balance\":0,\"runes_balances\":[]}"
+}

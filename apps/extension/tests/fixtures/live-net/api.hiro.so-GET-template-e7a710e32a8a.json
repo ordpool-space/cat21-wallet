@@ -1,0 +1,11 @@
+{
+  "match": "template",
+  "method": "GET",
+  "url": "https://api.hiro.so/extended/v2/addresses/<stx-address>/transactions?limit=50&offset=0&exclude_function_args=true",
+  "source": "CI run 44324166558 (extension:cat21-chain-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:32:33.600Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"limit\":50,\"offset\":0,\"total\":0,\"next_cursor\":null,\"prev_cursor\":null,\"cursor\":null,\"results\":[]}"
+}

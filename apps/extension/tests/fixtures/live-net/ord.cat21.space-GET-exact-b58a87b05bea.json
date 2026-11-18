@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://ord.cat21.space/address/bc1putuzj9lyfcm8fef9jpy85nmh33cxuq9u6wyuk536t9kemdk37yjqmkc0pg",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.473Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"outputs\":[],\"cats\":[],\"cat_numbers\":[],\"sat_balance\":0,\"runes_balances\":[]}"
+}

@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://staging.api.leather.io/v1/market/prices/native?format=map",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.387Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"format\":\"map\",\"meta\":{\"count\":2,\"timestamp\":\"2026-11-18T14:28:46.090Z\"},\"data\":{\"BTC\":{\"price\":63872,\"lastPriceAt\":\"2026-11-18T14:15:02.714Z\",\"priceChange\":{\"1d\":-1.15,\"1w\":-13.22,\"1m\":-22.26,\"3m\":-10.59,\"6m\":-16.37,\"1y\":-30.37},\"marketCap\":1284710629600,\"change24h\":-1.15},\"STX\":{\"price\":0.271372,\"lastPriceAt\":\"2026-11-18T14:15:02.714Z\",\"priceChange\":{\"1d\":3.34,\"1w\":-14.33,\"1m\":-28.44,\"3m\":93.72,\"6m\":8.15,\"1y\":-20.7},\"marketCap\":511140001.16416526,\"change24h\":3.34}}}"
+}

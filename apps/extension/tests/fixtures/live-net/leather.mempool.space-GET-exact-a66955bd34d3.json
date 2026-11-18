@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://leather.mempool.space/api/v1/prices",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.522Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"time\":1795011907,\"USD\":63899,\"EUR\":58286,\"GBP\":48619,\"CAD\":91435,\"CHF\":53899,\"AUD\":95039,\"JPY\":10198154}"
+}

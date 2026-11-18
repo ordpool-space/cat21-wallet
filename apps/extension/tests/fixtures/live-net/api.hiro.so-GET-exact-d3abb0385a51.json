@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://api.hiro.so/metadata/v1/nft/SPVD6CE8RW90BGGKJZTKCSMGKS7HP0K8364TFR48.bitcoin-faces-airdrop/749544",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.381Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"token_uri\":\"https://bitcoinfaces.xyz/api/get-nft-metadata?hashedName=0x051632864de61d8269090af3cf6ef12e2a94c882bfae\",\"metadata\":{\"sip\":16,\"name\":\"Bitcoin Face for SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE\",\"description\":\"Every name has a Bitcoin Face! Get yours at https://bitcoinfaces.xyz\",\"image\":\"https://bitcoinfaces.xyz/api/get-image?name=SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE\",\"cached_image\":\"https://assets.hiro.so/api/mainnet/token-metadata-api/SPVD6CE8RW90BGGKJZTKCSMGKS7HP0K8364TFR48.bitcoin-faces-airdrop/749544.png\",\"cached_thumbnail_image\":\"https://assets.hiro.so/api/mainnet/token-metadata-api/SPVD6CE8RW90BGGKJZTKCSMGKS7HP0K8364TFR48.bitcoin-faces-airdrop/749544-thumb.png\",\"attributes\":[{\"trait_type\":\"background\",\"value\":3,\"display_type\":\"\"},{\"trait_type\":\"body\",\"value\":1,\"display_type\":\"\"},{\"trait_type\":\"head\",\"value\":2,\"display_type\":\"\"},{\"trait_type\":\"ears\",\"value\":2,\"display_type\":\"\"},{\"trait_type\":\"nose\",\"value\":3,\"display_type\":\"\"},{\"trait_type\":\"mouth\",\"value\":4,\"display_type\":\"\"},{\"trait_type\":\"eyes-normal\",\"value\":9,\"display_type\":\"\"}],\"properties\":{\"category\":\"image\",\"collection\":\"Bitcoin Faces\",\"collection_image\":\"https://bitcoinfaces.xyz/bitcoin-faces-social.jpeg\"}}}"
+}
