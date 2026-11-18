@@ -1250,7 +1250,7 @@ describe('audit H1 — Path 3 autoconfirm gated on wallet-unlocked state', () =>
 
 describe('funding-safety notice — the manual pre-approve funding preview', () => {
   const ROUTE = 'apps/extension/src/app/pages/cat21-confirm/cat21-confirm-route.tsx';
-  const HOOK = 'apps/extension/src/app/pages/cat21-confirm/use-cat21-funding-preview.ts';
+  const PREVIEW = 'apps/extension/src/app/pages/cat21-confirm/simulate-funding-preview.ts';
   const SERVICE = 'apps/extension/src/background/cat21/cat21-rpc.service.ts';
 
   it('the confirm route derives the notice AND the CTA gate from ONE preview model', () => {
@@ -1258,8 +1258,12 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
     // they cannot disagree (a notice with no gate, or a gate with no reason).
     const src = read(join(REPO_ROOT, ROUTE));
     // The preview is held until the funding UTXO query settles (3rd arg), so a
-    // funded wallet never caches a wrong `insufficient` from the loading set.
-    expect(src).toMatch(/useCat21FundingPreview\(intent,\s*deps,\s*fundingQueryLoading\)/);
+    // funded wallet never caches a wrong `insufficient` from the loading set,
+    // and until the cat-metadata query settles (4th arg), because transfer and
+    // buy resolve their cat inside the preview.
+    expect(src).toMatch(
+      /useCat21FundingPreview\(\s*intent,\s*deps,\s*fundingQueryLoading,\s*catQueryLoading\s*\)/
+    );
     expect(src).toMatch(/describeFundingNotice\(fundingState\)/);
     expect(src).toMatch(/fundingNotice=\{fundingNotice\}/);
     expect(src).toMatch(/approveDisabled=\{approveDisabled\}/);
@@ -1268,28 +1272,56 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
     expect(src).toMatch(/approveDisabled\s*=\s*isApproveBlocked\(fundingModel\)/);
   });
 
-  it('the preview runs the SAME simulateMint the execute repeats: recipient, fee, TIP, topology', () => {
-    // The dialog and the click must agree: both go through the SDK core with the
-    // same inputs. A tip changes the funding target + coin pick, so the preview
-    // MUST pass it too or the notice/CTA can diverge from what Approve funds. The
-    // manual surface threads `separate-payment-address` so an asset coin becomes
-    // a notice the human can act on rather than an opaque block.
-    const src = read(join(REPO_ROOT, HOOK));
+  it('the preview runs the SAME simulate the execute repeats, per funding action (mint, transfer, buy)', () => {
+    // The dialog and the click must agree: each funding action goes through the
+    // SDK core with the same inputs its execute uses. A mint tip changes the
+    // funding target + coin pick, and a bid's price is part of what the buyer
+    // coin must cover, so the preview MUST pass them or the notice/CTA can
+    // diverge from what Approve funds. The manual surface threads its topology
+    // so an asset coin becomes a notice the human can act on rather than an
+    // opaque block.
+    const src = read(join(REPO_ROOT, PREVIEW));
     expect(src).toMatch(/simulateMint\(/);
-    expect(src).toMatch(/recipientAddress:\s*intent\.recipient/);
-    expect(src).toMatch(/feeRatePerVbyte:\s*intent\.feeRate/);
-    expect(src).toMatch(/tip:\s*\n?\s*intent\.tip/);
+    expect(src).toMatch(/recipientAddress:\s*mint\.recipient/);
+    expect(src).toMatch(/feeRatePerVbyte:\s*mint\.feeRate/);
+    expect(src).toMatch(/tip:\s*\n?\s*mint\.tip/);
+    expect(src).toMatch(/simulateTransfer\(/);
+    expect(src).toMatch(/recipientAddress:\s*transfer\.recipient/);
+    expect(src).toMatch(/simulateCreateOffer\(/);
+    expect(src).toMatch(/priceSats:\s*buy\.bidSats/);
+    expect(src).toMatch(/sellerPaymentAddress:\s*buy\.sellerPaymentAddress/);
+    // The buy preview reads the BUYER's resolved coin, the one createOffer spends.
+    expect(src).toMatch(/sim\.buyerFundingUtxo/);
     expect(src).toMatch(/fundingTopology:\s*resolveManualFundingTopology\(/);
   });
 
-  it('the manual mint execute threads fundingTopology; the autonomous path does NOT', () => {
-    // A human who saw the notice may proceed on an asset coin (manual). An
-    // unattended agent must keep the blocking default (no topology) until an
-    // explicit opt-in policy exists — so the topology is gated on `mode`.
+  it('every funding execute (mint, transfer, buy) takes topology + pin from ONE gate: manual AND a previewed coin', () => {
+    // A human who saw the notice may proceed on an asset coin, and only on the
+    // coin the notice named: the manual topology rides together with the pinned
+    // previewed coin. No previewed coin (e.g. an `insufficient` preview, CTA
+    // live) or an unattended agent keeps the blocking default, so an asset coin
+    // that no notice named is refused. Three funding executes exist
+    // (executeMint, executeTransfer, the buyer-side createOffer); each spreads
+    // the one helper, and no other `fundingTopology:` literal can bypass it.
     const src = read(join(REPO_ROOT, SERVICE));
-    expect(src).toMatch(
-      /fundingTopology:\s*\n?\s*mode === 'manual'\s*\n?\s*\?\s*resolveManualFundingTopology\(/
+    const spreads = src.match(
+      /\.\.\.manualFundingSelection\(mode,\s*accountCtx,\s*selectedFundingUtxo\)/g
     );
+    expect(spreads).toHaveLength(3);
+    expect(src).toMatch(
+      /if \(mode !== 'manual' \|\| previewCoin == null\) \{\s*return \{ fundingTopology: undefined, selectedFundingUtxo: null \};/
+    );
+    // Every `fundingTopology:` in the service is inside that helper (its return
+    // type and its two returns). A fourth is an execute bypassing the gate.
+    expect(src.match(/fundingTopology:/g)).toHaveLength(3);
+  });
+
+  it('the confirm route pins the previewed coin into mint, transfer AND buy', () => {
+    const src = read(join(REPO_ROOT, ROUTE));
+    expect(src).toMatch(/const previewCoin = fundingPreviewCoin\(fundingState\)/);
+    expect(src).toMatch(/service\.buy\(actionIntent,\s*transport,\s*previewCoin\)/);
+    expect(src).toMatch(/service\.transfer\(actionIntent,\s*transport,\s*previewCoin\)/);
+    expect(src).toMatch(/service\.mint\(actionIntent,\s*transport,\s*previewCoin\)/);
   });
 });
 

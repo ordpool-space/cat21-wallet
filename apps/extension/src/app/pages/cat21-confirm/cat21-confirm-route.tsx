@@ -160,23 +160,25 @@ export function Cat21ConfirmRoute() {
 
   const { chain } = useCurrentNetworkState();
   // Gate on fundingQueryLoading: a preview over the still-loading empty utxo set
-  // caches a wrong `insufficient` for a funded wallet.
-  const fundingState = useCat21FundingPreview(intent, deps, fundingQueryLoading);
+  // caches a wrong `insufficient` for a funded wallet. Gate on catQueryLoading:
+  // transfer and buy resolve their cat inside the preview.
+  const fundingState = useCat21FundingPreview(intent, deps, fundingQueryLoading, catQueryLoading);
 
   async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
+    // mint, transfer and buy pin the asset coin the notice named and the human
+    // confirmed, so execution spends exactly that coin and no other asset coin.
+    // On a dropped pin the service denies `funding-selection-changed` and nothing
+    // is signed. Every other preview state (ready, blocked, autonomous) pins
+    // nothing, so the service's blocking default refuses any asset coin.
+    const previewCoin = fundingPreviewCoin(fundingState);
     // `bidSats` is unique to the buy intent — check it before `catId`
     // (buy also carries `catId`, so the transfer branch would swallow it).
-    if ('bidSats' in actionIntent) return service.buy(actionIntent, transport);
+    if ('bidSats' in actionIntent) return service.buy(actionIntent, transport, previewCoin);
     if ('priceSats' in actionIntent) return service.createOffer(actionIntent, transport);
     if ('offerPsbt' in actionIntent) return service.acceptOffer(actionIntent, transport);
-    if ('catId' in actionIntent) return service.transfer(actionIntent, transport);
-    // Mint: pin the funding coin the preview showed and the human confirmed, so
-    // execution cannot swap in a coin the preview never displayed (B2). On a
-    // dropped pin the service denies `funding-selection-changed` and nothing is
-    // signed. `fundingPreviewCoin` is null on the autonomous path (no preview),
-    // which pins nothing.
-    return service.mint(actionIntent, transport, fundingPreviewCoin(fundingState));
+    if ('catId' in actionIntent) return service.transfer(actionIntent, transport, previewCoin);
+    return service.mint(actionIntent, transport, previewCoin);
   }
 
   // Path 3 finalisation: post the rpc result onto the result bus so
@@ -403,8 +405,9 @@ export function Cat21ConfirmRoute() {
   const renderedCat = catQuery.data ? mapOrdCat21ToCat21Asset(catQuery.data).thumbnailSrc : '';
   const catImageSrc = renderedCat || undefined;
 
-  // Notice + CTA gate from one model so they cannot disagree. Only mint has a
-  // preview today; others are `not-applicable` (no notice, CTA ungated).
+  // Notice + CTA gate from one model so they cannot disagree. mint, transfer and
+  // buy have a preview; create-offer and accept-offer spend no funding coin and
+  // are `not-applicable` (no notice, CTA ungated).
   const fundingModel = describeFundingNotice(fundingState);
   const fundingNotice =
     fundingModel.kind === 'none' ? undefined : (

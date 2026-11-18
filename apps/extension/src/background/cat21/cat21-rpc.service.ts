@@ -384,13 +384,13 @@ export class Cat21RpcService {
     intent: Cat21MintIntent,
     transport: Cat21Transport,
     /**
-     * The funding coin the manual pre-approve preview showed and the human
-     * confirmed. Pinned into `executeMint` so execution spends exactly that
-     * coin; if it is gone or no longer covers at click time, the SDK throws
-     * `FundingSelectionChangedError` BEFORE signing rather than silently
-     * substituting the recommendation (which on a separate-address wallet can
-     * be an asset coin the user never saw). Only the manual confirm route
-     * supplies it; autonomous has no preview, so it pins nothing.
+     * The asset coin the manual pre-approve notice named and the human
+     * confirmed (see `manualFundingSelection`). Pinned into `executeMint` so
+     * execution spends exactly that coin; if it is gone or no longer covers at
+     * click time, the SDK throws `FundingSelectionChangedError` BEFORE signing
+     * rather than substituting another coin the user never saw. Omitted or
+     * `null` keeps the blocking default. Only the manual confirm route supplies
+     * it; autonomous has no preview, so it pins nothing.
      */
     selectedFundingUtxo?: CoreFundingUtxo | null
   ): Promise<Cat21RpcResult> {
@@ -418,15 +418,7 @@ export class Cat21RpcService {
             intent.tip && intent.tip.value > 0
               ? { address: intent.tip.address, valueSats: intent.tip.value }
               : undefined,
-          // Manual only: a human saw the funding notice and clicked, so let the
-          // core proceed on an asset coin. Autonomous passes none and blocks.
-          fundingTopology:
-            mode === 'manual'
-              ? resolveManualFundingTopology(accountCtx.paymentAddress, accountCtx.ordinalsAddress)
-              : undefined,
-          // Pin the previewed coin on the manual path so execution cannot swap
-          // in an unshown coin (B2). Autonomous has no preview, so no pin.
-          selectedFundingUtxo: mode === 'manual' ? (selectedFundingUtxo ?? null) : null,
+          ...manualFundingSelection(mode, accountCtx, selectedFundingUtxo),
         },
         {
           utxos: this.utxosPort(),
@@ -450,7 +442,16 @@ export class Cat21RpcService {
    * fee comes from a content-checked funding coin at inputs 1..N. The
    * core signs `'all'` (every input is wallet-owned).
    */
-  async transfer(intent: Cat21TransferIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
+  async transfer(
+    intent: Cat21TransferIntent,
+    transport: Cat21Transport,
+    /**
+     * The asset fee coin the manual pre-approve notice named and the human
+     * confirmed; same contract as `mint`'s pin. Only the manual confirm route
+     * supplies it; autonomous has no preview, so it pins nothing.
+     */
+    selectedFundingUtxo?: CoreFundingUtxo | null
+  ): Promise<Cat21RpcResult> {
     // Resolve the cat UTXO up front (synchronous, cached): its value is the
     // transfer's real outflow (the whole UTXO moves to the recipient), and
     // the cap gate inside openPipeline must see it. The intent alone doesn't
@@ -505,6 +506,7 @@ export class Cat21RpcService {
           catUtxo: { txid: catUtxo.txid, vout: catUtxo.vout, value: catUtxo.value },
           recipientAddress: intent.recipient,
           feeRatePerVbyte: intent.feeRate,
+          ...manualFundingSelection(mode, accountCtx, selectedFundingUtxo),
         },
         {
           utxos: this.utxosPort(),
@@ -666,13 +668,22 @@ export class Cat21RpcService {
    *      session-guarded (BIP-322 token = the buyer's ordinals address)
    *   6. Return `{ kind: 'bid', ... }`.
    */
-  async buy(intent: Cat21BuyIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
+  async buy(
+    intent: Cat21BuyIntent,
+    transport: Cat21Transport,
+    /**
+     * The asset buyer coin the manual pre-approve notice named and the human
+     * confirmed; same contract as `mint`'s pin. Only the manual confirm
+     * route supplies it; autonomous has no preview, so it pins nothing.
+     */
+    selectedFundingUtxo?: CoreFundingUtxo | null
+  ): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'buy', intent }, transport);
     if ('result' in opened) return opened.result;
     // `resources` (parsed catId → mint txid) is unused: a moved cat's
     // current UTXO differs from its inscription-id txid, so the seller
     // input comes from the on-chain resolver, not the parsed catId.
-    const { accountCtx } = opened;
+    const { mode, accountCtx } = opened;
 
     const paymentPublicKey = accountCtx.paymentPublicKey;
     // The cat lands at the buyer's ordinals (taproot) address. Fail
@@ -723,6 +734,7 @@ export class Cat21RpcService {
           },
           priceSats: intent.bidSats,
           feeRatePerVbyte: intent.feeRate,
+          ...manualFundingSelection(mode, accountCtx, selectedFundingUtxo),
         },
         {
           utxos: this.utxosPort(),
@@ -878,6 +890,38 @@ export function resolveManualFundingTopology(
     : 'separate-payment-address';
 }
 
+/**
+ * The funding-selection fields every funding execute (mint, transfer, buy)
+ * spreads into its SDK params, decided in one place so the three cannot drift.
+ *
+ * The relaxation that lets a human proceed on an asset coin (the manual
+ * topology) applies ONLY together with the asset coin the pre-approve notice
+ * named, pinned so execution spends exactly that coin. Without one (the preview
+ * was `ready`, or resolved no coin such as `insufficient`, and the coin set
+ * changed before the click) the blocking default stands: a clean coin is still
+ * auto-selected, an asset coin is refused, because the dialog named nothing.
+ * Autonomous has no preview, so it never gets the relaxation or a pin.
+ */
+function manualFundingSelection(
+  mode: 'autonomous' | 'manual',
+  accountCtx: Cat21AccountContext,
+  previewCoin: CoreFundingUtxo | null | undefined
+): {
+  fundingTopology: WalletAddressTopology | undefined;
+  selectedFundingUtxo: CoreFundingUtxo | null;
+} {
+  if (mode !== 'manual' || previewCoin == null) {
+    return { fundingTopology: undefined, selectedFundingUtxo: null };
+  }
+  return {
+    fundingTopology: resolveManualFundingTopology(
+      accountCtx.paymentAddress,
+      accountCtx.ordinalsAddress
+    ),
+    selectedFundingUtxo: previewCoin,
+  };
+}
+
 function denied(
   reason: Cat21RpcDenyReason,
   detail?: string,
@@ -887,7 +931,7 @@ function denied(
 }
 
 /**
- * Denial for a dropped pinned funding coin (B2). Carries the SDK's structured
+ * Denial for a dropped pinned funding coin. Carries the SDK's structured
  * `FundingSelectionChangedError.toJSON()` (dropped pick + reason + the fresh
  * recommendation with every candidate), so the human re-confirms the new
  * situation and an agent re-decides from data instead of parsing prose.

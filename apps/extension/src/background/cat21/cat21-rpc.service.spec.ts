@@ -133,6 +133,28 @@ const NAMED_ASSETS: UtxoClassification = {
   },
 };
 
+/** The default funding coin, as the confirm route passes it when previewed. */
+const FUNDING_COIN = { txid: defaultUtxo().txid, vout: 0, value: 50_000 };
+
+/**
+ * Two clean covering coins. Auto-select takes SMALL_COIN (ord's smallest
+ * covering coin); a test pinning LARGE_COIN can therefore only see it spent if
+ * the pin actually reached the SDK.
+ */
+const SMALL_COIN = { txid: 'c'.repeat(64), vout: 0, value: 50_000 };
+const LARGE_COIN = { txid: 'e'.repeat(64), vout: 0, value: 80_000 };
+
+/** The txids of every input of a PSBT a signer received. */
+function spentTxids(psbt: Uint8Array): string[] {
+  const tx = btc.Transaction.fromPSBT(psbt, { allowUnknownInputs: true });
+  const txids: string[] = [];
+  for (let i = 0; i < tx.inputsLength; i++) {
+    const { txid } = tx.getInput(i);
+    if (txid) txids.push(hex.encode(txid));
+  }
+  return txids;
+}
+
 function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
   const signedTx: SignedTx = { hex: 'deadbeef', weight: 600 };
   const broadcastResult: BroadcastResult = { txid: 'tx-abc', channel: 'mempool' };
@@ -336,15 +358,30 @@ describe('Cat21RpcService.mint', () => {
       }
     });
 
-    it('MANUAL: proceeds when only a named-asset coin covers (notice-and-proceed)', async () => {
-      // Manual threads separate-payment-address, so a coin whose assets the scan
-      // NAMED is asset-notice and execute proceeds. The dialog showed the notice
-      // naming them before calling mint; the service trusts that consent.
+    it('MANUAL: proceeds on the previewed named-asset coin (notice-and-proceed)', async () => {
+      // The dialog previewed asset-notice, named the assets and hands that coin
+      // to mint. Manual threads separate-payment-address with it, so execute
+      // proceeds on exactly that coin; the service trusts that consent.
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
-      const result = await service.mint(makeIntent(), 'popup');
+      const result = await service.mint(makeIntent(), 'popup', FUNDING_COIN);
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.value.kind).toBe('broadcast');
+    });
+
+    it('MANUAL without a previewed coin: an asset-only coin is refused (the dialog named nothing)', async () => {
+      // The preview resolved no coin (e.g. `insufficient`, CTA still live) and
+      // an asset coin arrived before the click. No notice named it, so the
+      // blocking default stands and nothing is signed.
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup', null);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.funding?.cause).toBe('named-assets');
+      }
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
     it('MANUAL: refuses when the only covering coin scans as has-assets without names', async () => {
@@ -481,7 +518,7 @@ describe('Cat21RpcService.mint', () => {
       if (!buy.ok) expect(buy.value.funding?.cause).toBe('unnamed-assets');
     });
 
-    it('MANUAL: a pinned preview coin that is gone denies funding-selection-changed, never signs (B2)', async () => {
+    it('MANUAL: a pinned preview coin that is gone denies funding-selection-changed, never signs', async () => {
       // The pre-approve preview pinned coin A; at click A has left the wallet's
       // coin set and only coin B covers. Execution must NOT substitute B (which
       // the human never saw) and must NOT sign: it stops with the structured
@@ -508,14 +545,15 @@ describe('Cat21RpcService.mint', () => {
       expect(deps.broadcast).not.toHaveBeenCalled();
     });
 
-    it('MANUAL: a pinned preview coin still present and covering is spent, not re-decided (B2)', async () => {
-      // The happy path: the pinned coin is exactly the one spent, so no
-      // re-confirm fires and the mint goes through.
-      const pinned = { txid: defaultUtxo().txid, vout: 0, value: 50_000 };
-      const result = await service.mint(makeIntent(), 'popup', pinned);
+    it('MANUAL: a pinned preview coin still present and covering is spent, not re-decided', async () => {
+      // Two clean coins: auto-select would take the smaller (ord's best fit).
+      // The preview pinned the larger, so the larger is the one spent.
+      deps = makeDeps({ spendableUtxos: vi.fn(() => Promise.resolve([SMALL_COIN, LARGE_COIN])) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup', LARGE_COIN);
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.value.kind).toBe('broadcast');
-      expect(deps.signWithConfirmation).toHaveBeenCalled();
+      expect(spentTxids(deps.signWithConfirmation.mock.calls[0][0])).toContain(LARGE_COIN.txid);
     });
 
     it('returns "intent-invariant-violated: no-payment-public-key" when the pubkey is absent', async () => {
@@ -785,6 +823,97 @@ describe('Cat21RpcService.transfer', () => {
         expect(result.value.detail).toContain('cat-not-at-ordinals-address');
       }
       expect(deps.spendableUtxos).not.toHaveBeenCalled();
+    });
+  });
+
+  // The transfer fee coin follows the same four-state rule as mint. With the
+  // coin the dialog previewed, the manual path threads the topology (a
+  // named-asset coin is a notice the human saw, so it proceeds) and pins that
+  // coin; without one, and on the autonomous path, the block stands.
+  describe('funding topology + previewed-coin pin', () => {
+    it('MANUAL: proceeds on the previewed named-asset fee coin (notice-and-proceed)', async () => {
+      // The confirm dialog previewed asset-notice and named the assets before
+      // calling transfer with that coin, so execution spends exactly that coin.
+      // Without the pin (see the next test) this coin is refused.
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.transfer(makeTransferIntent(), 'popup', FUNDING_COIN);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.kind).toBe('broadcast');
+      expect(deps.signWithConfirmation).toHaveBeenCalledTimes(1);
+    });
+
+    it('MANUAL without a previewed coin: an asset-only fee coin is refused (the dialog named nothing)', async () => {
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.transfer(makeTransferIntent(), 'popup', null);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.funding?.cause).toBe('named-assets');
+      }
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('AUTONOMOUS: a named-asset-only fee coin still denies funding-pick-failed with the facts', async () => {
+      // No human saw a notice, so no topology: the blocking default stands and
+      // the agent gets the structured facts instead of a spend.
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.funding?.cause).toBe('named-assets');
+      }
+      expect(deps.signSilently).not.toHaveBeenCalled();
+    });
+
+    it('MANUAL: a pinned preview coin that is gone denies funding-selection-changed, never signs', async () => {
+      // The preview pinned coin A; at click only coin B covers. Execution must
+      // not substitute B (never shown) and must not sign.
+      const pinnedA = { txid: 'a'.repeat(64), vout: 0, value: 50_000 };
+      deps = makeDeps({
+        spendableUtxos: vi.fn(() =>
+          Promise.resolve([{ txid: 'b'.repeat(64), vout: 0, value: 50_000 }])
+        ),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.transfer(makeTransferIntent(), 'popup', pinnedA);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('funding-selection-changed');
+        expect(result.value.fundingSelectionChanged?.droppedSelection.txid).toBe(pinnedA.txid);
+        expect(result.value.fundingSelectionChanged?.droppedSelection.reason).toBe('gone');
+        expect(result.value.fundingSelectionChanged?.recommendation.recommended?.txid).toBe(
+          'b'.repeat(64)
+        );
+      }
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+      expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+
+    it('MANUAL: a pinned preview coin still present and covering is spent, not re-decided', async () => {
+      // Auto-select would take SMALL_COIN; the pinned LARGE_COIN is spent.
+      deps = makeDeps({ spendableUtxos: vi.fn(() => Promise.resolve([SMALL_COIN, LARGE_COIN])) });
+      service = new Cat21RpcService(deps);
+      const result = await service.transfer(makeTransferIntent(), 'popup', LARGE_COIN);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.kind).toBe('broadcast');
+      expect(spentTxids(deps.signWithConfirmation.mock.calls[0][0])).toContain(LARGE_COIN.txid);
+    });
+
+    it('AUTONOMOUS: a pin passed on the autonomous path is ignored (no preview exists there)', async () => {
+      // Even if a caller hands a stale coin to an autonomous transfer, the pin is
+      // manual-only: execution auto-selects the covering clean coin and proceeds.
+      const stale = { txid: 'a'.repeat(64), vout: 0, value: 50_000 };
+      const result = await service.transfer(
+        makeTransferIntent({ mode: 'autonomous' }),
+        'mcp-nmh',
+        stale
+      );
+      expect(result.ok).toBe(true);
+      expect(deps.signSilently).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1421,6 +1550,76 @@ describe('Cat21RpcService.buy', () => {
       expect(result.ok).toBe(true);
       expect(deps.signBuyOfferInputs).toHaveBeenCalledTimes(1);
       expect(deps.postBid).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // The buyer's funding coin follows the same four-state rule as mint.
+  describe('funding topology + previewed-coin pin', () => {
+    it('MANUAL: bids on the previewed named-asset buyer coin (notice-and-proceed)', async () => {
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup', FUNDING_COIN);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.kind).toBe('bid');
+      expect(deps.signBuyOfferInputs).toHaveBeenCalledTimes(1);
+    });
+
+    it('MANUAL without a previewed coin: an asset-only buyer coin is refused (the dialog named nothing)', async () => {
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup', null);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.funding?.cause).toBe('named-assets');
+      }
+      expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
+      expect(deps.postBid).not.toHaveBeenCalled();
+    });
+
+    it('AUTONOMOUS: a named-asset-only buyer coin still denies funding-pick-failed with the facts', async () => {
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.funding?.cause).toBe('named-assets');
+      }
+      expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
+      expect(deps.postBid).not.toHaveBeenCalled();
+    });
+
+    it('MANUAL: a pinned preview coin that is gone denies funding-selection-changed, never signs or posts', async () => {
+      const pinnedA = { txid: 'a'.repeat(64), vout: 0, value: 50_000 };
+      deps = makeDeps({
+        spendableUtxos: vi.fn(() =>
+          Promise.resolve([{ txid: 'b'.repeat(64), vout: 0, value: 50_000 }])
+        ),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup', pinnedA);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('funding-selection-changed');
+        expect(result.value.fundingSelectionChanged?.droppedSelection.txid).toBe(pinnedA.txid);
+        expect(result.value.fundingSelectionChanged?.droppedSelection.reason).toBe('gone');
+        expect(result.value.fundingSelectionChanged?.recommendation.recommended?.txid).toBe(
+          'b'.repeat(64)
+        );
+      }
+      expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
+      expect(deps.postBid).not.toHaveBeenCalled();
+    });
+
+    it('MANUAL: a pinned preview coin still present and covering funds the bid, not re-decided', async () => {
+      // Auto-select would take SMALL_COIN; the pinned LARGE_COIN funds the bid.
+      deps = makeDeps({ spendableUtxos: vi.fn(() => Promise.resolve([SMALL_COIN, LARGE_COIN])) });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent(), 'popup', LARGE_COIN);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.kind).toBe('bid');
+      expect(spentTxids(deps.signBuyOfferInputs.mock.calls[0][0])).toContain(LARGE_COIN.txid);
     });
   });
 

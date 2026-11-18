@@ -181,13 +181,17 @@ describe('describeFundingNotice', () => {
 describe('fundingPreviewCoin', () => {
   const coin = { txid: 'a'.repeat(64), vout: 0, value: 50_000 };
 
-  it('returns the resolved coin on a preview state that produced a pick', () => {
-    const state: FundingPreviewState = { status: 'ready', assets: null, fundingUtxo: coin };
-    expect(fundingPreviewCoin(state)).toBe(coin);
-    // asset-notice also carries a spendable pick.
+  it('pins the asset-notice coin, the one the human was shown with its assets', () => {
     expect(fundingPreviewCoin({ status: 'asset-notice', assets: null, fundingUtxo: coin })).toBe(
       coin
     );
+  });
+
+  it('does NOT pin a ready coin, so a later asset finding on it is refused, not spent', () => {
+    // A pin lets execution spend the coin whatever a click-time scan says; a
+    // clean preview named nothing, so the blocking default must decide.
+    const state: FundingPreviewState = { status: 'ready', assets: null, fundingUtxo: coin };
+    expect(fundingPreviewCoin(state)).toBeNull();
   });
 
   it('returns null when the preview has no pick (blocked) or is not a preview state', () => {

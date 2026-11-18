@@ -4,10 +4,8 @@ import type { CoreFundingUtxo, MintStatus, UtxoAssetDetail } from 'ordpool-sdk/c
  * The funding preview state: the resolved `MintStatus`, plus `not-applicable`
  * (no preview wired), `loading` (simulate in flight), and `error` (scan failed).
  *
- * `fundingUtxo` is the coin the preview resolved: the one the confirm route
- * pins into execution (B2), so a click cannot spend a coin the preview never
- * showed. `null` when the preview produced no spendable pick (blocked /
- * insufficient).
+ * `fundingUtxo` is the coin the preview resolved. `null` when the preview
+ * produced no spendable pick (blocked / insufficient).
  */
 export type FundingPreviewState =
   | { status: 'not-applicable' }
@@ -16,13 +14,16 @@ export type FundingPreviewState =
   | { status: MintStatus; assets: UtxoAssetDetail | null; fundingUtxo: CoreFundingUtxo | null };
 
 /**
- * The coin the preview resolved, for the confirm route to pin into execution.
- * `null` on every non-preview state, so a caller that forgot to wait for the
- * preview pins nothing (and execution auto-selects as before) rather than
- * pinning a stale coin.
+ * The coin the confirm route pins into execution: only an `asset-notice` coin,
+ * the one the human was shown WITH the assets it carries, because pinning is
+ * what lets execution spend an asset coin. Every other state pins nothing, so
+ * execution keeps the blocking default: a clean coin is auto-selected and an
+ * asset coin is refused. A `ready` coin is deliberately not pinned: if a later
+ * scan finds assets on it, the default refuses it, where a pin would spend it
+ * unshown.
  */
 export function fundingPreviewCoin(state: FundingPreviewState): CoreFundingUtxo | null {
-  return 'fundingUtxo' in state ? state.fundingUtxo : null;
+  return state.status === 'asset-notice' ? state.fundingUtxo : null;
 }
 
 /**
