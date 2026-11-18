@@ -66,8 +66,10 @@ describe('UtxosService.getDescriptorUtxos', () => {
     expect(totals.available.map(u => u.txid)).toEqual([PLAIN.txid]);
   });
 
-  it('off mainnet does not probe cat21-ord, so the protected bucket is empty', async () => {
-    // Pins the probe's scope as it is: cat UTXO protection runs on mainnet only.
+  it('INTENDED BOUNDARY: off mainnet no cat21-ord probe runs and the protected bucket is empty', async () => {
+    // WAL HARD RULE #2 applies on mainnet only: testnet and signet have no
+    // cat21-ord, and probing anyway would (fail closed) lock every UTXO and
+    // block every send there. This pins that boundary as a decision.
     const { utxos, fetchOutput } = service('testnet');
     const totals = await utxos.getDescriptorUtxos('f', 'tr(xpub)');
     expect(totals.protected).toEqual([]);

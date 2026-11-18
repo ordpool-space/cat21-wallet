@@ -22,8 +22,9 @@ Single source of truth for the CAT-21 wallet (a non-fork clone of Leather `leath
 Why: skipping 21 on a non-mint costs a bonus mint, not the cat (ordinal theory); only a mempool mint RBF that drops 21 loses the mint.
 
 ## HARD RULE #2: Cat-bearing UTXOs are never spent by the BTC send flow
-- A cat UTXO lives in the `protected` bucket; BTC coin-selection sees only `available`. Probe: `packages/services/src/utxos/utxos.service.ts`, cat21-ord `/output/<txid>:<vout>` per UTXO.
+- On mainnet a cat UTXO lives in the `protected` bucket; BTC coin-selection sees only `available`. Probe: `packages/services/src/utxos/utxos.service.ts`, cat21-ord `/output/<txid>:<vout>` per UTXO.
 - Fail closed: cat21-ord unreachable → treat as cat-bearing, refuse to spend (balance shows lower until it recovers).
+- Testnet and signet have no cat21-ord, so the probe and this rule do not apply there; probing anyway would, by the fail-closed rule, lock every UTXO and block every send on those networks. Pinned as intended by `utxos.service.spec.ts`.
 
 ## HARD RULE #3: We do not auto-update from upstream Leather
 - Upstream sync is manual, quarterly, maintainer-only. `upstream` remote = `https://github.com/leather-io/mono`; pull to review, never auto-apply.
