@@ -42,6 +42,11 @@ test.describe('CAT-21 caps bind the real manual (Path 2) pipeline', () => {
     //    through the real agent-policy wizard. Persists to the real store.
     await page.goto(`chrome-extension://${extensionId}/index.html#/cat21-agent-policy`);
     await page.getByTestId('cat21-agent-policy-form').waitFor();
+    // The policy screen discloses what an allowlist costs: with one set, the
+    // gate denies every offer (agent-policy-deps.ts lists no offer counterparty).
+    await expect(page.getByTestId('cat21-agent-policy-allowlist-note')).toHaveText(
+      'Your own addresses always pass. While this list is set, offers are blocked: creating or accepting an offer is denied, for the agent and for you.'
+    );
     const capField = page.locator('[name="maxSpendPerActionSats"]');
     await capField.fill('200');
     await page.getByTestId('cat21-agent-policy-save').click();
