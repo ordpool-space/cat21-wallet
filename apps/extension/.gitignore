@@ -23,3 +23,4 @@ trace*
 leather-styles
 .netlify
 ./.vscode/settings.json
+/live-net-capture/

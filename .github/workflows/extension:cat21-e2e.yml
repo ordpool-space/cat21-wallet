@@ -92,7 +92,20 @@ jobs:
       # (xvfb) is required on the headless CI runner. PW_CHROMIUM_EXE stays
       # unset here, so the fixture uses the bundled browser + --use-gl=egl.
       - name: run-cat21-caps-e2e
+        # CAT21_LIVE_NET_CAPTURE: capture each live response for the T11 stubs
+        # (tests/fixtures/fixtures.ts). Removed once the stubs are in.
+        env:
+          CAT21_LIVE_NET_CAPTURE: '1'
         run: xvfb-run pnpm playwright test tests/specs/cat21 --workers=1
+
+      - name: upload-live-net-capture
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cat21-e2e-live-net-capture
+          path: apps/extension/live-net-capture
+          retention-days: 3
+          if-no-files-found: ignore
 
       - name: upload-report-on-failure
         if: failure()

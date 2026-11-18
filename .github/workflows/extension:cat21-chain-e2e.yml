@@ -262,6 +262,9 @@ jobs:
       - name: run-chain-truth-flows
         working-directory: apps/extension
         env:
+          # Capture each live response for the T11 stubs (tests/fixtures/
+          # fixtures.ts). Removed once the stubs are in.
+          CAT21_LIVE_NET_CAPTURE: '1'
           # The consumer-environment prefixes containers with -consumer-; ports
           # match the local stack, so only the bitcoind container name differs.
           E2E_BITCOIND_CONTAINER: ordpool-e2e-consumer-bitcoind
@@ -296,6 +299,7 @@ jobs:
           name: cat21-chain-e2e-${{ github.run_id }}
           path: |
             apps/extension/test-results
+            apps/extension/live-net-capture
             stack.json
           retention-days: 14
           if-no-files-found: warn

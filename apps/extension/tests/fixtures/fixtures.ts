@@ -6,6 +6,8 @@ import { OnboardingPage } from '@tests/page-object-models/onboarding.page';
 import { SendPage } from '@tests/page-object-models/send.page';
 import { SettingsPage } from '@tests/page-object-models/settings.page';
 import { SwapPage } from '@tests/page-object-models/swap.page';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,6 +25,57 @@ interface TestFixtures {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/* HACK -- Cat21: live-response capture (audit T11, step 2a). HQ allows a
+   stubbed response only from a captured real one under version control, with
+   source and capture date. With CAT21_LIVE_NET_CAPTURE set, every live response
+   the recorder sees is written to apps/extension/live-net-capture/ (one JSON
+   file per method + URL: capture time, status, content type, body as utf8 or
+   base64, or omitted above the size cap) for CI to upload; the stubs are built
+   from those files. Off by default. */
+const LIVE_NET_CAPTURE_DIR = process.env.CAT21_LIVE_NET_CAPTURE
+  ? path.join(__dirname, '../../live-net-capture')
+  : null;
+const MAX_CAPTURED_BODY_BYTES = 256 * 1024;
+
+async function captureLiveResponse(
+  dir: string,
+  method: string,
+  url: URL,
+  response: { status(): number; headers(): Record<string, string>; body(): Promise<Buffer> }
+): Promise<void> {
+  const contentType = response.headers()['content-type'] ?? '';
+  let record: Record<string, unknown>;
+  try {
+    const body = await response.body();
+    const encoding = /json|text|javascript|xml/u.test(contentType) ? 'utf8' : 'base64';
+    const tooLarge = body.byteLength > MAX_CAPTURED_BODY_BYTES;
+    record = {
+      capturedAt: new Date().toISOString(),
+      method,
+      url: url.href,
+      status: response.status(),
+      contentType,
+      bodyBytes: body.byteLength,
+      bodyEncoding: tooLarge ? 'omitted' : encoding,
+      body: tooLarge ? null : body.toString(encoding),
+    };
+  } catch (error) {
+    // Keep the failure in the capture rather than lose the entry silently.
+    record = {
+      capturedAt: new Date().toISOString(),
+      method,
+      url: url.href,
+      captureError: error instanceof Error ? error.message : String(error),
+    };
+  }
+  const name = createHash('sha256').update(`${method} ${url.href}`).digest('hex').slice(0, 16);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(
+    path.join(dir, `${url.hostname}-${method}-${name}.json`),
+    JSON.stringify(record, null, 2)
+  );
+}
 
 /**
  * Loads the extension into the browser context. Use this test function with
@@ -79,6 +132,9 @@ export const test = base.extend<TestFixtures>({
           if (peer == null) return; // fulfilled by a route, never left the box
           if (peer.ipAddress === '127.0.0.1' || peer.ipAddress === '::1') return;
           liveRequests.add(key);
+          if (LIVE_NET_CAPTURE_DIR && response) {
+            await captureLiveResponse(LIVE_NET_CAPTURE_DIR, request.method(), url, response);
+          }
         })().catch(() => {
           // The response could not be read (e.g. its page closed): keep the
           // entry, marked, rather than lose a request that may have been live.
