@@ -1316,6 +1316,13 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
     expect(src.match(/fundingTopology:/g)).toHaveLength(3);
   });
 
+  it('the confirm route renders a funding-block denial from its structured cause, not the SDK wording', () => {
+    // The SDK documents branching on `cause`; the text match in the copy is only
+    // the fallback for a denial without it.
+    const src = read(join(REPO_ROOT, ROUTE));
+    expect(src).toMatch(/humanizeCat21Error\(reason,\s*detail,\s*funding\?\.cause\)/);
+  });
+
   it('the confirm route pins the previewed coin into mint, transfer AND buy', () => {
     const src = read(join(REPO_ROOT, ROUTE));
     expect(src).toMatch(/const previewCoin = fundingPreviewCoin\(fundingState\)/);

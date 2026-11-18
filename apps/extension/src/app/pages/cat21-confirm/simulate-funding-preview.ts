@@ -2,8 +2,10 @@ import { hex } from '@scure/base';
 import {
   type AnnotatedFundingUtxo,
   type CoreFundingUtxo,
+  type FundingRecommendation,
   KnownOrdinalWalletType,
   type MintStatus,
+  expertRequiredCause,
   simulateCreateOffer,
   simulateMint,
   simulateTransfer,
@@ -58,18 +60,31 @@ export function fundingPreviewApplies(intent: Cat21Intent | undefined): intent i
 }
 
 /**
- * Notice data comes from the coin that will ACTUALLY be spent (the simulate's
- * resolved pick), not from the recommendation; the two differ once an explicit
- * pick exists.
+ * Notice data. On `asset-notice` it comes from the coin that will ACTUALLY be
+ * spent (the simulate's resolved pick), not from the recommendation; the two
+ * differ once an explicit pick exists. On `expert-required` nothing is spent,
+ * so it comes from the recommended coin the block is about, together with the
+ * SDK's cause for the block.
  */
-function toPreviewState(
-  status: MintStatus,
-  pick: (CoreFundingUtxo & AnnotatedFundingUtxo) | null
-): FundingPreviewState {
+function toPreviewState(sim: {
+  status: MintStatus;
+  pick: (CoreFundingUtxo & AnnotatedFundingUtxo) | null;
+  recommendation: FundingRecommendation<CoreFundingUtxo & AnnotatedFundingUtxo>;
+}): FundingPreviewState {
+  const { status, pick, recommendation } = sim;
+  if (status === 'expert-required') {
+    return {
+      status,
+      assets: recommendation.recommended?.assets ?? null,
+      fundingUtxo: pick,
+      cause: expertRequiredCause(recommendation),
+    };
+  }
   return {
     status,
     assets: status === 'asset-notice' ? (pick?.assets ?? null) : null,
     fundingUtxo: pick,
+    cause: null,
   };
 }
 
@@ -132,7 +147,11 @@ export async function simulateFundingPreview(
       },
       ports
     );
-    return toPreviewState(sim.status, sim.buyerFundingUtxo);
+    return toPreviewState({
+      status: sim.status,
+      pick: sim.buyerFundingUtxo,
+      recommendation: sim.recommendation,
+    });
   }
 
   if (classified.kind === 'transfer') {
@@ -152,7 +171,11 @@ export async function simulateFundingPreview(
       },
       ports
     );
-    return toPreviewState(sim.status, sim.fundingUtxo);
+    return toPreviewState({
+      status: sim.status,
+      pick: sim.fundingUtxo,
+      recommendation: sim.recommendation,
+    });
   }
 
   const mint = classified.intent;
@@ -169,5 +192,9 @@ export async function simulateFundingPreview(
     },
     ports
   );
-  return toPreviewState(sim.status, sim.fundingUtxo);
+  return toPreviewState({
+    status: sim.status,
+    pick: sim.fundingUtxo,
+    recommendation: sim.recommendation,
+  });
 }

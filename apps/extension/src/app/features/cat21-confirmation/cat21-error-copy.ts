@@ -1,3 +1,15 @@
+import type { ExpertRequiredCause } from 'ordpool-sdk/core';
+
+/** One sentence per SDK funding-block cause. None is a lack of funds. */
+const FUNDING_BLOCK_COPY: Record<ExpertRequiredCause, string> = {
+  'unknown-content':
+    'A funding coin could not be checked for assets right now. Try again in a moment.',
+  'unnamed-assets':
+    'The only coins that can pay for this carry assets that could not be identified, so none was spent. Send plain Bitcoin to your wallet, then try again.',
+  'named-assets':
+    'The only coins that can pay for this carry assets, so none was spent. Send plain Bitcoin to your wallet, then try again.',
+};
+
 /**
  * Turn a Cat21 rpc failure into ONE actionable, second-person sentence a
  * person can act on: "Add funds to your wallet, then try again." never
@@ -10,12 +22,37 @@
  * carrying `funding-pick-failed` or `cat-not-found`), so both fields are
  * matched, most-specific first.
  */
-export function humanizeCat21Error(reason: string, detail?: string): string {
+export function humanizeCat21Error(
+  reason: string,
+  detail?: string,
+  /**
+   * The SDK's `expertRequiredCause` when a funding block stopped the flow (the
+   * denial's structured `funding.cause`). The SDK documents branching on it, not
+   * on its message wording. Omitted, the copy falls back to matching the SDK's
+   * message text, which gives the same sentence.
+   */
+  fundingCause?: ExpertRequiredCause
+): string {
+  if (fundingCause) return FUNDING_BLOCK_COPY[fundingCause];
+
   const haystack = `${reason} ${detail ?? ''}`.toLowerCase();
   function has(...needles: string[]): boolean {
     return needles.some(n => haystack.includes(n));
   }
 
+  // The SDK's expert-required funding blocks (each text starts "Select a
+  // funding UTXO"), for a denial without the structured cause. None of them is
+  // a lack of funds, so none reads "Add funds"; they ride behind
+  // `funding-pick-failed`, so they are matched before it.
+  if (has('what the covering coins hold could not be checked')) {
+    return FUNDING_BLOCK_COPY['unknown-content'];
+  }
+  if (has('carry assets the scan could not name')) {
+    return FUNDING_BLOCK_COPY['unnamed-assets'];
+  }
+  if (has('the available coins carry assets')) {
+    return FUNDING_BLOCK_COPY['named-assets'];
+  }
   // Money first: the most common blocker.
   if (has('insufficient', 'funding-pick-failed', 'nothing covers', 'only asset coins')) {
     return 'Add funds to your wallet, then try again.';

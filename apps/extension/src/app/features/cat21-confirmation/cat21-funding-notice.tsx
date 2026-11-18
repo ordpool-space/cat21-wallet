@@ -4,7 +4,12 @@ import { resolveRuneEtchingTxid } from 'ordpool-sdk/core';
 
 import { openInNewTab } from '@app/common/utils/open-in-new-tab';
 
-import { type FundingAssetRow, type FundingNoticeModel } from './cat21-funding-notice.model';
+import {
+  type FundingAssetRow,
+  type FundingNoticeModel,
+  namedNoticeChrome,
+  noticeRuneNames,
+} from './cat21-funding-notice.model';
 
 /** Funding-safety notice, rendered from the `FundingNoticeModel`. */
 interface Cat21FundingNoticeProps {
@@ -91,9 +96,7 @@ function hrefForRow(
 }
 
 export function Cat21FundingNotice({ model, linkForTxid, ordBaseUrl }: Cat21FundingNoticeProps) {
-  const runeNames =
-    model.kind === 'assets' ? model.rows.flatMap(row => (row.runeName ? [row.runeName] : [])) : [];
-  const runeTxids = useRuneEtchingTxids(runeNames, ordBaseUrl);
+  const runeTxids = useRuneEtchingTxids(noticeRuneNames(model), ordBaseUrl);
 
   if (model.kind === 'none') return null;
 
@@ -129,6 +132,9 @@ export function Cat21FundingNotice({ model, linkForTxid, ordBaseUrl }: Cat21Fund
     );
   }
 
+  // `assets` (the human may proceed) and `assets-blocked` (Approve held) name the
+  // same rows; the testid tells them apart so the CTA gate is observable.
+  const chrome = namedNoticeChrome(model);
   return (
     <Flex
       direction="column"
@@ -136,9 +142,9 @@ export function Cat21FundingNotice({ model, linkForTxid, ordBaseUrl }: Cat21Fund
       p="space.04"
       borderRadius="sm"
       backgroundColor="ink.background-secondary"
-      data-testid="cat21-funding-notice"
+      data-testid={chrome.testId}
     >
-      <styled.span textStyle="label.01">This funding coin carries assets</styled.span>
+      <styled.span textStyle="label.01">{chrome.heading}</styled.span>
       <styled.p textStyle="body.02" color="ink.text-subdued">
         {model.intro}
       </styled.p>

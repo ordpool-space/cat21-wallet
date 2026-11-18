@@ -254,11 +254,12 @@ export function Cat21ConfirmRoute() {
         void navigate(-1);
         return;
       }
-      const { reason, detail } = result.value;
+      const { reason, detail, funding } = result.value;
       // The user reads an actionable, second-person sentence, never the raw
       // `reason: detail` code (§7.4 / §7.6). "Add funds..." reads as a step,
-      // not a crash, so the Approve button stays live for a retry.
-      setError(humanizeCat21Error(reason, detail));
+      // not a crash, so the Approve button stays live for a retry. A funding
+      // block's copy follows its structured cause, not the SDK's wording.
+      setError(humanizeCat21Error(reason, detail, funding?.cause));
     })();
   }
 

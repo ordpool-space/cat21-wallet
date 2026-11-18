@@ -234,6 +234,39 @@ describe('simulateFundingPreview', () => {
     }
   });
 
+  it('ONE-ADDRESS wallet: the blocked preview carries the cause and NAMES the recommended coin’s assets', async () => {
+    // The justification half of the block above: the notice can only name the
+    // assets if the preview hands them over with the SDK's cause.
+    const oneAddress: Cat21AccountContext = {
+      ...ctx(),
+      ordinalsAddress: PAYMENT_ADDR,
+      ordinalsPublicKey: hex.encode(accountKey),
+    };
+    const oneAddressCat = { ...CAT_UTXO, scriptPubKey: btc.p2wpkh(accountKey, btc.NETWORK).script };
+    for (const intent of [MINT, TRANSFER, BUY]) {
+      const d = previewDeps(
+        [coin('d', 100_000)],
+        () => Promise.resolve(NAMED),
+        () => oneAddressCat,
+        oneAddress
+      );
+      const state = await simulateFundingPreview(intent, d);
+      expect(state).toMatchObject({ status: 'expert-required', cause: 'named-assets' });
+      if (!('assets' in state)) throw new Error('expected a resolved preview');
+      expect(state.assets?.inscriptionIds).toEqual([INSCRIPTION_ID]);
+    }
+  });
+
+  it('a covering coin whose assets the scan did not name previews expert-required with cause unnamed-assets', async () => {
+    const d = previewDeps([coin('d', 100_000)], () => Promise.resolve('has-assets'));
+    const state = await simulateFundingPreview(TRANSFER, d);
+    expect(state).toMatchObject({
+      status: 'expert-required',
+      cause: 'unnamed-assets',
+      assets: null,
+    });
+  });
+
   it('autonomous transfer is not-applicable even when called directly', async () => {
     const state = await simulateFundingPreview(
       { ...TRANSFER, mode: 'autonomous' },

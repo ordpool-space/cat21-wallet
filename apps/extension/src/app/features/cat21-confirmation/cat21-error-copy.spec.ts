@@ -21,18 +21,51 @@ describe('humanizeCat21Error', () => {
     expect(copy).not.toMatch(/Add funds/);
   });
 
-  // HARD RULE #8 spec stubs: the three SDK expert-required messages are not a
-  // lack of funds, so none of them reads "Add funds".
-  it.todo(
-    'maps "Select a funding UTXO (what the covering coins hold could not be checked)" to a try-again-later step'
-  );
-  it.todo(
-    'maps "Select a funding UTXO (the covering coins carry assets the scan could not name)" to its own step, not add funds'
-  );
-  it.todo(
-    'maps "Select a funding UTXO (the available coins carry assets)" to its own step, not add funds'
-  );
-  it.todo('keeps "Add funds" for Insufficient funds behind funding-pick-failed');
+  // The three SDK expert-required messages are not a lack of funds, so none of
+  // them reads "Add funds". They arrive as the service renders them: the
+  // `funding-pick-failed:` prefix plus the SDK message.
+  function blocked(sdkMessage: string): string {
+    return humanizeCat21Error('intent-invariant-violated', `funding-pick-failed: ${sdkMessage}`);
+  }
+
+  it('maps "Select a funding UTXO (what the covering coins hold could not be checked)" to a try-again-later step', () => {
+    expect(
+      blocked('Select a funding UTXO (what the covering coins hold could not be checked)')
+    ).toBe('A funding coin could not be checked for assets right now. Try again in a moment.');
+  });
+
+  it('maps "Select a funding UTXO (the covering coins carry assets the scan could not name)" to its own step, not add funds', () => {
+    expect(
+      blocked('Select a funding UTXO (the covering coins carry assets the scan could not name)')
+    ).toBe(
+      'The only coins that can pay for this carry assets that could not be identified, so none was spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+  });
+
+  it('maps "Select a funding UTXO (the available coins carry assets)" to its own step, not add funds', () => {
+    expect(blocked('Select a funding UTXO (the available coins carry assets)')).toBe(
+      'The only coins that can pay for this carry assets, so none was spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+  });
+
+  it('follows the structured funding cause even when the SDK message wording changes', () => {
+    // The SDK documents branching on `cause`, not on message text. A reworded
+    // message must not fall through to the generic "Add funds".
+    const reworded = 'funding-pick-failed: Select a funding UTXO (some future wording)';
+    expect(humanizeCat21Error('intent-invariant-violated', reworded, 'unknown-content')).toBe(
+      'A funding coin could not be checked for assets right now. Try again in a moment.'
+    );
+    expect(humanizeCat21Error('intent-invariant-violated', reworded, 'unnamed-assets')).toBe(
+      'The only coins that can pay for this carry assets that could not be identified, so none was spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+    expect(humanizeCat21Error('intent-invariant-violated', reworded, 'named-assets')).toBe(
+      'The only coins that can pay for this carry assets, so none was spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+  });
+
+  it('keeps "Add funds" for Insufficient funds behind funding-pick-failed', () => {
+    expect(blocked('Insufficient funds')).toBe('Add funds to your wallet, then try again.');
+  });
 
   it('maps a locked wallet to an unlock step', () => {
     expect(humanizeCat21Error('agent-disabled', 'wallet-locked')).toBe(
@@ -98,6 +131,9 @@ describe('humanizeCat21Error', () => {
       'cat-utxo-resolve-failed',
       'cat-data-not-loaded',
       'Insufficient funds',
+      'funding-pick-failed: Select a funding UTXO (what the covering coins hold could not be checked)',
+      'funding-pick-failed: Select a funding UTXO (the covering coins carry assets the scan could not name)',
+      'funding-pick-failed: Select a funding UTXO (the available coins carry assets)',
     ];
     // Code-shaped fragments no sentence should contain. The strongest guard
     // is `not.toContain(reason)` below (returning the raw code fails); these
