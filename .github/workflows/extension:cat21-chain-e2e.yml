@@ -52,24 +52,49 @@ jobs:
         with:
           persist-credentials: false
 
+      # The lane runs against exactly what the wallet's pinned SDK was proven
+      # with: the SDK at the sha in apps/extension/package.json, and every
+      # source it builds at the shas in that SDK's e2e/build-pins.env. No
+      # branch tip, so a push to a neighbouring repo cannot change this lane.
+      - name: read-pinned-sdk-sha
+        run: |
+          spec=$(jq -r '.dependencies["ordpool-sdk"] // .devDependencies["ordpool-sdk"]' apps/extension/package.json)
+          sha="${spec##*#}"
+          if ! [[ "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::apps/extension/package.json does not pin ordpool-sdk to a full sha: $spec"
+            exit 1
+          fi
+          echo "ORDPOOL_SDK_SHA=$sha" >> "$GITHUB_ENV"
+
       # ordpool-sdk ships the regtest consumer-environment (compose + bootstrap)
       # + the electrs/cat21-ord build contexts. Check it out for those scripts.
       - name: checkout-ordpool-sdk-bootstrap
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ordpool-space/ordpool-sdk
-          ref: main
+          ref: ${{ env.ORDPOOL_SDK_SHA }}
           path: sdk
           persist-credentials: false
 
+      - name: read-sdk-build-pins
+        run: |
+          grep -E '^[A-Z0-9_]+=' sdk/e2e/build-pins.env >> "$GITHUB_ENV"
+          for key in ORDPOOL_ELECTRS_SHA CAT21_ORD_SHA; do
+            value=$(grep -E "^${key}=" sdk/e2e/build-pins.env | cut -d= -f2)
+            if ! [[ "$value" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::sdk/e2e/build-pins.env has no full sha for $key"
+              exit 1
+            fi
+          done
+
       # electrs is built from the ordpool-electrs fork (not upstream), and
-      # cat21-ord from the index-cat21 branch — both compiled by the
-      # consumer-environment compose from these checkouts.
+      # cat21-ord from its index-cat21 line, both at the SDK's pins and compiled
+      # by the consumer-environment compose from these checkouts.
       - name: checkout-ordpool-electrs
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ordpool-space/ordpool-electrs
-          ref: ordpool
+          ref: ${{ env.ORDPOOL_ELECTRS_SHA }}
           path: ordpool-electrs
           persist-credentials: false
 
@@ -77,7 +102,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ordpool-space/cat21-ord
-          ref: index-cat21
+          ref: ${{ env.CAT21_ORD_SHA }}
           path: cat21-ord
           persist-credentials: false
 
