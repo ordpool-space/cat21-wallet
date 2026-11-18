@@ -1455,6 +1455,63 @@ describe('Cat21RpcService.acceptOffer', () => {
       }
     });
 
+    // WAL HARD RULE #12: an accept-offer intent mismatch is a hard error in BOTH
+    // modes. The autonomous path signs without a prompt, so it is the one where
+    // a missed mismatch would sell a cat silently.
+    it.each([
+      [
+        'cat21-ord disagrees with intent.expectedSellerUtxo',
+        (): Partial<Cat21RpcDeps> => ({
+          resolveCatUtxo: vi.fn(() => ({
+            txid: '00'.repeat(32),
+            vout: 9,
+            value: 546,
+            scriptPubKey: p2wpkhMainnet.script,
+          })),
+        }),
+        'disagrees with on-chain cat location',
+      ],
+      [
+        'the SDK validator rejects the PSBT',
+        (): Partial<Cat21RpcDeps> => ({
+          validateBuyOfferPsbt: vi.fn(
+            (): Cat21OfferValidation => ({
+              ok: false,
+              reason: 'payment-output-wrong-address',
+              detail: 'expected bc1qfoo, got bc1qbar',
+            })
+          ),
+        }),
+        'payment-output-wrong-address',
+      ],
+      [
+        'the buyer underpays',
+        (): Partial<Cat21RpcDeps> => ({
+          validateBuyOfferPsbt: vi.fn(
+            (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 90_000, postageSats: 546 })
+          ),
+        }),
+        'wrong-price',
+      ],
+    ])(
+      'AUTONOMOUS: denies inbound-offer-mismatch when %s, never signs silently',
+      async (_case, overrides, detail) => {
+        deps = makeDeps(overrides());
+        service = new Cat21RpcService(deps);
+        const result = await service.acceptOffer(
+          makeAcceptOfferIntent({ mode: 'autonomous' }),
+          'mcp-nmh'
+        );
+        expect(result.ok).toBe(false);
+        if (!result.ok) {
+          expect(result.value.reason).toBe('inbound-offer-mismatch');
+          expect(result.value.detail).toContain(detail);
+        }
+        expect(deps.signSilently).not.toHaveBeenCalled();
+        expect(deps.broadcast).not.toHaveBeenCalled();
+      }
+    );
+
     it('ACCEPTS overpay: pricePaidSats > expectedPriceSats is a tip the seller pockets', async () => {
       deps = makeDeps({
         validateBuyOfferPsbt: vi.fn(
