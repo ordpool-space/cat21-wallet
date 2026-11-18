@@ -3,7 +3,12 @@
  * hook so they are unit-testable without the React/Redux/inversify harness the
  * hook needs. The hook keeps the IO wiring; these keep the translation rules.
  */
-import type { AgentActionKind, UtxoAssetDetail, UtxoClassification } from 'ordpool-sdk/core';
+import type {
+  AgentActionKind,
+  CatOnOutpoint,
+  UtxoAssetDetail,
+  UtxoClassification,
+} from 'ordpool-sdk/core';
 
 /**
  * Map an ord `classifyOutpoint` result to the funding guard's verdict. This is
@@ -24,7 +29,9 @@ import type { AgentActionKind, UtxoAssetDetail, UtxoClassification } from 'ordpo
  * bare string, so the named assets ride through the core onto the funding
  * recommendation and the confirmation notice can say WHICH inscription / rune /
  * cat / rare sat is on the coin, not merely that assets are present. `runeNames`
- * are the keys of ord's `runes` map (ord's spelling, spacers included).
+ * are the keys of ord's `runes` map (ord's spelling, spacers included). `cats`
+ * carries each cat with the number the SDK looked up (null when the lookup
+ * failed), which is how the notice names a cat as "Cat #N".
  */
 export function classifyOutpointVerdict(
   outpoint: string,
@@ -34,6 +41,7 @@ export function classifyOutpointVerdict(
     inscriptionIds: string[];
     runes: Record<string, unknown> | null;
     catIds: string[];
+    cats: CatOnOutpoint[];
     rareSat: UtxoAssetDetail['rareSat'];
   }
 ): UtxoClassification {
@@ -44,6 +52,7 @@ export function classifyOutpointVerdict(
     inscriptionIds: classification.inscriptionIds,
     runeNames: Object.keys(classification.runes ?? {}),
     catIds: classification.catIds,
+    cats: classification.cats,
     rareSat: classification.rareSat,
   };
   return { verdict: classification.clean ? 'clean' : 'has-assets', assets };

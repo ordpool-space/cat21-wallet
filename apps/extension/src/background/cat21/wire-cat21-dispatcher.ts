@@ -39,6 +39,8 @@ interface WireCat21DispatcherArgs {
    * (UTC) is fine; callers wanting a local-tz semantic can override.
    */
   dayKeyFn?(): string;
+  /** The account's own payment and ordinals addresses (see `makeAgentPolicyDeps`). */
+  getOwnAddresses(): string[];
 }
 
 export function wireCat21Dispatcher(args: WireCat21DispatcherArgs): Cat21Dispatcher {
@@ -49,6 +51,7 @@ export function wireCat21Dispatcher(args: WireCat21DispatcherArgs): Cat21Dispatc
     dispatch: args.dispatch,
     accountId: args.accountId,
     dayKeyFn,
+    getOwnAddresses: args.getOwnAddresses,
   });
 
   const wiringPending = makeWiringPendingDeps();

@@ -619,6 +619,19 @@ describe('iter 10 — per-account agent-policy slice + dispatcher deps', () => {
     expect(src).toMatch(/recordSpend\(/);
   });
 
+  it("the popup passes the signing account's payment AND ordinals address as own addresses", () => {
+    // Own addresses pass a configured counterparty allowlist. The factory's
+    // unit tests inject them, so only this pin proves the popup wires the
+    // real pair: with the ordinals address missing, a mint to the account's
+    // own ordinals address would be denied under any allowlist.
+    const src = read(
+      join(REPO_ROOT, 'apps/extension/src/app/pages/cat21-confirm/use-cat21-rpc-deps.ts')
+    );
+    expect(src).toMatch(
+      /getOwnAddresses:\s*\(\)\s*=>\s*\[paymentAddress \?\? '', ordinalsAddress\]/
+    );
+  });
+
   it('accountIdToSliceKey formats with `<fingerprint>:<accountIndex>` (slice key contract)', () => {
     // The slice keys policies by string; the wallet's `useCurrentAccountId`
     // returns `{ fingerprint, accountIndex }`. `accountIdToSliceKey` is

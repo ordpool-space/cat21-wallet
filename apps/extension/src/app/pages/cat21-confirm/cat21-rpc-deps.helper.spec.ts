@@ -28,6 +28,7 @@ function classification(over: Partial<OrdClassification> = {}): OrdClassificatio
     inscriptionIds: [],
     runes: null,
     catIds: [],
+    cats: [],
     rareSat: null,
     ...over,
   };
@@ -53,7 +54,7 @@ describe('classifyOutpointVerdict', () => {
   it('classifies an indexed coin carrying no assets as a clean verdict with empty assets', () => {
     expect(classifyOutpointVerdict('abc:0', classification({ clean: true }))).toEqual({
       verdict: 'clean',
-      assets: { inscriptionIds: [], runeNames: [], catIds: [], rareSat: null },
+      assets: { inscriptionIds: [], runeNames: [], catIds: [], cats: [], rareSat: null },
     });
   });
 
@@ -69,6 +70,7 @@ describe('classifyOutpointVerdict', () => {
           inscriptionIds: ['dead'.repeat(16) + 'i0'],
           runes: { 'UNCOMMON•GOODS': { amount: 1 } },
           catIds: ['cafe'.repeat(16) + 'i0'],
+          cats: [{ id: 'cafe'.repeat(16) + 'i0', number: 2121 }],
           rareSat,
         })
       )
@@ -78,9 +80,27 @@ describe('classifyOutpointVerdict', () => {
         inscriptionIds: ['dead'.repeat(16) + 'i0'],
         runeNames: ['UNCOMMON•GOODS'],
         catIds: ['cafe'.repeat(16) + 'i0'],
+        cats: [{ id: 'cafe'.repeat(16) + 'i0', number: 2121 }],
         rareSat,
       },
     });
+  });
+
+  it('carries each cat with its number, so the notice can say "Cat #N"', () => {
+    // The SDK's classifyOutpoint looks the numbers up; this mapping is the only
+    // way they reach the funding notice. A number the lookup could not resolve
+    // travels as null, and the notice then names the cat by its id.
+    const resolved = { id: 'cafe'.repeat(16) + 'i0', number: 2121 };
+    const unresolved = { id: 'beef'.repeat(16) + 'i0', number: null };
+    const result = classifyOutpointVerdict(
+      'abc:0',
+      classification({
+        clean: false,
+        catIds: [resolved.id, unresolved.id],
+        cats: [resolved, unresolved],
+      })
+    );
+    expect(result).toMatchObject({ assets: { cats: [resolved, unresolved] } });
   });
 });
 

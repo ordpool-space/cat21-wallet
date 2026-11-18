@@ -178,6 +178,7 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
       },
       accountId: accountKey,
       dayKeyFn: () => new Date().toISOString().slice(0, 10),
+      getOwnAddresses: () => [paymentAddress ?? '', ordinalsAddress],
     });
 
     return {

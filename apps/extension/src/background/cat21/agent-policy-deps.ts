@@ -66,6 +66,14 @@ interface AgentPolicyDepsArgs {
    * uses local-tz date; tests inject a fixed string.
    */
   dayKeyFn(): string;
+  /**
+   * The signing account's own addresses (payment and ordinals), read at
+   * decision time. Value sent to them does not leave the wallet, so they pass
+   * a configured counterparty allowlist without being listed: a mint to the
+   * account's own ordinals address is the normal case. Required, because with
+   * no own addresses a self-mint under an allowlist would be denied.
+   */
+  getOwnAddresses(): string[];
 }
 
 /**
@@ -111,6 +119,19 @@ function detectIntentKind(intent: Cat21Intent): AgentActionKind {
  * that's correct-or-low so a policy that allows X never sees Y > X
  * masked by a downstream undercount. The conservative defaults:
  *
+ * `counterpartyAddresses` lists every address the action sends value to; the
+ * SDK checks each against a configured allowlist, and `ownAddresses` pass:
+ *
+ *   - mint: the recipient (postage and the fresh cat) plus the tip address
+ *     when the tip pays anything.
+ *   - transfer: the recipient.
+ *   - buy: the seller being paid.
+ *   - create-offer / accept-offer: none known here (the buyer is whoever
+ *     takes the public offer; the accept buyer lives in the PSBT), so an
+ *     allowlist denies them, fail closed.
+ *
+ * Spend amounts:
+ *
  *   - mint: `CAT21_POSTAGE_SATS + tip.value` — the fresh cat's postage
  *     plus the optional tip output. The tip is an arbitrary
  *     `{address, value}` output, so counting it here is what bounds it
@@ -138,6 +159,7 @@ function detectIntentKind(intent: Cat21Intent): AgentActionKind {
 function cat21IntentToAgentContext(
   intent: Cat21Intent,
   spentTodaySats: number,
+  ownAddresses: string[],
   spendSatsOverride?: number
 ): AgentActionContext {
   const kind = detectIntentKind(intent);
@@ -146,6 +168,8 @@ function cat21IntentToAgentContext(
     spendSats: 0,
     feeRateSatPerVbyte: 0,
     spentTodaySats,
+    counterpartyAddresses: [],
+    ownAddresses,
   };
   switch (kind) {
     case 'cat21_mint': {
@@ -154,6 +178,11 @@ function cat21IntentToAgentContext(
         ...base,
         spendSats: CAT21_POSTAGE_SATS + (mintIntent.tip?.value ?? 0),
         feeRateSatPerVbyte: mintIntent.feeRate,
+        // A tip of value 0 adds no output, so it pays nobody.
+        counterpartyAddresses:
+          mintIntent.tip && mintIntent.tip.value > 0
+            ? [mintIntent.recipient, mintIntent.tip.address]
+            : [mintIntent.recipient],
       };
     }
     case 'cat21_transfer': {
@@ -171,7 +200,7 @@ function cat21IntentToAgentContext(
         ...base,
         spendSats: spendSatsOverride,
         feeRateSatPerVbyte: transferIntent.feeRate,
-        counterpartyAddress: transferIntent.recipient,
+        counterpartyAddresses: [transferIntent.recipient],
       };
     }
     case 'cat21_create_offer': {
@@ -186,7 +215,7 @@ function cat21IntentToAgentContext(
       // seller's declared expectedPriceSats; the inbound PSBT is separately
       // validated (validateBuyOfferPsbt) to pay at least that, so the floor
       // binds the real proceeds. The buyer's address lives in the PSBT and
-      // isn't known here, so no counterparty is set (an allowlist therefore
+      // isn't known here, so no counterparty is listed (an allowlist therefore
       // fails closed for accept, by design).
       const acceptIntent = intent as Cat21AcceptOfferIntent;
       return {
@@ -205,7 +234,7 @@ function cat21IntentToAgentContext(
         ...base,
         spendSats: buyIntent.bidSats,
         feeRateSatPerVbyte: buyIntent.feeRate,
-        counterpartyAddress: buyIntent.sellerPaymentAddress,
+        counterpartyAddresses: [buyIntent.sellerPaymentAddress],
       };
     }
     default: {
@@ -234,7 +263,7 @@ function cat21IntentToAgentContext(
  * request proceeds to the human-confirm dialog.
  */
 export function makeAgentPolicyDeps(args: AgentPolicyDepsArgs): AgentPolicyDeps {
-  const { getState, dispatch, accountId, dayKeyFn } = args;
+  const { getState, dispatch, accountId, dayKeyFn, getOwnAddresses } = args;
 
   return {
     agentMode: {
@@ -257,7 +286,13 @@ export function makeAgentPolicyDeps(args: AgentPolicyDepsArgs): AgentPolicyDeps 
       }
       const dayKey = dayKeyFn();
       const spentToday = selectSpentTodayForAccount(state, accountId, dayKey);
-      const context = cat21IntentToAgentContext(intent, spentToday, spendSatsOverride);
+      const ownAddresses = getOwnAddresses().filter(address => address.length > 0);
+      const context = cat21IntentToAgentContext(
+        intent,
+        spentToday,
+        ownAddresses,
+        spendSatsOverride
+      );
       // Caps ONLY (no `enabled` gate): a configured cap binds BOTH manual and
       // autonomous flows, with no override. `enabled` decides silent-sign in
       // the mode resolver, never whether the caps apply — so an account that

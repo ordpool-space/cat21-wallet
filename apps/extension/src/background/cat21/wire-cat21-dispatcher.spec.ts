@@ -49,6 +49,7 @@ describe('wireCat21Dispatcher', () => {
       dispatch: vi.fn(),
       accountId: 'acct-fresh',
       dayKeyFn: () => '2026-06-17',
+      getOwnAddresses: () => [],
     });
 
     const reply = await dispatcher.handle(autonomousMintMessage(), 'mcp-nmh');
@@ -80,6 +81,7 @@ describe('wireCat21Dispatcher', () => {
       dispatch: vi.fn(),
       accountId: 'acct-a',
       dayKeyFn: () => '2026-06-17',
+      getOwnAddresses: () => [],
     });
 
     const reply = await dispatcher.handle(autonomousMintMessage(5), 'mcp-nmh');
@@ -110,6 +112,7 @@ describe('wireCat21Dispatcher', () => {
       dispatch: vi.fn(),
       accountId: 'acct-a',
       dayKeyFn: () => '2026-06-17',
+      getOwnAddresses: () => [],
     });
 
     const reply = await dispatcher.handle(autonomousMintMessage(10), 'mcp-nmh');
@@ -126,6 +129,7 @@ describe('wireCat21Dispatcher', () => {
       getState: () => rootWith(state),
       dispatch: vi.fn(),
       accountId: 'acct-a',
+      getOwnAddresses: () => [],
     });
     expect(dispatcher).toBeDefined();
   });
