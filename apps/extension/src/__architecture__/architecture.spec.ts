@@ -167,10 +167,15 @@ describe('HARD RULE #1 — nLockTime=21 cannot be silently dropped', () => {
         'src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts'
       )
     );
-    // `new btc.Transaction({ lockTime: payload.tx.locktime })` is the hard invariant.
-    expect(src).toMatch(/new btc\.Transaction\(\s*\{\s*lockTime:\s*payload\.tx\.locktime\s*\}/);
-    // And the post-build assert refusing to sign on mismatch.
-    expect(src).toMatch(/newTx\.lockTime\s*!==\s*payload\.tx\.locktime/);
+    // The replacement is built from the original's locktime, and the post-build
+    // assert refuses to sign on mismatch. What the two helpers DO is unit-tested
+    // with a locktime-21 fixture (cat21-rbf-replacement.spec.ts); this pins that
+    // the hook calls them with the original's values.
+    expect(src).toMatch(
+      /const newTx = createLocktimePreservingReplacement\(payload\.tx\.locktime\);/
+    );
+    expect(src).toMatch(/assertReplacementKeepsLocktime\(newTx, payload\.tx\.locktime\);/);
+    expect(src).not.toMatch(/new btc\.Transaction\(/);
   });
 
   it('the increase-fee hook clamps the bumped sequence so locktime stays enforced', () => {
@@ -180,8 +185,11 @@ describe('HARD RULE #1 — nLockTime=21 cannot be silently dropped', () => {
         'src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts'
       )
     );
-    // Math.min(..., 0xfffffffe) — the value matters: 0xffffffff disables locktime.
-    expect(src).toMatch(/Math\.min\([^,]+,\s*0xfffffffe\)/);
+    // The clamp below 0xffffffff (which disables locktime) is unit-tested in
+    // cat21-rbf-replacement.spec.ts; this pins that every input's sequence goes
+    // through it.
+    expect(src).toMatch(/const bumpedSequence = bumpRbfSequence\(input\.sequence\);/);
+    expect(src).toMatch(/sequence: bumpedSequence,/);
   });
 });
 

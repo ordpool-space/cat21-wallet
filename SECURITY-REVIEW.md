@@ -16,17 +16,20 @@ Slipstream fallback live in `ordpool-sdk`.
 **Status:** verified.
 
 `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts`
-constructs the replacement Transaction with `new btc.Transaction({
-lockTime: payload.tx.locktime })`. The original tx's locktime is copied
-verbatim, so a CAT-21 mint (locktime=21) replaced via this flow stays a
-CAT-21 mint.
+constructs the replacement Transaction with
+`createLocktimePreservingReplacement(payload.tx.locktime)`. The original
+tx's locktime is copied verbatim, so a CAT-21 mint (locktime=21) replaced
+via this flow stays a CAT-21 mint.
 
-The sequence bump is clamped to `0xfffffffe` so locktime remains
-honored across an arbitrary number of replacements. A runtime assert at
-the end of `generateUnsignedTx` throws if `newTx.lockTime !==
-payload.tx.locktime`. Refusing to sign in that case is the right
-default: per CLAUDE.md HARD RULE #1, losing nLockTime on a CAT-21 mint
-is the worst class of bug this wallet can ship.
+Each input's bumped sequence goes through `bumpRbfSequence`, clamped to
+`0xfffffffe` so locktime remains honored across an arbitrary number of
+replacements. `assertReplacementKeepsLocktime(newTx, payload.tx.locktime)`
+at the end of `generateUnsignedTx` throws if the replacement's locktime
+differs, before anything is signed. Refusing to sign in that case is the
+right default: per CLAUDE.md HARD RULE #1, losing nLockTime on a CAT-21
+mint is the worst class of bug this wallet can ship. The three helpers
+live in `cat21-rbf-replacement.ts` next to the hook and are unit-tested
+with a locktime-21 fixture (`cat21-rbf-replacement.spec.ts`).
 
 This is the single nLockTime invariant the wallet enforces. The mint
 builder itself lives in ordpool-sdk; whatever locktime the SDK puts on
