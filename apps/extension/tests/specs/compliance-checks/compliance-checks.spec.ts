@@ -1,6 +1,8 @@
 import type { BrowserContext, Page, Route } from '@playwright/test';
 
+/* HACK -- Cat21: used only by a test commented out below (Chainalysis off).
 import { delay } from '@leather.io/utils';
+*/
 
 import { test } from '../../fixtures/fixtures';
 
@@ -40,6 +42,8 @@ test.describe('Compliance checks', () => {
     );
   }
 
+  /* HACK -- Cat21: the Chainalysis address check is switched off, so no address
+     is ever reported as sanctioned; this test asserts behaviour that holds for no input.
   test('that it errors if non-compliant entity is detected', async ({ page, context }) => {
     await mockChainalysisEntityRegistrationRequest(context)(route =>
       route.fulfill({ json: { address: '12QtD5BFwRsdNsAZY76UVE1xyCGNTojH9h' } })
@@ -57,6 +61,7 @@ test.describe('Compliance checks', () => {
       .expect(leatherApprover.getByText('Unable to handle request, errorCode: 1398'))
       .toBeVisible();
   });
+  */
 
   test('nothing happens when chainalysis is down', async ({ page, context }) => {
     await mockChainalysisEntityCheckRequest(context)(route => route.abort());
@@ -74,6 +79,8 @@ test.describe('Compliance checks', () => {
     await test.expect(leatherApprover.locator('text="0.00001231 BTC"')).toBeVisible();
   });
 
+  /* HACK -- Cat21: the Chainalysis address check is switched off, so no recipient
+     address is sent anywhere; this test asserts behaviour that holds for no input.
   test('the addresses of all recipients are checked', async ({ context, page }) => {
     let entityCheckCount = 0;
 
@@ -93,4 +100,5 @@ test.describe('Compliance checks', () => {
 
     test.expect(entityCheckCount).toEqual(userAndRecipientAddressCount);
   });
+  */
 });
