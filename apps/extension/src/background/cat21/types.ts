@@ -21,6 +21,7 @@
  * browser surface (`window.Cat21Provider`) never sees these types.
  */
 import type {
+  FundingBlockedErrorJson,
   Cat21AcceptOfferIntent as SdkCat21AcceptOfferIntent,
   Cat21BuyIntent as SdkCat21BuyIntent,
   Cat21CreateOfferIntent as SdkCat21CreateOfferIntent,
@@ -145,6 +146,14 @@ export type Cat21RpcDenyReason =
 interface Cat21RpcDenied {
   reason: Cat21RpcDenyReason;
   detail?: string;
+  /**
+   * Structured funding-decision facts, present only when a funding
+   * expert-block stopped the flow. A person sees a coin picker; an agent on
+   * the NMH bridge gets the same `cause`, recommended coin and every
+   * candidate as plain JSON, so it decides from data instead of parsing the
+   * prose in `detail`. Mirrors the SDK's `FundingBlockedError.toJSON()`.
+   */
+  funding?: FundingBlockedErrorJson;
 }
 
 export type Cat21RpcResult =

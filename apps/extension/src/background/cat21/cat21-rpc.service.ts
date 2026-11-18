@@ -11,6 +11,7 @@ import {
   type ContentScanPort,
   type CoreFundingUtxo,
   type CreateOfferArtifact,
+  type FundingBlockedErrorJson,
   KnownOrdinalWalletType,
   Network,
   type OfferCreateSignPort,
@@ -24,6 +25,7 @@ import {
   createOffer as createBuyOffer,
   executeMint,
   executeTransfer,
+  isFundingBlockedError,
   isOneAddressWallet,
   toScureNetwork,
   validateCat21Operation,
@@ -858,8 +860,12 @@ export function resolveManualFundingTopology(
     : 'separate-payment-address';
 }
 
-function denied(reason: Cat21RpcDenyReason, detail?: string): Cat21RpcResult {
-  return { ok: false, value: { reason, detail } };
+function denied(
+  reason: Cat21RpcDenyReason,
+  detail?: string,
+  funding?: FundingBlockedErrorJson
+): Cat21RpcResult {
+  return { ok: false, value: { reason, detail, ...(funding ? { funding } : {}) } };
 }
 
 function modeResolverReasonToRpcReason(
@@ -887,15 +893,30 @@ class BroadcastError extends Error {}
  *
  *   - `SignError`      → `broadcast-failed: sign-failed`
  *   - `BroadcastError` → `broadcast-failed`
- *   - funding/selection throws (only asset coins cover, nothing covers,
- *     insufficient funds, and the SDK's three `expertRequiredMessage` texts,
- *     which all start `Select a funding UTXO`) →
- *     `intent-invariant-violated: funding-pick-failed: <the SDK message>`
+ *   - `FundingBlockedError` (expert-required: a coin carries assets, or its
+ *     scan failed) → `intent-invariant-violated: funding-pick-failed: <msg>`
+ *     PLUS the structured `funding` field (cause, recommended coin, every
+ *     candidate), so an agent gets the same facts a person's picker shows.
+ *   - the remaining funding throws that are not a blocked recommendation
+ *     (nothing covers, insufficient funds — a plain `Error` whose message
+ *     starts `Insufficient funds`/`nothing covers`) →
+ *     `intent-invariant-violated: funding-pick-failed: <the SDK message>`,
+ *     no `funding` (there is no coin to decide about)
  *   - anything else → `intent-invariant-violated: build-failed`
  */
 function mapCoreError(err: unknown): Cat21RpcResult {
   if (err instanceof SignError) return denied('broadcast-failed', `sign-failed: ${err.message}`);
   if (err instanceof BroadcastError) return denied('broadcast-failed', err.message);
+  // A funding expert-block carries a coin picker's worth of facts (cause,
+  // recommended coin, every candidate with its assets). Surface them
+  // structured in `funding` so an agent on the NMH bridge decides from data,
+  // not by parsing the prose in `detail`. `isFundingBlockedError` checks the
+  // error's `code`, so it holds across the realm / serialisation boundary the
+  // SDK bytes cross, where `instanceof` would not. Checked before the regex
+  // branch because this error's own message starts `Select a funding UTXO`.
+  if (isFundingBlockedError(err)) {
+    return denied('intent-invariant-violated', `funding-pick-failed: ${err.message}`, err.toJSON());
+  }
   const msg = errorDetail(err);
   if (/Select a funding UTXO|Insufficient funds|only asset coins cover|nothing covers/.test(msg)) {
     return denied('intent-invariant-violated', `funding-pick-failed: ${msg}`);

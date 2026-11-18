@@ -380,19 +380,106 @@ describe('Cat21RpcService.mint', () => {
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
-    // HARD RULE #8 spec stubs: the agent receives the cause as a typed field,
-    // not only as prose inside `detail`.
-    it.todo(
-      'AUTONOMOUS: a named-asset block denies with funding.cause named-assets, the recommended outpoint and the named assets'
-    );
-    it.todo(
-      'AUTONOMOUS: an unnamed-asset block denies with funding.cause unnamed-assets and assets null'
-    );
-    it.todo(
-      'AUTONOMOUS: an unknown-content block denies with funding.cause unknown-content and assets null'
-    );
-    it.todo('nothing covers: funding.cause is absent, detail keeps Insufficient funds');
-    it.todo('transfer and buy carry the same funding block as mint (one mapping, three flows)');
+    // HARD RULE #8: the agent receives the funding facts as a typed field,
+    // not only as prose inside `detail`. A person sees a coin picker; the
+    // agent on the NMH bridge gets the same cause + recommended coin +
+    // candidates, structured, from the SDK's FundingBlockedError.toJSON().
+    it('AUTONOMOUS: a named-asset block denies with funding.cause named-assets, the recommended outpoint and the named assets', async () => {
+      // A one-address wallet (payment === ordinals) blocks a named-asset coin
+      // on every topology, so this stays expert-required however the
+      // autonomous path resolves its funding topology.
+      deps = makeDeps({
+        getAccountContext: vi.fn(() => ({
+          ...defaultAccountCtx(),
+          ordinalsAddress: ACCOUNT_PAYMENT_ADDR,
+        })),
+        classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.funding?.cause).toBe('named-assets');
+        expect(result.value.funding?.recommendation.recommended.txid).toBe(defaultUtxo().txid);
+        expect(result.value.funding?.recommendation.recommended.vout).toBe(0);
+        expect(result.value.funding?.recommendation.recommended.assets?.inscriptionIds).toEqual([
+          `${'ab'.repeat(32)}i0`,
+        ]);
+      }
+      expect(deps.signSilently).not.toHaveBeenCalled();
+    });
+
+    it('AUTONOMOUS: an unnamed-asset block denies with funding.cause unnamed-assets and assets null', async () => {
+      // `has-assets` without names is expert-required on every topology, so the
+      // facts reach the agent with a null asset detail and the unnamed cause.
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve('has-assets' as const)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.funding?.cause).toBe('unnamed-assets');
+        expect(result.value.funding?.recommendation.recommended.assets).toBeNull();
+        expect(result.value.funding?.recommendation.recommended.bucket).toBe('assets');
+      }
+      expect(deps.signSilently).not.toHaveBeenCalled();
+    });
+
+    it('AUTONOMOUS: an unknown-content block denies with funding.cause unknown-content and assets null', async () => {
+      // A coin whose scan FAILED is expert-required on every topology; the
+      // agent gets the unknown-content cause and a `failed` bucket.
+      deps = makeDeps({
+        classifyOutpoint: vi.fn(() => Promise.reject(new Error('ord has not indexed this output'))),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('intent-invariant-violated');
+        expect(result.value.funding?.cause).toBe('unknown-content');
+        expect(result.value.funding?.recommendation.recommended.assets).toBeNull();
+        expect(result.value.funding?.recommendation.recommended.bucket).toBe('failed');
+      }
+      expect(deps.signSilently).not.toHaveBeenCalled();
+    });
+
+    it('nothing covers: funding is absent, detail keeps Insufficient funds', async () => {
+      // No coin covers, so there is nothing for anyone to pick: the SDK throws a
+      // plain Error (not FundingBlockedError), and no `funding` field is set.
+      deps = makeDeps({ spendableUtxos: vi.fn(() => Promise.resolve([])) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup');
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.funding).toBeUndefined();
+        expect(result.value.detail).toContain('Insufficient funds');
+      }
+    });
+
+    it('transfer and buy carry the same funding block as mint (one mapping, three flows)', async () => {
+      // The same mapCoreError serves mint, transfer and buy, so all three
+      // surface the structured funding facts. A bare has-assets funding coin is
+      // unnamed → expert-required on every topology for each flow.
+      deps = makeDeps({
+        spendableUtxos: vi.fn(() =>
+          Promise.resolve([{ txid: defaultUtxo().txid, vout: 0, value: 200_000 }])
+        ),
+        classifyOutpoint: vi.fn(() => Promise.resolve('has-assets' as const)),
+      });
+      service = new Cat21RpcService(deps);
+
+      const transfer = await service.transfer(
+        makeTransferIntent({ mode: 'autonomous' }),
+        'mcp-nmh'
+      );
+      expect(transfer.ok).toBe(false);
+      if (!transfer.ok) expect(transfer.value.funding?.cause).toBe('unnamed-assets');
+
+      const buy = await service.buy(makeBuyIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      expect(buy.ok).toBe(false);
+      if (!buy.ok) expect(buy.value.funding?.cause).toBe('unnamed-assets');
+    });
 
     it('returns "intent-invariant-violated: no-payment-public-key" when the pubkey is absent', async () => {
       deps = makeDeps({
