@@ -1,6 +1,6 @@
 # CAT-21 wallet — Privacy Policy
 
-Effective: 2026-06-14
+Effective: 2026-11-18
 
 CAT-21 wallet is a Bitcoin-L1 browser-extension wallet for active CAT-21
 cat trading. It is a fork of [Leather](https://github.com/leather-io/mono)
@@ -11,8 +11,10 @@ does **not** do.
 ## Data CAT-21 wallet stores locally
 
 All wallet data lives inside the Chrome extension's local storage on
-your machine. It never leaves that storage except where you explicitly
-sign and broadcast a transaction.
+your machine. Your seed phrase and private keys never leave it. Your
+addresses, your account's extended-public-key descriptor and the
+transactions you sign are sent to the services listed in the next
+section, for the purposes given there.
 
 Stored locally:
 
@@ -26,32 +28,51 @@ Stored locally:
 
 ## Data CAT-21 wallet sends to remote services
 
-CAT-21 wallet connects to a small, fixed set of services. Each connection
-is described below.
+CAT-21 wallet is a fork of Leather and still uses part of Leather's
+infrastructure. In normal use it contacts the services below. Every
+request also reveals your IP address and the time of the request to the
+service that receives it.
 
-| Service | What we send | Why |
-|---|---|---|
-| **cat21-ord** (default `https://ord.cat21.space`) | Your bitcoin address(es) and UTXO outpoints, in plain GET requests | Look up which cats you own, classify UTXOs as cat-bearing |
-| **Bitcoin mempool API** | Raw signed transactions for broadcast | Propagate your transactions to the network |
-| **Marathon Slipstream** (`https://slipstream.mara.com`) | Raw signed transactions for direct-to-miner submission | Optional fallback for oversize/non-standard transactions |
-| **Block explorers** (mempool.space, etc.) | Transaction IDs you request | Display confirmation status |
+| Service                                                                                       | What it receives                                                                                                                                                                                                                                                | Why                                                                                                                   |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| **cat21-ord** (`https://ord.cat21.space`, run by the CAT-21 project)                          | Your bitcoin addresses, UTXO outpoints and cat ids, in plain GET requests                                                                                                                                                                                       | Look up which cats you own and which of your coins carry a cat                                                        |
+| **ord** (`https://ord.ordpool.space`, run by the CAT-21 project)                              | The outpoints of the coins that would pay for an action, and the names of runes shown in a funding notice                                                                                                                                                       | Check a funding coin for inscriptions, runes and rare sats before it is spent; link a rune to its etching transaction |
+| **CAT-21 Bazaar** (`https://backend2.cat21.space`, run by the CAT-21 project)                 | When you list a cat or place a bid: the cat's outpoint, the price, your payment and ordinals addresses, the signed offer, and a sign-in token that proves you control your ordinals address                                                                     | Publish your listings and bids                                                                                        |
+| **Leather API** (`https://api.leather.io`, run by Leather)                                    | On mainnet and testnet: your account's extended-public-key descriptor, from which every address of the account can be derived, plus an `X-Client-ID` header carrying a random identifier that is created anew each time the wallet's background or popup starts | Balances, UTXOs and transaction history; fee rates and prices                                                         |
+| **Leather's mempool instance** (`https://leather.mempool.space`, run by Leather)              | Signed transactions you broadcast, transaction lookups, and price requests                                                                                                                                                                                      | Broadcast your transactions; show transaction status and the BTC price                                                |
+| **Marathon Slipstream** (`https://slipstream.mara.com`)                                       | Signed CAT-21 transactions too large for standard relay; the wallet routes them here by size                                                                                                                                                                    | Submit oversize transactions directly to a miner                                                                      |
+| **GitHub** (`https://raw.githubusercontent.com/leather-io/extension`, production builds only) | A request for Leather's public wallet configuration                                                                                                                                                                                                             | Leather controls settings of the wallet through this file, see below                                                  |
 
-You can replace the default cat21-ord endpoint with your own
-self-hosted instance in settings. No other service is contacted.
+Features inherited from Leather that CAT-21 wallet does not change (for
+example Stacks, swaps, sBTC and buying bitcoin through Onramper) contact
+their own providers, such as `https://api.hiro.so`, when they run.
+
+The service endpoints are fixed in the wallet; there is no setting to
+point the wallet at your own instance of any of them.
 
 ## What CAT-21 wallet does NOT do
 
 - **No analytics.** No Mixpanel, no Segment, no Google Analytics. No
   click tracking, no error-reporting beacon. The audit of Xverse
   documented in the workspace headquarter informed this position.
-- **No remote configuration.** The wallet never fetches feature flags
-  from a server.
 - **No third-party scripts.** The extension's CSP (Content-Security-
   Policy) is set to `script-src 'self' 'wasm-unsafe-eval'` so no remote
   JavaScript can execute inside the wallet.
 - **No telemetry on agent-mode actions.** Autonomous trades are visible
-  only to you and the on-chain network.
+  only to you, the on-chain network and, for listings and bids, the
+  CAT-21 Bazaar.
 - **No marketing emails.** We have no way to reach you.
+
+## Remote configuration from Leather
+
+Production builds fetch Leather's public wallet configuration from
+GitHub (`config/wallet-config.json` in the `leather-io/extension`
+repository) and refresh it at most every ten minutes. GitHub sees your
+IP address and the time of each request. Through this file Leather
+controls settings of the wallet, among them whether bitcoin sending is
+enabled (`bitcoinSendEnabled`), the sBTC settings, promotional banners
+and in-app messages. The file carries no data about you; it is the same
+for every user.
 
 ## Native Messaging Host / MCP integration
 
@@ -75,8 +96,8 @@ enabled; it can never act while the wallet is locked.
 
 ## Data sharing
 
-We do not share any data with anyone. There is no operator-side data to
-share — your wallet lives only on your machine.
+Apart from what the services listed above receive, no data leaves your
+machine. Your wallet itself lives only on your machine.
 
 ## Open source
 

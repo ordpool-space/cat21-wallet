@@ -11,7 +11,7 @@ CAT-21 wallet
 ## Short summary (132 chars max)
 
 Hot wallet for active CAT-21 cat trading on Bitcoin L1. Open source.
-Local-only. Mint, trade, agent-mode automation via MCP.
+Keys stay local. Mint, trade, agent-mode automation via MCP.
 
 ## Detailed description
 
@@ -26,17 +26,19 @@ have:
    marketplace), accept incoming offers with a single click after a
    typed-error-key validator surfaces any structural problem.
 
-2. **CAT-21 mint flow with the right invariants.** nLockTime=21 and
-   sequence 0xfffffffe are runtime-asserted on every mint — a future
-   refactor cannot accidentally ship a mint that gets accelerated and
-   loses its nLockTime marker (the bug that killed cats in the 2024
-   Xverse incident).
+2. **CAT-21 mint flow with the right invariants.** nLockTime=21 is
+   runtime-asserted on every transaction the wallet builds, and the
+   wallet's own fee bump keeps it, so a mint you speed up stays a cat. A
+   wallet that "accelerates" a mint and drops nLockTime=21 loses the cat;
+   that is what killed cats in the 2024 Xverse incident.
 
 3. **MCP server via Chrome Native Messaging Host.** An agent (Claude
-   Desktop, Cursor, custom) can list your cats and read indexer
-   status today, and — once you opt in — mint, buy, and accept sell
-   offers under a per-action policy you configure (max spend per tx,
-   daily cap, fee-rate ceiling, floor price, counterparty allowlist).
+   Desktop, Cursor, custom) can list your cats and read wallet and
+   indexer status, and mint, transfer, list, buy and accept offers.
+   Each of those waits for your approval in the wallet, or runs without
+   a prompt only when you enable agent mode, within a per-account
+   policy you configure (max spend per action, daily cap, fee-rate
+   ceiling, floor price, counterparty allowlist).
 
 What it is not:
 
@@ -50,10 +52,24 @@ What it is not:
 
 What it touches on the network:
 
-- cat21-ord at https://ord.cat21.space (or your self-hosted instance)
-- The Bitcoin mempool for tx broadcast
-- Marathon Slipstream for oversize/non-standard txs (opt-in)
-- That's it. No analytics. No remote config. No third-party scripts.
+- cat21-ord at https://ord.cat21.space and ord at https://ord.ordpool.space
+  (both run by the CAT-21 project) for your cats and for checking a
+  funding coin for assets before it is spent
+- The CAT-21 Bazaar at https://backend2.cat21.space when you list a cat
+  or bid
+- Leather's API at https://api.leather.io: on mainnet and testnet it
+  receives your account's extended-public-key descriptor (all addresses
+  of the account) for balances and transaction history, plus a random
+  per-start client id
+- Leather's mempool instance at https://leather.mempool.space for
+  broadcast and transaction status
+- Marathon Slipstream for CAT-21 transactions too large for standard
+  relay (routed there by size)
+- In production builds, Leather's public wallet configuration from
+  GitHub (raw.githubusercontent.com/leather-io/extension), through which
+  Leather controls settings such as bitcoin sending, banners and in-app
+  messages
+- No analytics. No third-party scripts.
 
 Read the privacy policy in this repo (PRIVACY-POLICY.md) and the
 security review (SECURITY-REVIEW.md) before using.
@@ -79,10 +95,11 @@ permission?":
 - `nativeMessaging` — bridge to the optional MCP host binary for
   Claude Desktop / Cursor integration. Allowed_origins on the host
   manifest pins our extension ID; no other extension can reach the host.
-- `host_permissions: *://*/*` — the extension calls cat21-ord, the
-  Bitcoin mempool, Marathon Slipstream, and third-party block
-  explorers; the fork inherits the broad Leather scope. A future
-  release narrows this to a fixed allowlist.
+- `host_permissions`: a fixed list (see
+  `apps/extension/scripts/generate-manifest.js`): the CAT-21 project's
+  cat21-ord, ord and Bazaar hosts, the Bitcoin mempool APIs, Marathon
+  Slipstream, the Leather and Hiro APIs the fork still uses, and
+  localhost for dapp development.
 
 ## Assets to upload
 
