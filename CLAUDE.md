@@ -178,7 +178,7 @@ Verify before commit: `pnpm format`, `pnpm lint`, `pnpm typecheck`, `pnpm knip`,
 - Commits: Conventional Commits, imperative, no body unless asked. HACK markers `/* HACK -- Cat21: <reason> */`; never delete upstream code, comment it out with a marker.
 
 ## CI and trusted builds
-- Active safety net: `extension:code-checks`, `extension:pr-build`, `extension:cat21-e2e` (mocked), `extension:cat21-chain-e2e` (real regtest + backend), `repo:code-checks`, `repo:all-checks-pass`, `repo:workflow-checks`, `check-locktime-framing` (greps banned nLockTime framing, sibling of cat21-indexer + ordpool-sdk).
+- Active safety net: `extension:code-checks`, `extension:pr-build`, `extension:cat21-e2e` (the real extension on a mainnet test account; it still reaches live hosts, which the LIVE-NET recorder in `tests/fixtures/fixtures.ts` inventories per spec), `extension:cat21-chain-e2e` (real regtest + backend), `repo:code-checks`, `repo:all-checks-pass`, `repo:workflow-checks`, `check-locktime-framing` (greps banned nLockTime framing, sibling of cat21-indexer + ordpool-sdk).
 - Tag-gated trusted build: `.github/workflows/extension:trusted-build.yml` (GitHub-hosted only, sha-pinned actions, `--frozen-lockfile`, sigstore attestation via `actions/attest-build-provenance@v1.4.0`). Verify a zip: `gh attestation verify cat21-wallet-extension.zip --repo ordpool-space/cat21-wallet`.
 - Disabled (`workflow_dispatch` / `disabled_manually`): `extension:publish-extensions.yml`, `web:deploy.yml`, `extension:integration-tests.yml` (needs `EXTENSION_INTEGRATION_TEST_MNEMONIC`). Add any new workflow to one of these buckets and update this section.
 

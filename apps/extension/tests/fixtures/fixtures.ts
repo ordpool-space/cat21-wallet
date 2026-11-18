@@ -33,7 +33,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const test = base.extend<TestFixtures>({
   // Playwright always needs object destructuring for fixtures https://github.com/microsoft/playwright/issues/14590
   // eslint-disable-next-line no-empty-pattern
-  context: async ({}, use) => {
+  context: async ({}, use, testInfo) => {
     const pathToExtension = path.join(__dirname, '../../dist');
     /* HACK -- Cat21: PW_CHROMIUM_EXE lets a local run point at an
        already-installed Chrome-for-Testing binary (e.g. a newer revision
@@ -53,7 +53,30 @@ export const test = base.extend<TestFixtures>({
         ...(overrideExe ? [] : ['--use-gl=egl']),
       ],
     });
+    /* HACK -- Cat21: live-network recorder (audit T11, step 1). HQ: no test
+       talks to a real system. Before stubbing or blocking anything, record
+       which non-local hosts each spec actually reaches, on green runs, so the
+       inventory comes from observation, not from a guess. Records method,
+       host and the first path segment (no query, no address-bearing tail),
+       attaches the list to the test, and prints one `LIVE-NET` line to grep in
+       CI. It fails nothing; the guard that does comes once every entry is
+       stubbed from captured data or blocked. */
+    const liveRequests = new Set<string>();
+    context.on('request', request => {
+      const url = new URL(request.url());
+      if (!url.protocol.startsWith('http')) return;
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return;
+      const firstSegment = url.pathname.split('/').filter(Boolean)[0] ?? '';
+      liveRequests.add(`${request.method()} ${url.hostname} /${firstSegment}`);
+    });
     await use(context);
+    const inventory = [...liveRequests].sort();
+    await testInfo.attach('live-network-requests', {
+      body: JSON.stringify(inventory, null, 2),
+      contentType: 'application/json',
+    });
+    // eslint-disable-next-line no-console
+    console.log(`LIVE-NET ${testInfo.titlePath.join(' > ')} :: ${JSON.stringify(inventory)}`);
     await context.close();
     await context.browser()?.close();
   },
