@@ -32,6 +32,7 @@ import { cat21ActionForRoute, clearCat21Request } from '@background/cat21/popup-
 import type { Cat21Intent, Cat21RpcBidSuccess, Cat21RpcResult } from '@background/cat21/types';
 
 import { usePublishToBazaar } from '../cat21-create-offer/use-publish-to-bazaar';
+import { mayAutoConfirm } from './auto-confirm-gate';
 import { Cat21BazaarPublishStatus } from './cat21-bazaar-publish-status';
 import { type DeclaredCat21Intent, declaredCat21Intent } from './declared-cat21-intent';
 import { extractCatIdHint } from './extract-cat-id-hint';
@@ -317,17 +318,10 @@ export function Cat21ConfirmRoute() {
       }).catch(() => undefined);
       return;
     }
-    if (urlRequest.transport !== 'mcp-nmh') return;
-    // Only an explicit `mode: 'autonomous'` request may auto-sign without a
-    // human click. `mode` omitted (or `'manual'`) resolves to manual, which
-    // `resolveSigningMode` returns without the autonomous silent-sign gate
-    // (`agentMode.enabled`), so auto-confirming it would let an NMH agent move
-    // cats/funds silently (even with agent-mode off) by simply omitting
-    // `mode`. Manual/omitted-mode NMH requests fall through to the human-
-    // confirm dialog below (the standard Path-2 approve/reject path). The
-    // per-account caps still bind that manual path (enforced in
-    // `resolveSigningMode` before the manual/autonomous split).
-    if (urlRequest.intent.mode !== 'autonomous') return;
+    // Only an NMH request that explicitly declares `mode: 'autonomous'` may
+    // auto-sign without a human click; every other request falls through to the
+    // human-confirm dialog below (see `mayAutoConfirm`).
+    if (!mayAutoConfirm(urlRequest)) return;
     if (autoConfirmedRef.current) return;
     // Audit H1 — locked-wallet gate. Never let the autoconfirm reach a service
     // call (and therefore any keychain access) while the wallet is not unlocked.

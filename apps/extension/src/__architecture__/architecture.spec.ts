@@ -1349,6 +1349,18 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
     expect(src).not.toMatch(/'(bidSats|priceSats|offerPsbt|catId)' in action/);
   });
 
+  it('the Path-3 autoconfirm signs without a click ONLY for an NMH request declaring mode autonomous (audit T1)', () => {
+    // Without this guard the route auto-signs every NMH request, so an agent
+    // could move cats or funds silently, agent mode on or off, by omitting
+    // `mode`. The predicate is unit-tested (auto-confirm-gate.spec.ts); this pins
+    // that the autoconfirm effect consults it before it confirms.
+    const src = read(join(REPO_ROOT, ROUTE));
+    expect(src).toMatch(
+      /\n\s+if \(!mayAutoConfirm\(urlRequest\)\) return;[\s\S]{0,4000}confirm\(declaredRequest\);/
+    );
+    expect(src.match(/confirm\(declaredRequest\);/g)).toHaveLength(1);
+  });
+
   it('the confirm route renders a funding-block denial from its structured cause, not the SDK wording', () => {
     // The SDK documents branching on `cause`; the text match in the copy is only
     // the fallback for a denial without it.
