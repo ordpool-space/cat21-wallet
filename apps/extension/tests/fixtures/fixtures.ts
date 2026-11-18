@@ -60,16 +60,34 @@ export const test = base.extend<TestFixtures>({
        host and the first path segment (no query, no address-bearing tail),
        attaches the list to the test, and prints one `LIVE-NET` line to grep in
        CI. It fails nothing; the guard that does comes once every entry is
-       stubbed from captured data or blocked. */
+       stubbed from captured data or blocked.
+       A request counts as live by where its RESPONSE came from, not by its
+       URL: a request a spec's route rewrote to a local service keeps its
+       original URL but is fulfilled with no server address, so it is not
+       live. Only a response from a non-loopback peer is. */
     const liveRequests = new Set<string>();
-    context.on('request', request => {
+    const pending: Promise<void>[] = [];
+    context.on('requestfinished', request => {
       const url = new URL(request.url());
       if (!url.protocol.startsWith('http')) return;
-      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') return;
       const firstSegment = url.pathname.split('/').filter(Boolean)[0] ?? '';
-      liveRequests.add(`${request.method()} ${url.hostname} /${firstSegment}`);
+      const key = `${request.method()} ${url.hostname} /${firstSegment}`;
+      pending.push(
+        (async () => {
+          const response = await request.response();
+          const peer = response ? await response.serverAddr() : null;
+          if (peer == null) return; // fulfilled by a route, never left the box
+          if (peer.ipAddress === '127.0.0.1' || peer.ipAddress === '::1') return;
+          liveRequests.add(key);
+        })().catch(() => {
+          // The response could not be read (e.g. its page closed): keep the
+          // entry, marked, rather than lose a request that may have been live.
+          liveRequests.add(`${key} (unresolved)`);
+        })
+      );
     });
     await use(context);
+    await Promise.all(pending);
     const inventory = [...liveRequests].sort();
     await testInfo.attach('live-network-requests', {
       body: JSON.stringify(inventory, null, 2),
