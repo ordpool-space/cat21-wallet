@@ -171,9 +171,9 @@ function cat21IntentToAgentContext(
   ownAddresses: string[],
   resolved: Cat21ResolvedActionFacts = {}
 ): AgentActionContext {
-  const withResolved = (fromIntent: string[]): string[] => [
-    ...new Set([...fromIntent, ...(resolved.counterpartyAddresses ?? [])]),
-  ];
+  function withResolved(fromIntent: string[]): string[] {
+    return [...new Set([...fromIntent, ...(resolved.counterpartyAddresses ?? [])])];
+  }
   const kind = detectIntentKind(intent);
   const base: AgentActionContext = {
     kind,
