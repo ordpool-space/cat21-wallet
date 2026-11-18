@@ -148,11 +148,12 @@ export interface Cat21RpcDeps {
    */
   spendableUtxos(address: string): Promise<CoreFundingUtxo[]>;
   /**
-   * Content-safety verdict for one outpoint (`<txid>:<vout>`). Cat-only
-   * for cat21-wallet (reuses the cat21-ord `/output` query): `has-assets`
-   * when the coin carries a cat, else `clean`. Rejects on a scan failure
-   * — the core treats a failed scan as not-auto (expert-mode), never as
-   * clean. Backs the core's `ContentScanPort`.
+   * Content-safety verdict for one outpoint (`<txid>:<vout>`): the SDK's
+   * four-class scan (inscriptions, runes and rare sats from full ord at
+   * ord.ordpool.space, cats from cat21-ord), returning `has-assets` with
+   * the named assets, or `clean`. Rejects on a scan failure; the core
+   * treats a failed scan as not-auto (expert-mode), never as clean. Backs
+   * the core's `ContentScanPort`.
    */
   classifyOutpoint(outpoint: string): Promise<UtxoClassification>;
   /**
@@ -308,7 +309,7 @@ export class Cat21RpcService {
     return { spendableUtxos: address => this.deps.spendableUtxos(address) };
   }
 
-  /** Cat-only content scan (cat21-wallet's chosen scan depth). */
+  /** Four-class content scan (inscriptions, runes, rare sats, cats). */
   private contentScanPort(): ContentScanPort {
     return { classify: outpoint => this.deps.classifyOutpoint(outpoint) };
   }
@@ -373,12 +374,11 @@ export class Cat21RpcService {
    * `cat21_mint` — delegates the full select → fee → build → sign →
    * broadcast sequence to the SDK core's `executeMint`. The core runs
    * content-checked funding selection over whatever the wallet's
-   * `ContentScanPort` reports; the wallet wires a CAT-ONLY scan
-   * (`classifyOutpoint` → cat21-ord `/output`, the maintainer's chosen
-   * depth), so in the wallet the core refuses cat-bearing funding coins.
-   * It does NOT detect regular inscriptions / runes / rare sats — cat21-
-   * ord only indexes cats. `executeMint` returns the realised fee for
-   * the daily-cap accounting.
+   * `ContentScanPort` reports; the wallet wires the four-class scan
+   * (`classifyOutpoint`: inscriptions, runes and rare sats from full ord,
+   * cats from cat21-ord), so the core sees every named asset on a funding
+   * coin. `executeMint` returns the realised fee for the daily-cap
+   * accounting.
    */
   async mint(
     intent: Cat21MintIntent,

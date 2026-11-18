@@ -126,8 +126,8 @@ the SDK delivers; dapps and bots integrate against the SDK directly.
 
 | SDK module | Exports | Purpose |
 |---|---|---|
-| `src/cat21-mint/cat21.service.helper.ts` | `createInput`, `createTransaction` | Per-wallet sequence (CAT-21 wallet → 0xfffffffd RBF-signaling, others → 0xfffffffe non-RBF), lockTime=21 |
-| `src/cat21-offer/cat21-offer.helper.ts` | `buildCat21BuyOfferPsbt`, `validateCat21BuyOfferPsbt`, `CAT21_OFFER_POSTAGE_SATS` | ord-style buyer-initiated offer + seller-side validator (defence in depth) |
+| `src/cat21-mint/cat21.service.helper.ts` | `createTransaction`, `simulateMintTransaction` | Mint transaction with lockTime=21; the per-wallet input sequence (CAT-21 wallet → 0xfffffffd RBF-signaling, others → 0xfffffffe non-RBF) comes from `resolveCat21MintInputSequence` in `src/cat21-protocol/cat21-sequence.ts` |
+| `src/cat21-offer/cat21-offer.helper.ts` (+ `cat21-offer.types.ts`) | `buildCat21BuyOfferPsbt`, `validateCat21BuyOfferPsbt`, `CAT21_OFFER_POSTAGE_SATS` (types) | ord-style buyer-initiated offer + seller-side validator (defence in depth) |
 | `src/cat21-broadcast/broadcast.helper.ts` | `broadcastCat21`, `decideBroadcastChannel`, `STANDARD_TX_WEIGHT_LIMIT` | Weight-based mempool/Slipstream dispatcher |
 | `src/cat21-broadcast/slipstream.helper.ts` | `submitToSlipstream`, `SLIPSTREAM_DEFAULT_BASE_URL` | Marathon direct-to-miner submission with `fetch + AbortController` |
 | `src/agent-mode/agent-policy.helper.ts` | `evaluateAgentPolicy`, types | Pure-functional autonomous-action gate (per-action cap, daily cap, fee ceiling, floor price, counterparty allowlist) |

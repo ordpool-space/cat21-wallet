@@ -221,9 +221,9 @@ export function useCat21RpcDeps(catIdHint?: string): Cat21RpcDeps {
           network: walletNetworkToSdkNetwork(args.network),
         }),
       // Wallet-routed broadcast via Leather's existing
-      // `transactionsApi.broadcastTransaction` (which the wallet
-      // points at api.ordpool.space / mempool.space / blockstream.info
-      // per its current routing). Channel-decision delegated to the
+      // `transactionsApi.broadcastTransaction` (the network's bitcoin API,
+      // `BITCOIN_API_BASE_URL_MAINNET` = leather.mempool.space on
+      // mainnet). Channel-decision delegated to the
       // SDK's `broadcastCat21` so oversize CAT-21 txs route to
       // Slipstream automatically.
       broadcast: async signedTxHex => {

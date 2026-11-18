@@ -16,9 +16,9 @@ Single source of truth for the CAT-21 wallet (a non-fork clone of Leather `leath
 | other-wallet MINT input | `CAT21_OTHER_WALLET_MINT_INPUT_SEQUENCE=0xfffffffe` (RBF off), mint-only via `resolveCat21MintInputSequence`. Transfers+offers RBF-on for all wallets since SDK `703f90b`. | same |
 | RBF replace our tx | replacement keeps `lockTime=21`, assert | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` |
 | cat UTXO in BTC send | refused; `protected` bucket | `packages/services/src/utxos/utxos.service.ts` |
-| inbound buy-offer accept | sign as-is, any lockTime; popup shows the inbound lockTime so the human seller sees what they sign | `apps/extension/src/background/cat21/builders/accept-offer-validator.ts`, `cat21-rpc.service.ts → acceptOffer` |
+| inbound buy-offer accept | sign as-is, any lockTime; the popup shows the cat and the price, never the lockTime (no protocol vocabulary reaches the user); an inbound lockTime other than 21 costs the buyer the bonus mint, not the seller anything | `apps/extension/src/background/cat21/builders/accept-offer-validator.ts`, `cat21-rpc.service.ts → acceptOffer` |
 
-- Verify builder changes: edit the SDK helper, `pnpm sdk:build` (staleness guard `apps/extension/scripts/check-sdk-fresh.cjs`), `pnpm --filter @leather.io/extension test:unit -- src/background/cat21`, then `apps/extension/src/__architecture__/architecture.spec.ts`.
+- Verify builder changes: change the SDK helper in ordpool-sdk, bump the wallet's SDK sha (HARD RULE #10), then `pnpm --filter @leather.io/extension test:unit` (runs the whole extension suite, `apps/extension/src/__architecture__/architecture.spec.ts` included).
 Why: skipping 21 on a non-mint costs a bonus mint, not the cat (ordinal theory); only a mempool mint RBF that drops 21 loses the mint.
 
 ## HARD RULE #2: Cat-bearing UTXOs are never spent by the BTC send flow
@@ -137,18 +137,18 @@ Pinned; any change needs a new HARD RULE.
 - Naming: `cat21_<verb>`, snake_case. `mode` defaults `'manual'`; `'autonomous'` honoured only when all mode-resolution guards pass.
 - Pipeline (every method): parse+validate intent → enforce invariants → resolve mode (declared + transport + `policy.enabled` + `policy.evaluate`) → build via SDK → post-build assert → sign (manual = confirm dialog; autonomous = silent) → broadcast (mempool, Slipstream on >400k weight) → `{ txid }`.
 - Pinned decisions: agent-mode ON by default after a first-run wizard; policy stored per-account (Redux, seed-encrypted) with fields `maxSpendPerActionSats`, `dailyCapSats`, `maxFeeRateSatPerVbyte`, `floorPriceSatsPerCat`, `allowedCounterparties`, `enabled`; NMH single-tenant (one binary, one `allowed_origins` = our extension id); manual confirm is cat21-themed (cat SVG via mooncat-parser, rarity badge, truncated counterparty + copy, plain headline).
-- Endpoints (prefer our infra): mempool + broadcast `https://api.ordpool.space`; indexer `https://ord.cat21.space`; Slipstream fallback `https://slipstream.mara.com`. Market data + fee estimates migrate off `api.leather.io` / `api.hiro.so` to `api.ordpool.space`. Any new outbound endpoint is a HARD-RULE question.
+- Endpoints: cat indexer `https://ord.cat21.space`; funding-coin content scan `https://ord.ordpool.space`; mempool + broadcast Leather's `https://leather.mempool.space`; UTXOs, history, market data and fees `https://api.leather.io`; Slipstream fallback `https://slipstream.mara.com`. Our own infra is preferred, so moving the Leather-hosted parts to `api.ordpool.space` is the direction. Any new outbound endpoint is a HARD-RULE question; every endpoint is listed in `PRIVACY-POLICY.md`.
 
 ### Layout
 ```
 apps/extension/src/background/cat21/
-  invariants/{mint,transfer,create-offer,accept-offer}-invariants.ts  ← pure, 100% covered
-  cat21-rpc.service.ts        ← orchestrates the pipeline
+  cat21-rpc.service.ts        ← orchestrates the pipeline (intent invariants: the SDK gate `validateCat21Operation`)
+  builders/                   ← accept-offer validator, listing builder
   mode-resolver.ts            ← the security boundary
   agent-policy-deps.ts        ← Redux slice → SDK caps gate
   popup-bridge.ts / nmh-popup-relay.ts / cat21-result-bus.ts
   nmh-read-only-probes.ts / attach-native-host-to-popup-relay.ts
-apps/extension/src/background/messaging/rpc-methods/cat21-*.ts        ← thin: parse → rpc.service
+  cat21-dispatcher.ts / wire-cat21-dispatcher.ts   ← background entry for the typed cat21_* requests
 apps/extension/src/app/pages/cat21-confirm/
   cat21-confirm-route.tsx     ← container; intent from URL (Path 3) or location.state (Path 2)
   use-cat21-rpc-deps.ts       ← wires all Cat21RpcDeps to keychain + cat21-ord + mempool
@@ -188,16 +188,21 @@ Verify before commit: `pnpm format`, `pnpm lint`, `pnpm typecheck`, `pnpm knip`,
 ## Network surfaces
 Prefer our infra; Leather public endpoints will not tolerate us long-term. `host_permissions` narrowed by `generate-manifest.js`. The mempool.space carve-out (API free-riding stays, user-facing links go to ordpool.space) lives in HQ `CLAUDE.md`.
 
-| Host | Why | Configurable |
-|---|---|---|
-| `https://ord.cat21.space` | cat21-ord; sole cat authority | yes |
-| `https://api.ordpool.space` | mempool API, broadcast, market data, fees, inscription preview | yes |
-| `https://slipstream.mara.com` | oversize direct-to-miner | yes |
-| `ord.io`, `ordinals.com`, `ordinals.hiro.so` | cat content bytes + preview (external by design) | no |
-| `mempool.space`, `blockstream.info` | legacy fallback during migration off Leather endpoints | no |
-| `api.leather.io`, `api.hiro.so` | market data + fees; migration target `api.ordpool.space` | no |
+No endpoint is configurable in the wallet; each is a constant.
 
-Anything missed surfaces as a blocked fetch in DevTools.
+| Host | Why |
+|---|---|
+| `https://ord.cat21.space` | cat21-ord; sole cat authority |
+| `https://ord.ordpool.space` | full ord: funding-coin content scan (inscriptions, runes, rare sats), rune etching links |
+| `https://backend2.cat21.space` | CAT-21 Bazaar: listings and bids |
+| `https://leather.mempool.space` | mempool API and broadcast (mainnet, testnet3/4); `mempool.space` for signet |
+| `https://api.leather.io` | UTXOs and history per account descriptor (mainnet, testnet), market data, fees |
+| `https://slipstream.mara.com` | oversize CAT-21 transactions, direct-to-miner |
+| `raw.githubusercontent.com/leather-io/extension` | Leather's remote wallet config (production builds) |
+| `api.hiro.so` | inherited Leather features (Stacks, swaps, sBTC) |
+| `ord.io`, `ordinals.com`, `ordinals.hiro.so` | in `host_permissions`; no current code path fetches from them |
+
+`host_permissions` does not cap the network: the production CSP is `connect-src *`, so a host missing from the list is still reachable wherever its CORS allows (raw.githubusercontent.com is one). Check the code, not the manifest, before claiming a host is not contacted.
 
 ## Reviving / hiding an upstream file
 - Revive: `git checkout a6460b4d -- <file>`, re-add HACK markers (why hid + why un-hid), `pnpm --filter @leather.io/<pkg> build`, typecheck the consumer.

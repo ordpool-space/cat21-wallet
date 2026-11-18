@@ -58,7 +58,7 @@ See `CLAUDE.md` for the upstream Leather developer guide; the workflow conventio
 | Cat-bearing UTXO protection | `packages/services/src/utxos/utxos.service.ts` | Per-output cat21-ord probe routes cat-holding UTXOs into the `protected` bucket so the BTC send flow cannot pick them |
 | nLockTime preservation through RBF | `apps/extension/src/app/features/dialogs/transaction-action-dialog/hooks/use-btc-increase-fee.ts` | When the user replaces a tx via increase-fee, the original locktime is copied verbatim; hard assert refuses to sign if it diverges |
 | Polite window providers | `packages/provider/src/index.ts` + `add-leather-to-providers.ts` | `window.Cat21Provider` always; `window.LeatherProvider` only when real Leather is not installed |
-| MCP host (NMH bridge) | `tools/src/mcp-host/` | Read-only tool surface (list_cats, wallet_status, cat21_ord_status) over Chrome NMH |
+| MCP host (NMH bridge) | `tools/src/mcp-host/` | Over Chrome NMH: the read-only probes (list_cats, wallet_status, cat21_ord_status) and the five mutating actions (cat21_mint, cat21_transfer, cat21_create_offer, cat21_accept_offer, cat21_buy), each waiting for approval in the wallet unless agent mode signs it within the policy |
 
 PSBT construction, broadcast orchestration, offer validation, and the
 agent-mode policy gate live in

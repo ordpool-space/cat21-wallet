@@ -28,8 +28,10 @@ export interface UtxoTotals {
   inbound: OwnedUtxo[];
   outbound: OwnedUtxo[];
   /* HACK -- Cat21: `protected` bucket re-added per ADR-12. Holds cat-bearing
-   * UTXOs that must not be spent by the BTC send flow. Currently always empty
-   * — cat21-ord-driven UTXO classification is a coin-control phase task. */
+   * UTXOs that must not be spent by the BTC send flow. On mainnet
+   * `getDescriptorUtxos` probes every UTXO on cat21-ord (a failed probe
+   * counts as a cat) and `getUtxoTotals` routes the cat-bearing ones here
+   * and out of `available`; on other networks the bucket is empty. */
   protected: OwnedUtxo[];
   dust: OwnedUtxo[];
   unspendable: OwnedUtxo[];
