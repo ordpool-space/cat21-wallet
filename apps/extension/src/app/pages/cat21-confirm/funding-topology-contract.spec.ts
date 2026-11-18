@@ -85,7 +85,14 @@ const INSCRIPTION_ID = `${'ab'.repeat(32)}i0`;
  */
 const NAMED: UtxoClassification = {
   verdict: 'has-assets',
-  assets: { inscriptionIds: [INSCRIPTION_ID], runeNames: [], catIds: [], rareSat: null },
+  assets: {
+    inscriptionIds: [INSCRIPTION_ID],
+    runeNames: [],
+    catIds: [],
+    cats: [],
+    catSat: null,
+    rareSat: null,
+  },
 };
 
 /** One covering coin that carries NAMED assets: the pool where topology decides. */
@@ -150,6 +157,8 @@ describe('funding-topology contract (wallet <-> SDK simulate*)', () => {
       inscriptionIds: [],
       runeNames: [],
       catIds: [],
+      cats: [],
+      catSat: null,
       rareSat: null,
     };
     const { ports } = dirtyOnly({ verdict: 'has-assets', assets: nothingNamed });

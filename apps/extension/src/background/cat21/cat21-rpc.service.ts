@@ -27,6 +27,7 @@ import {
   // (cat21_buy), distinct from this service's own createOffer (the SELL
   // listing, cat21_create_offer).
   createOffer as createBuyOffer,
+  createOfferCounterparties,
   executeMint,
   executeTransfer,
   isAssetSpendNotPermittedError,
@@ -51,6 +52,7 @@ import type {
   Cat21CreateOfferIntent,
   Cat21Intent,
   Cat21MintIntent,
+  Cat21ResolvedActionFacts,
   Cat21RpcDenyReason,
   Cat21RpcResult,
   Cat21TransferIntent,
@@ -142,14 +144,14 @@ export interface Cat21RpcDeps {
   getAccountContext(): Cat21AccountContext;
   agentMode: AgentModeFlag;
   /**
-   * The per-account cap gate. `spendSatsOverride` supplies a
-   * resolution-derived spend the intent doesn't carry (today only
-   * `cat21_transfer`, which passes the resolved cat UTXO value) so the
-   * amount caps bind the real outflow, not a placeholder.
+   * The per-account cap gate. `resolved` carries what the service resolved
+   * and the intent does not (`Cat21ResolvedActionFacts`): transfer's real
+   * spend (the resolved cat UTXO value), and the counterparties of
+   * accept-offer and buy as the SDK names them.
    */
   evaluateAgentPolicy(
     intent: Cat21Intent,
-    spendSatsOverride?: number
+    resolved?: Cat21ResolvedActionFacts
   ): { allowed: true } | { allowed: false; reason: string; detail?: string };
   /**
    * The account's spendable funding UTXOs (the `available` bucket, not
@@ -478,7 +480,9 @@ export class Cat21RpcService {
       return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
-    const opened = this.openPipeline({ kind: 'transfer', intent }, transport, catUtxo.value);
+    const opened = this.openPipeline({ kind: 'transfer', intent }, transport, {
+      spendSats: catUtxo.value,
+    });
     if ('result' in opened) return opened.result;
     const { mode, accountCtx } = opened;
 
@@ -606,10 +610,12 @@ export class Cat21RpcService {
     intent: Cat21AcceptOfferIntent,
     transport: Cat21Transport
   ): Promise<Cat21RpcResult> {
-    const opened = this.openPipeline({ kind: 'accept_offer', intent }, transport);
-    if ('result' in opened) return opened.result;
-    const { mode, accountCtx, resources } = opened;
-    const psbtBytes = resources.offerPsbtBytes;
+    // Gate, then validate the offer, then the policy: the allowlist checks the
+    // buyers, and only the validated PSBT names them (`buyerAddresses`).
+    const gated = this.gatePipeline({ kind: 'accept_offer', intent });
+    if ('result' in gated) return gated.result;
+    const { accountCtx } = gated;
+    const psbtBytes = gated.resources.offerPsbtBytes;
 
     // Re-confirm wallet ownership of the cat. Catches three attacks
     // the SDK validator (input 0 == expectedSellerUtxo) cannot:
@@ -649,6 +655,12 @@ export class Cat21RpcService {
       return denied('inbound-offer-mismatch', `${validation.reason}: ${validation.detail ?? ''}`);
     }
 
+    const opened = this.resolvePipelineMode(gated, intent, transport, {
+      counterpartyAddresses: validation.buyerAddresses,
+    });
+    if ('result' in opened) return opened.result;
+    const { mode } = opened;
+
     // Accepting a buy-offer is a RECEIVE: the seller gives up the cat and the
     // buyer's inputs pay the fee, so the seller's BTC outflow is zero. It does
     // not consume the daily SPEND cap (`spentToday` tracks outflow; the check
@@ -673,9 +685,10 @@ export class Cat21RpcService {
    * as a bid. It does NOT broadcast; the seller accepts + broadcasts.
    *
    *   1. validateCat21Operation({ kind: 'buy', intent })
-   *   2. resolveSigningMode(...)
-   *   3. resolveCatUtxo(catId) — the seller's cat UTXO on-chain (value
+   *   2. resolveCatUtxo(catId) — the seller's cat UTXO on-chain (value
    *      PRESERVED from cat21-ord + scriptPubKey)
+   *   3. resolveSigningMode(...), the policy gate checking the seller's
+   *      payment address and the cat's address (createOfferCounterparties)
    *   4. createBuyOffer(...) via the SDK core — content-checked buyer
    *      funding selection, two-pass fee, buy-offer PSBT, and buyer-input
    *      signing (SIGHASH_ALL on inputs 1..N; input 0 stays for the
@@ -694,11 +707,33 @@ export class Cat21RpcService {
      */
     selectedFundingUtxo?: FundingPinCoin | null
   ): Promise<Cat21RpcResult> {
-    const opened = this.openPipeline({ kind: 'buy', intent }, transport);
+    const gated = this.gatePipeline({ kind: 'buy', intent });
+    if ('result' in gated) return gated.result;
+
+    // The seller's cat UTXO, resolved on-chain by cat21-ord (current
+    // location + the seller's scriptPubKey — this is NOT our own cat).
+    // That resolver is authoritative for where the cat lives right now,
+    // so there's no separate "expected outpoint" to cross-check against
+    // (unlike acceptOffer, where the seller declares expectedSellerUtxo).
+    // Resolved before the policy gate, which checks the address the cat
+    // sits at as a counterparty. The gate's `resources` (parsed catId →
+    // mint txid) is unused: a moved cat's current UTXO differs from its
+    // inscription-id txid.
+    let sellerCatUtxo: TransferUtxo;
+    try {
+      sellerCatUtxo = this.deps.resolveCatUtxo(intent.catId);
+    } catch (err) {
+      return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
+    }
+
+    const opened = this.resolvePipelineMode(gated, intent, transport, {
+      counterpartyAddresses: createOfferCounterparties({
+        sellerPaymentAddress: intent.sellerPaymentAddress,
+        targetCatScriptPubKey: sellerCatUtxo.scriptPubKey,
+        network: walletNetworkToSdkNetwork(gated.accountCtx.network),
+      }),
+    });
     if ('result' in opened) return opened.result;
-    // `resources` (parsed catId → mint txid) is unused: a moved cat's
-    // current UTXO differs from its inscription-id txid, so the seller
-    // input comes from the on-chain resolver, not the parsed catId.
     const { mode, accountCtx } = opened;
 
     const paymentPublicKey = accountCtx.paymentPublicKey;
@@ -714,18 +749,6 @@ export class Cat21RpcService {
         'intent-invariant-violated',
         'no-ordinals-address: active account has no taproot receive address for the cat'
       );
-    }
-
-    // The seller's cat UTXO, resolved on-chain by cat21-ord (current
-    // location + the seller's scriptPubKey — this is NOT our own cat).
-    // That resolver is authoritative for where the cat lives right now,
-    // so there's no separate "expected outpoint" to cross-check against
-    // (unlike acceptOffer, where the seller declares expectedSellerUtxo).
-    let sellerCatUtxo: TransferUtxo;
-    try {
-      sellerCatUtxo = this.deps.resolveCatUtxo(intent.catId);
-    } catch (err) {
-      return denied('intent-invariant-violated', `cat-utxo-resolve-failed: ${errorDetail(err)}`);
     }
 
     // The SDK core builds + buyer-signs the offer: content-checked buyer
@@ -799,19 +822,16 @@ export class Cat21RpcService {
   }
 
   /**
-   * Pipeline preamble: run the SDK gate, then resolve the signing
-   * mode (which also enforces the per-account caps, both modes).
-   * Returns either the early-return result (rejection) or the resolved
-   * `{ mode, accountCtx, resources }` for the per-method body to consume.
-   * The `resources` field is narrowed to the kind passed in so consumers
-   * don't cast. `spendSatsOverride` is forwarded to the cap gate for kinds
-   * whose spend isn't intent-derived (transfer passes the resolved cat
-   * UTXO value so the amount caps see the real outflow).
+   * Pipeline preamble: the SDK gate, then the signing mode (which also
+   * enforces the per-account caps, both modes). Returns either the
+   * early-return result (rejection) or the resolved `{ mode, accountCtx,
+   * resources }`, `resources` narrowed to the kind passed in. `resolved`
+   * goes to the cap gate (`Cat21ResolvedActionFacts`).
    */
   private openPipeline<K extends Cat21OperationKind>(
     operation: Cat21OperationOfKind<K>,
     transport: Cat21Transport,
-    spendSatsOverride?: number
+    resolved?: Cat21ResolvedActionFacts
   ):
     | { result: Cat21RpcResult }
     | {
@@ -819,17 +839,38 @@ export class Cat21RpcService {
         accountCtx: Cat21AccountContext;
         resources: Cat21GateResourcesOfKind<K>;
       } {
-    const accountCtx = this.deps.getAccountContext();
+    const gated = this.gatePipeline(operation);
+    if ('result' in gated) return gated;
+    return this.resolvePipelineMode(gated, operation.intent, transport, resolved);
+  }
 
+  /** The SDK gate alone, for a kind that resolves facts before the policy. */
+  private gatePipeline<K extends Cat21OperationKind>(
+    operation: Cat21OperationOfKind<K>
+  ):
+    | { result: Cat21RpcResult }
+    | { accountCtx: Cat21AccountContext; resources: Cat21GateResourcesOfKind<K> } {
+    const accountCtx = this.deps.getAccountContext();
     const gateResult = runGate(operation, gateConfig(accountCtx));
     if ('result' in gateResult) return gateResult;
+    return { accountCtx, resources: gateResult.resources };
+  }
 
+  /** The signing mode after the gate, with the caps evaluated on `resolved`. */
+  private resolvePipelineMode<R>(
+    gated: { accountCtx: Cat21AccountContext; resources: R },
+    intent: Cat21Intent,
+    transport: Cat21Transport,
+    resolved?: Cat21ResolvedActionFacts
+  ):
+    | { result: Cat21RpcResult }
+    | { mode: 'autonomous' | 'manual'; accountCtx: Cat21AccountContext; resources: R } {
     let mode: 'autonomous' | 'manual';
     try {
       mode = resolveSigningMode({
-        intent: operation.intent,
+        intent,
         transport,
-        spendSatsOverride,
+        resolved,
         agentMode: this.deps.agentMode,
         evaluateAgentPolicy: this.deps.evaluateAgentPolicy,
       });
@@ -839,8 +880,7 @@ export class Cat21RpcService {
       }
       return { result: denied('intent-invariant-violated', errorDetail(err)) };
     }
-
-    return { mode, accountCtx, resources: gateResult.resources };
+    return { mode, accountCtx: gated.accountCtx, resources: gated.resources };
   }
 
   /**

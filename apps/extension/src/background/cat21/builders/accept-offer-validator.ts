@@ -1,36 +1,14 @@
-import type { Cat21OfferRejectionReason } from 'ordpool-sdk/core';
+import type { Cat21OfferValidation as SdkCat21OfferValidation } from 'ordpool-sdk/core';
 
 import type { Cat21AcceptOfferIntent } from '../types';
 
 /**
- * Re-export the SDK's `Cat21OfferRejectionReason` under the wallet's
- * old name. Previously the wallet kept a hand-maintained mirror of the
- * SDK's union — that drifted whenever the SDK added a new closed-set
- * reason (e.g. `wrong-seller-input-value`, `sighash-flag-byte-not-all`,
- * `cat-output-not-spendable` landed in the SDK's audit-hardening pass
- * and broke our typecheck). Importing the type via `ordpool-sdk/core`
- * (the Angular-free entry the wallet already consumes) keeps the
- * union in lockstep with the SDK without bundling any extra code.
+ * The SDK's offer-validation result, used as-is so the union stays in
+ * lockstep with the SDK (rejection reasons, and on success `pricePaidSats`,
+ * `postageSats` and `buyerAddresses`, the parties the policy allowlist
+ * checks). Imported as a type from `ordpool-sdk/core`, so nothing is bundled.
  */
-type Cat21OfferValidationReason = Cat21OfferRejectionReason;
-
-/** Successful validation: caller proceeds to sign + broadcast. */
-// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
-interface ValidationSuccess {
-  ok: true;
-  pricePaidSats: number;
-  postageSats: number;
-}
-
-/** Validation failure: caller surfaces as `inbound-offer-mismatch` RPC denial. */
-// HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
-interface ValidationFailure {
-  ok: false;
-  reason: Cat21OfferValidationReason;
-  detail?: string;
-}
-
-export type Cat21OfferValidation = ValidationSuccess | ValidationFailure;
+export type Cat21OfferValidation = SdkCat21OfferValidation;
 
 /**
  * Arguments handed to the SDK validator. The dispatcher (background page)

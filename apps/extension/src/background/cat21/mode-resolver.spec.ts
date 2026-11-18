@@ -72,7 +72,7 @@ describe('resolveSigningMode', () => {
       });
       expect(mode).toBe('manual');
       expect(spy).toHaveBeenCalledTimes(1);
-      // (intent, spendSatsOverride) — override is undefined for a mint.
+      // (intent, resolved): nothing is resolved for a mint.
       expect(spy).toHaveBeenCalledWith(expect.objectContaining({ feeRate: 5 }), undefined);
     });
   });

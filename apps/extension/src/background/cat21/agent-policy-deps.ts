@@ -21,6 +21,7 @@ import type {
   Cat21CreateOfferIntent,
   Cat21Intent,
   Cat21MintIntent,
+  Cat21ResolvedActionFacts,
   Cat21TransferIntent,
 } from './types';
 
@@ -89,7 +90,7 @@ interface AgentPolicyDeps {
   agentMode: { enabled: boolean };
   evaluateAgentPolicy(
     intent: Cat21Intent,
-    spendSatsOverride?: number
+    resolved?: Cat21ResolvedActionFacts
   ): { allowed: true } | { allowed: false; reason: string; detail?: string };
   recordSpend(sats: number): void;
 }
@@ -125,10 +126,19 @@ function detectIntentKind(intent: Cat21Intent): AgentActionKind {
  *   - mint: the recipient (postage and the fresh cat) plus the tip address
  *     when the tip pays anything.
  *   - transfer: the recipient.
- *   - buy: the seller being paid.
- *   - create-offer / accept-offer: none known here (the buyer is whoever
- *     takes the public offer; the accept buyer lives in the PSBT), so an
- *     allowlist denies them, fail closed.
+ *   - create-offer (a public listing): its payment address, where every
+ *     buyer's payment lands. The buyer is unknown until accept, which checks
+ *     it.
+ *   - buy: the seller's payment address from the intent, plus what the
+ *     service resolved (`resolved.counterpartyAddresses`, the SDK's
+ *     `createOfferCounterparties`: the seller's payment address and the
+ *     address the cat sits at).
+ *   - accept-offer: only what the service resolved, the validated offer
+ *     PSBT's `buyerAddresses`. Without it the list is empty and an allowlist
+ *     denies, fail closed.
+ * Resolved addresses are added to the intent's, never substituted, so a
+ * resolved list can only widen what the allowlist checks. Every kind accepts
+ * them; the service resolves them for buy and accept-offer.
  *
  * Spend amounts:
  *
@@ -139,7 +149,7 @@ function detectIntentKind(intent: Cat21Intent): AgentActionKind {
  *     arbitrary address would otherwise be uncapped).
  *   - transfer: the real outflow is the WHOLE cat UTXO value (it all moves
  *     to the recipient), which the intent does not carry. The caller
- *     resolves it and passes `spendSatsOverride`; this branch REQUIRES it
+ *     resolves it and passes `resolved.spendSats`; this branch REQUIRES it
  *     and fails closed if it's absent, so the spend cap can never be
  *     undercounted by a placeholder (a low count is permissive, not
  *     conservative). The recipient is also gated by the counterparty
@@ -151,17 +161,19 @@ function detectIntentKind(intent: Cat21Intent): AgentActionKind {
  *     separately validated to pay at least that, so the floor binds the
  *     real proceeds. No spend (the seller receives, not pays).
  *
- * `spendSatsOverride`, when provided, REPLACES the derived `spendSats`. It
- * exists for the one kind whose spend is resolution-derived rather than
- * intent-derived (transfer): the caller supplies the resolved cat UTXO
- * value so the amount caps see the real outflow.
+ * `resolved.spendSats` is used only by transfer, the one kind whose spend is
+ * resolution-derived: the caller supplies the resolved cat UTXO value so the
+ * amount caps see the real outflow.
  */
 function cat21IntentToAgentContext(
   intent: Cat21Intent,
   spentTodaySats: number,
   ownAddresses: string[],
-  spendSatsOverride?: number
+  resolved: Cat21ResolvedActionFacts = {}
 ): AgentActionContext {
+  const withResolved = (fromIntent: string[]): string[] => [
+    ...new Set([...fromIntent, ...(resolved.counterpartyAddresses ?? [])]),
+  ];
   const kind = detectIntentKind(intent);
   const base: AgentActionContext = {
     kind,
@@ -179,28 +191,29 @@ function cat21IntentToAgentContext(
         spendSats: CAT21_POSTAGE_SATS + (mintIntent.tip?.value ?? 0),
         feeRateSatPerVbyte: mintIntent.feeRate,
         // A tip of value 0 adds no output, so it pays nobody.
-        counterpartyAddresses:
+        counterpartyAddresses: withResolved(
           mintIntent.tip && mintIntent.tip.value > 0
             ? [mintIntent.recipient, mintIntent.tip.address]
-            : [mintIntent.recipient],
+            : [mintIntent.recipient]
+        ),
       };
     }
     case 'cat21_transfer': {
       const transferIntent = intent as Cat21TransferIntent;
-      if (spendSatsOverride === undefined) {
+      if (resolved.spendSats === undefined) {
         // A transfer's real spend is the whole cat UTXO value, resolved from
         // cat21-ord, not present in the intent. The caller MUST supply it; a
         // missing override would let the spend cap see a placeholder and
         // undercount, so fail closed rather than guess.
         throw new Error(
-          'cat21_transfer requires spendSatsOverride (the resolved cat UTXO value) for the cap gate'
+          'cat21_transfer requires resolved.spendSats (the resolved cat UTXO value) for the cap gate'
         );
       }
       return {
         ...base,
-        spendSats: spendSatsOverride,
+        spendSats: resolved.spendSats,
         feeRateSatPerVbyte: transferIntent.feeRate,
-        counterpartyAddresses: [transferIntent.recipient],
+        counterpartyAddresses: withResolved([transferIntent.recipient]),
       };
     }
     case 'cat21_create_offer': {
@@ -208,19 +221,21 @@ function cat21IntentToAgentContext(
       return {
         ...base,
         receivePriceSats: offerIntent.priceSats,
+        counterpartyAddresses: withResolved([offerIntent.paymentAddress]),
       };
     }
     case 'cat21_accept_offer': {
       // The seller RECEIVES BTC (no spend). The floor gate checks the
       // seller's declared expectedPriceSats; the inbound PSBT is separately
       // validated (validateBuyOfferPsbt) to pay at least that, so the floor
-      // binds the real proceeds. The buyer's address lives in the PSBT and
-      // isn't known here, so no counterparty is listed (an allowlist therefore
-      // fails closed for accept, by design).
+      // binds the real proceeds. The buyers are named by the validated PSBT
+      // (`resolved.counterpartyAddresses`); without them the list is empty and
+      // an allowlist denies.
       const acceptIntent = intent as Cat21AcceptOfferIntent;
       return {
         ...base,
         receivePriceSats: acceptIntent.expectedPriceSats,
+        counterpartyAddresses: withResolved([]),
       };
     }
     case 'cat21_buy': {
@@ -228,13 +243,13 @@ function cat21IntentToAgentContext(
       // dominant, known term — use it as spendSats so the per-action +
       // daily caps gate on the real outflow (the exact fee is added
       // post-simulation and tracked via recordSpend). The counterparty
-      // is the seller we pay.
+      // is the seller we pay, plus what the service resolved for it.
       const buyIntent = intent as Cat21BuyIntent;
       return {
         ...base,
         spendSats: buyIntent.bidSats,
         feeRateSatPerVbyte: buyIntent.feeRate,
-        counterpartyAddresses: [buyIntent.sellerPaymentAddress],
+        counterpartyAddresses: withResolved([buyIntent.sellerPaymentAddress]),
       };
     }
     default: {
@@ -273,7 +288,7 @@ export function makeAgentPolicyDeps(args: AgentPolicyDepsArgs): AgentPolicyDeps 
     },
     evaluateAgentPolicy(
       intent: Cat21Intent,
-      spendSatsOverride?: number
+      resolved?: Cat21ResolvedActionFacts
     ): { allowed: true } | { allowed: false; reason: string; detail?: string } {
       const state = getState();
       const policy: AgentPolicy | undefined = selectAgentPolicyForAccount(state, accountId);
@@ -287,12 +302,7 @@ export function makeAgentPolicyDeps(args: AgentPolicyDepsArgs): AgentPolicyDeps 
       const dayKey = dayKeyFn();
       const spentToday = selectSpentTodayForAccount(state, accountId, dayKey);
       const ownAddresses = getOwnAddresses().filter(address => address.length > 0);
-      const context = cat21IntentToAgentContext(
-        intent,
-        spentToday,
-        ownAddresses,
-        spendSatsOverride
-      );
+      const context = cat21IntentToAgentContext(intent, spentToday, ownAddresses, resolved);
       // Caps ONLY (no `enabled` gate): a configured cap binds BOTH manual and
       // autonomous flows, with no override. `enabled` decides silent-sign in
       // the mode resolver, never whether the caps apply — so an account that

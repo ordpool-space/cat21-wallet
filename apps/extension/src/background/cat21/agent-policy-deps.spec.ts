@@ -255,12 +255,12 @@ describe('makeAgentPolicyDeps', () => {
       // The transfer's real spend is the whole cat UTXO value (1_000_000),
       // supplied as the override, not a 546 placeholder. 1_000_000 > cap
       // 100_000 → denied on the per-action cap.
-      expect(deps.evaluateAgentPolicy(transfer, 1_000_000)).toMatchObject({
+      expect(deps.evaluateAgentPolicy(transfer, { spendSats: 1_000_000 })).toMatchObject({
         allowed: false,
         reason: 'spend-above-action-cap',
       });
       // A cat under the cap passes.
-      expect(deps.evaluateAgentPolicy(transfer, 546)).toEqual({ allowed: true });
+      expect(deps.evaluateAgentPolicy(transfer, { spendSats: 546 })).toEqual({ allowed: true });
     });
 
     it('fails closed on a transfer with no spendSatsOverride (never undercounts)', () => {
@@ -283,7 +283,7 @@ describe('makeAgentPolicyDeps', () => {
         recipient: 'bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
         feeRate: 5,
       };
-      expect(() => deps.evaluateAgentPolicy(transfer)).toThrow(/spendSatsOverride/);
+      expect(() => deps.evaluateAgentPolicy(transfer)).toThrow(/resolved\.spendSats/);
     });
 
     it('checks accept_offer floor against intent.expectedPriceSats (not a 0 stub)', () => {
@@ -382,8 +382,10 @@ describe('makeAgentPolicyDeps', () => {
     it('allows a transfer to the own payment address and denies one to a foreign address', () => {
       const transfer: Cat21TransferIntent = { catId: 'cat-1', recipient: OWN_PAYMENT, feeRate: 5 };
       const deps = depsWithAllowlist();
-      expect(deps.evaluateAgentPolicy(transfer, 546)).toEqual({ allowed: true });
-      expect(deps.evaluateAgentPolicy({ ...transfer, recipient: FOREIGN }, 546)).toEqual({
+      expect(deps.evaluateAgentPolicy(transfer, { spendSats: 546 })).toEqual({ allowed: true });
+      expect(
+        deps.evaluateAgentPolicy({ ...transfer, recipient: FOREIGN }, { spendSats: 546 })
+      ).toEqual({
         allowed: false,
         reason: 'counterparty-not-allowed',
         detail: FOREIGN,
@@ -469,13 +471,67 @@ describe('makeAgentPolicyDeps', () => {
       });
     });
 
-    it('denies a create-offer under an allowlist: its buyer is unknown, fail closed', () => {
+    it('allows a listing whose proceeds land at the own payment address', () => {
+      const listing = createOfferIntent({ priceSats: 100_000, paymentAddress: OWN_PAYMENT });
+      expect(depsWithAllowlist().evaluateAgentPolicy(listing)).toEqual({ allowed: true });
+    });
+
+    it('denies a listing whose proceeds go to a foreign address, naming it', () => {
+      const listing = createOfferIntent({ priceSats: 100_000, paymentAddress: FOREIGN });
+      expect(depsWithAllowlist().evaluateAgentPolicy(listing)).toEqual({
+        allowed: false,
+        reason: 'counterparty-not-allowed',
+        detail: FOREIGN,
+      });
+    });
+
+    it('checks an accept-offer against the buyers the validated PSBT names', () => {
+      const accept: Cat21AcceptOfferIntent = {
+        offerPsbt: 'cHNidP8=',
+        expectedCatId: 'cat-1',
+        expectedPriceSats: 100_000,
+        expectedSellerUtxo: { txid: 'ab', vout: 0 },
+      };
+      const deps = depsWithAllowlist();
+      expect(deps.evaluateAgentPolicy(accept, { counterpartyAddresses: [LISTED] })).toEqual({
+        allowed: true,
+      });
+      // A buyer change output to an unlisted address is a second buyer address.
       expect(
-        depsWithAllowlist().evaluateAgentPolicy(createOfferIntent({ priceSats: 100_000 }))
+        deps.evaluateAgentPolicy(accept, { counterpartyAddresses: [LISTED, FOREIGN] })
       ).toEqual({
         allowed: false,
         reason: 'counterparty-not-allowed',
-        detail: '(missing counterparty address)',
+        detail: FOREIGN,
+      });
+    });
+
+    it('checks a buy against the resolved cat address as well as the seller', () => {
+      const buy: Cat21BuyIntent = {
+        catId: 'cat-1',
+        catNumber: 7,
+        bidSats: 5_000,
+        sellerPaymentAddress: LISTED,
+        feeRate: 5,
+      };
+      expect(
+        depsWithAllowlist().evaluateAgentPolicy(buy, { counterpartyAddresses: [LISTED, FOREIGN] })
+      ).toEqual({ allowed: false, reason: 'counterparty-not-allowed', detail: FOREIGN });
+    });
+
+    it('a resolved list adds to the intent, never replaces it', () => {
+      // Resolved [] for a buy must not drop the intent's seller from the check.
+      const buy: Cat21BuyIntent = {
+        catId: 'cat-1',
+        catNumber: 7,
+        bidSats: 5_000,
+        sellerPaymentAddress: FOREIGN,
+        feeRate: 5,
+      };
+      expect(depsWithAllowlist().evaluateAgentPolicy(buy, { counterpartyAddresses: [] })).toEqual({
+        allowed: false,
+        reason: 'counterparty-not-allowed',
+        detail: FOREIGN,
       });
     });
   });

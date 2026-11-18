@@ -35,6 +35,9 @@ const accountKey = hex.decode('0300000000000000000000000000000000000000000000000
 const p2wpkhAccount = btc.p2wpkh(accountKey, btc.NETWORK);
 const ACCOUNT_PAYMENT_ADDR = p2wpkhAccount.address!;
 
+// The buyer the SDK validator names on a valid offer (`buyerAddresses`).
+const OFFER_BUYER = 'offer-buyer-address';
+
 // Taproot ordinals (receive) address for the buy flow — where a bought
 // cat lands. x-only key derived from the dummy keypair's 33-byte pubkey.
 const p2trOrdinals = btc.p2tr(dummyPublicKey.slice(1), undefined, btc.NETWORK);
@@ -129,6 +132,8 @@ const NAMED_ASSETS: UtxoClassification = {
     inscriptionIds: [`${'ab'.repeat(32)}i0`],
     runeNames: [],
     catIds: [],
+    cats: [],
+    catSat: null,
     rareSat: null,
   },
 };
@@ -141,6 +146,8 @@ const NAMED_DETAIL = {
   inscriptionIds: [`${'ab'.repeat(32)}i0`],
   runeNames: [],
   catIds: [],
+  cats: [],
+  catSat: null,
   rareSat: null,
 };
 
@@ -187,7 +194,12 @@ function makeDeps(overrides: Partial<Cat21RpcDeps> = {}): SpyDeps {
     resolveCatUtxo: vi.fn(() => defaultCatUtxo()),
     confirmListingPublication: vi.fn(() => Promise.resolve()),
     validateBuyOfferPsbt: vi.fn(
-      (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 100_000, postageSats: 546 })
+      (): Cat21OfferValidation => ({
+        ok: true,
+        pricePaidSats: 100_000,
+        postageSats: 546,
+        buyerAddresses: [OFFER_BUYER],
+      })
     ),
     signWithConfirmation: vi.fn(() => Promise.resolve(signedTx)),
     signSilently: vi.fn(() => Promise.resolve(signedTx)),
@@ -788,12 +800,12 @@ describe('Cat21RpcService.transfer', () => {
       // passes its value as the spend override; the gate sees 1_000_000, not
       // 546. Manual mode (popup), proving the cap binds the manual path too.
       const bigCat = { ...defaultCatUtxo(), value: 1_000_000 };
-      const evaluateAgentPolicy = vi.fn((_intent: unknown, spendSatsOverride?: number) =>
-        spendSatsOverride !== undefined && spendSatsOverride > 100_000
+      const evaluateAgentPolicy = vi.fn((_intent: unknown, resolved?: { spendSats?: number }) =>
+        resolved?.spendSats !== undefined && resolved.spendSats > 100_000
           ? {
               allowed: false as const,
               reason: 'spend-above-action-cap',
-              detail: `${spendSatsOverride} > 100000`,
+              detail: `${resolved.spendSats} > 100000`,
             }
           : { allowed: true as const }
       );
@@ -803,7 +815,7 @@ describe('Cat21RpcService.transfer', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.value.reason).toBe('policy-denied');
       // The gate was called with the resolved cat value, not a placeholder.
-      expect(evaluateAgentPolicy).toHaveBeenCalledWith(expect.anything(), 1_000_000);
+      expect(evaluateAgentPolicy).toHaveBeenCalledWith(expect.anything(), { spendSats: 1_000_000 });
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
   });
@@ -1296,6 +1308,45 @@ describe('Cat21RpcService.acceptOffer', () => {
     service = new Cat21RpcService(deps);
   });
 
+  describe('policy counterparties', () => {
+    it('hands the buyers the validated offer names to the policy gate', async () => {
+      // The allowlist checks who receives the outputs that are not the
+      // seller's payment; only the SDK validator names them.
+      deps = makeDeps({
+        validateBuyOfferPsbt: vi.fn(
+          (): Cat21OfferValidation => ({
+            ok: true,
+            pricePaidSats: 100_000,
+            postageSats: 546,
+            buyerAddresses: ['buyer-landing-address', 'buyer-change-address'],
+          })
+        ),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result.ok).toBe(true);
+      expect(deps.evaluateAgentPolicy).toHaveBeenCalledWith(
+        expect.objectContaining({ expectedPriceSats: 100_000 }),
+        { counterpartyAddresses: ['buyer-landing-address', 'buyer-change-address'] }
+      );
+    });
+
+    it('denies with the gate reason when a named buyer is not allowed, and signs nothing', async () => {
+      deps = makeDeps({
+        evaluateAgentPolicy: vi.fn(() => ({
+          allowed: false as const,
+          reason: 'counterparty-not-allowed',
+          detail: OFFER_BUYER,
+        })),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
+      expect(result).toMatchObject({ ok: false, value: { reason: 'policy-denied' } });
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+      expect(deps.signSilently).not.toHaveBeenCalled();
+    });
+  });
+
   describe('happy paths', () => {
     it('accepts an offer in manual mode through popup-confirm signer', async () => {
       const result = await service.acceptOffer(makeAcceptOfferIntent(), 'popup');
@@ -1443,7 +1494,12 @@ describe('Cat21RpcService.acceptOffer', () => {
     it('returns "inbound-offer-mismatch" with reason=wrong-price when buyer underpays', async () => {
       deps = makeDeps({
         validateBuyOfferPsbt: vi.fn(
-          (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 90_000, postageSats: 546 })
+          (): Cat21OfferValidation => ({
+            ok: true,
+            pricePaidSats: 90_000,
+            postageSats: 546,
+            buyerAddresses: [OFFER_BUYER],
+          })
         ),
       });
       service = new Cat21RpcService(deps);
@@ -1488,7 +1544,12 @@ describe('Cat21RpcService.acceptOffer', () => {
         'the buyer underpays',
         (): Partial<Cat21RpcDeps> => ({
           validateBuyOfferPsbt: vi.fn(
-            (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 90_000, postageSats: 546 })
+            (): Cat21OfferValidation => ({
+              ok: true,
+              pricePaidSats: 90_000,
+              postageSats: 546,
+              buyerAddresses: [OFFER_BUYER],
+            })
           ),
         }),
         'wrong-price',
@@ -1515,7 +1576,12 @@ describe('Cat21RpcService.acceptOffer', () => {
     it('ACCEPTS overpay: pricePaidSats > expectedPriceSats is a tip the seller pockets', async () => {
       deps = makeDeps({
         validateBuyOfferPsbt: vi.fn(
-          (): Cat21OfferValidation => ({ ok: true, pricePaidSats: 110_000, postageSats: 546 })
+          (): Cat21OfferValidation => ({
+            ok: true,
+            pricePaidSats: 110_000,
+            postageSats: 546,
+            buyerAddresses: [OFFER_BUYER],
+          })
         ),
       });
       service = new Cat21RpcService(deps);
@@ -1569,12 +1635,20 @@ describe('Cat21RpcService.acceptOffer', () => {
       expect(deps.evaluateAgentPolicy).not.toHaveBeenCalled();
     });
 
-    it('resolves mode BEFORE resolving the cat UTXO', async () => {
-      await service.acceptOffer(
+    it('denies an autonomous accept over the popup transport, and signs nothing', async () => {
+      // The validated offer names the buyers the policy checks, so accept
+      // validates before resolving the mode; a wrong-transport request is
+      // still refused by the mode resolver before anything is signed.
+      const result = await service.acceptOffer(
         makeAcceptOfferIntent({ mode: 'autonomous' }),
         'popup' // wrong transport
       );
-      expect(deps.resolveCatUtxo).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        ok: false,
+        value: { reason: 'transport-not-trusted-for-autonomous' },
+      });
+      expect(deps.signSilently).not.toHaveBeenCalled();
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
     it('cat-UTXO resolution + SDK validation run BEFORE signing', async () => {
@@ -1598,6 +1672,26 @@ describe('Cat21RpcService.buy', () => {
   beforeEach(() => {
     deps = makeDeps();
     service = new Cat21RpcService(deps);
+  });
+
+  describe('policy counterparties', () => {
+    it('hands the seller payment address and the address the cat sits at to the policy gate', async () => {
+      // A seller's cat at an address of its own, distinct from the seller's
+      // payment address: both are who the buyer trades with.
+      const sellerCatKey = hex.decode(
+        '0400000000000000000000000000000000000000000000000000000000000004'
+      );
+      const sellerCat = btc.p2tr(sellerCatKey, undefined, btc.NETWORK);
+      deps = makeDeps({
+        resolveCatUtxo: vi.fn(() => ({ ...defaultCatUtxo(), scriptPubKey: sellerCat.script })),
+      });
+      service = new Cat21RpcService(deps);
+      await service.buy(makeBuyIntent(), 'popup');
+      expect(deps.evaluateAgentPolicy).toHaveBeenCalledWith(
+        expect.objectContaining({ bidSats: 21_000 }),
+        { counterpartyAddresses: [p2wpkhMainnet.address, sellerCat.address] }
+      );
+    });
   });
 
   describe('happy paths', () => {

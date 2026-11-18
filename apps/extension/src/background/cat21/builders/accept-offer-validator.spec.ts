@@ -14,6 +14,8 @@ type SdkDelegate = (sdkArgs: SdkArgs) => Cat21OfferValidation;
 
 const VALID_TXID = 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210';
 const VALID_CAT_ID = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdefi0';
+// The buyer the SDK validator names on a valid offer (`buyerAddresses`).
+const OFFER_BUYER = 'offer-buyer-address';
 
 function brandIntent(overrides: Partial<Cat21AcceptOfferIntent> = {}): Cat21AcceptOfferIntent {
   return {
@@ -31,6 +33,7 @@ describe('validateAcceptOffer', () => {
       ok: true,
       pricePaidSats: 100_000,
       postageSats: 546,
+      buyerAddresses: [OFFER_BUYER],
     }));
     const psbt = new Uint8Array([0x70, 0x73, 0x62, 0x74, 0xff]);
     validateAcceptOffer(
@@ -56,6 +59,7 @@ describe('validateAcceptOffer', () => {
       ok: true,
       pricePaidSats: 75_000,
       postageSats: 546,
+      buyerAddresses: [OFFER_BUYER],
     }));
     validateAcceptOffer(
       {
@@ -71,7 +75,7 @@ describe('validateAcceptOffer', () => {
 
   it('returns the SDK ok-success verbatim when SDK accepts AND pricePaidSats equals expected', () => {
     function delegate(): Cat21OfferValidation {
-      return { ok: true, pricePaidSats: 100_000, postageSats: 546 };
+      return { ok: true, pricePaidSats: 100_000, postageSats: 546, buyerAddresses: [OFFER_BUYER] };
     }
     const result = validateAcceptOffer(
       {
@@ -82,7 +86,12 @@ describe('validateAcceptOffer', () => {
       },
       delegate
     );
-    expect(result).toEqual({ ok: true, pricePaidSats: 100_000, postageSats: 546 });
+    expect(result).toEqual({
+      ok: true,
+      pricePaidSats: 100_000,
+      postageSats: 546,
+      buyerAddresses: [OFFER_BUYER],
+    });
   });
 
   it('accepts overpay: SDK ok with pricePaidSats > expectedPriceSats is a tip, not a mismatch', () => {
@@ -90,7 +99,7 @@ describe('validateAcceptOffer', () => {
     // every byte, so the seller's signature can't be diverted; a higher
     // priceSats output just sends the seller more BTC.
     function delegate(): Cat21OfferValidation {
-      return { ok: true, pricePaidSats: 110_000, postageSats: 546 };
+      return { ok: true, pricePaidSats: 110_000, postageSats: 546, buyerAddresses: [OFFER_BUYER] };
     }
     const result = validateAcceptOffer(
       {
@@ -101,7 +110,12 @@ describe('validateAcceptOffer', () => {
       },
       delegate
     );
-    expect(result).toEqual({ ok: true, pricePaidSats: 110_000, postageSats: 546 });
+    expect(result).toEqual({
+      ok: true,
+      pricePaidSats: 110_000,
+      postageSats: 546,
+      buyerAddresses: [OFFER_BUYER],
+    });
   });
 
   it('rejects underpay with wrong-price when SDK accepts but pricePaidSats < expected', () => {
@@ -109,7 +123,7 @@ describe('validateAcceptOffer', () => {
     // (the wallet passed expectedPriceSats as floorPriceSats so SDK should
     // also catch this, but defence-in-depth here).
     function delegate(): Cat21OfferValidation {
-      return { ok: true, pricePaidSats: 90_000, postageSats: 546 };
+      return { ok: true, pricePaidSats: 90_000, postageSats: 546, buyerAddresses: [OFFER_BUYER] };
     }
     const result = validateAcceptOffer(
       {
@@ -156,6 +170,7 @@ describe('validateAcceptOffer', () => {
       ok: true,
       pricePaidSats: 100_000,
       postageSats: 546,
+      buyerAddresses: [OFFER_BUYER],
     }));
     validateAcceptOffer(
       {

@@ -33,6 +33,8 @@ const empty: UtxoAssetDetail = {
   inscriptionIds: [],
   runeNames: [],
   catIds: [],
+  cats: [],
+  catSat: null,
   rareSat: null,
 };
 
@@ -144,6 +146,8 @@ describe('describeFundingNotice', () => {
       inscriptionIds: [INSCRIPTION_ID],
       runeNames: ['UNCOMMON•GOODS'],
       catIds: [CAT_ID],
+      cats: [{ id: CAT_ID, number: null }],
+      catSat: null,
       rareSat: { sat: '1', block: 5, rarity: 'epic' },
     };
     const blocked = describeFundingNotice(expertRequired('named-assets', assets));
@@ -272,6 +276,8 @@ describe('describeFundingNotice', () => {
         inscriptionIds: [INSCRIPTION_ID],
         runeNames: ['UNCOMMON•GOODS'],
         catIds: [CAT_ID],
+        cats: [{ id: CAT_ID, number: null }],
+        catSat: null,
         rareSat: { sat: '1', block: 5, rarity: 'epic' },
       },
       fundingUtxo: null,

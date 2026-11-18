@@ -169,12 +169,11 @@ export function Cat21AgentPolicyWizard() {
                     value={values.allowedCounterpartiesRaw}
                     onChange={handleChange}
                   />
-                  {/* HACK -- Cat21: the SDK cannot name the other party of an
-                      offer yet, so the policy gate denies create-offer and
-                      accept-offer whenever this list is set (fail closed). */}
+                  {/* HACK -- Cat21: what the counterparty allowlist checks,
+                      per action (agent-policy-deps.ts). */}
                   <styled.p textStyle="body.02" data-testid="cat21-agent-policy-allowlist-note">
-                    Your own addresses always pass. While this list is set, offers are blocked:
-                    creating or accepting an offer is denied, for the agent and for you.
+                    Your own addresses always pass. Offers check the other party: a listing its
+                    payment address, an accepted offer its buyer, a bid the seller.
                   </styled.p>
                   <Flex direction="column" gap="space.01">
                     <styled.label textStyle="label.02">

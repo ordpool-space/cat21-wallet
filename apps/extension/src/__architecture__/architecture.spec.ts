@@ -1521,16 +1521,24 @@ describe('iter 16 — SDK validateCat21Operation is the single gate (no consumer
     expect(src).toMatch(/validateCat21Operation[\s\S]{0,400}from\s+['"]ordpool-sdk\/core['"]/);
   });
 
-  it('all four Cat21RpcService methods invoke openPipeline before any other work', () => {
-    // The contract pin: the SDK gate runs FIRST in every rpc method
-    // body, via the shared `openPipeline` helper (which calls runGate
-    // before resolving signing mode). A refactor that inlines or
-    // skips validation breaks this regex.
+  it('every Cat21RpcService method runs the SDK gate before any other work', () => {
+    // The contract pin: the SDK gate runs FIRST in every rpc method body.
+    // mint, transfer and create_offer go through `openPipeline` (gate, then
+    // signing mode). accept_offer and buy go through `gatePipeline` alone,
+    // resolve what the policy checks (the offer's validated buyers, the
+    // seller's cat address), then `resolvePipelineMode`. Both helpers reach
+    // `runGate` through `gatePipeline`. A refactor that inlines or skips the
+    // gate breaks these regexes.
     const src = read(join(EXTENSION_ROOT, 'src/background/cat21/cat21-rpc.service.ts'));
-    for (const kind of ['mint', 'transfer', 'create_offer', 'accept_offer']) {
+    for (const kind of ['mint', 'transfer', 'create_offer']) {
       expect(src).toMatch(new RegExp(`openPipeline\\(\\s*\\{\\s*kind:\\s*'${kind}'`));
     }
-    // openPipeline itself must call runGate (no slip-around path).
+    for (const kind of ['accept_offer', 'buy']) {
+      expect(src).toMatch(new RegExp(`gatePipeline\\(\\s*\\{\\s*kind:\\s*'${kind}'`));
+    }
+    // openPipeline gates through gatePipeline, which calls runGate (no
+    // slip-around path).
+    expect(src).toMatch(/const gated = this\.gatePipeline\(operation\);/);
     expect(src).toMatch(/runGate\(operation,/);
   });
 

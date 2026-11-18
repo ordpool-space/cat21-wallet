@@ -65,6 +65,21 @@ export type Cat21Intent =
   | Cat21AcceptOfferIntent
   | Cat21BuyIntent;
 
+/**
+ * What the policy gate needs about an action that the intent alone does not
+ * carry, resolved by the service before the gate runs:
+ *   - `spendSats`: transfer's real outflow, the whole resolved cat UTXO value.
+ *   - `counterpartyAddresses`: who the action trades with, as the SDK names
+ *     them. Accept-offer: `buyerAddresses` of the validated offer PSBT. Buy:
+ *     `createOfferCounterparties` (the seller's payment address and the
+ *     address the cat sits at). Absent, the translation lists the intent's
+ *     own addresses, which for accept-offer is none, so an allowlist denies.
+ */
+export interface Cat21ResolvedActionFacts {
+  spendSats?: number;
+  counterpartyAddresses?: string[];
+}
+
 /* ----------------------------- Result types ---------------------------- */
 
 /**

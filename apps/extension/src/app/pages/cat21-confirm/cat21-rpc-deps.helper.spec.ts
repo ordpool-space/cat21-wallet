@@ -29,6 +29,7 @@ function classification(over: Partial<OrdClassification> = {}): OrdClassificatio
     runes: null,
     catIds: [],
     cats: [],
+    catSat: null,
     rareSat: null,
     ...over,
   };
@@ -54,7 +55,14 @@ describe('classifyOutpointVerdict', () => {
   it('classifies an indexed coin carrying no assets as a clean verdict with empty assets', () => {
     expect(classifyOutpointVerdict('abc:0', classification({ clean: true }))).toEqual({
       verdict: 'clean',
-      assets: { inscriptionIds: [], runeNames: [], catIds: [], cats: [], rareSat: null },
+      assets: {
+        inscriptionIds: [],
+        runeNames: [],
+        catIds: [],
+        cats: [],
+        catSat: null,
+        rareSat: null,
+      },
     });
   });
 
@@ -71,6 +79,7 @@ describe('classifyOutpointVerdict', () => {
           runes: { 'UNCOMMON•GOODS': { amount: 1 } },
           catIds: ['cafe'.repeat(16) + 'i0'],
           cats: [{ id: 'cafe'.repeat(16) + 'i0', number: 2121 }],
+          catSat: 1_234_567_890,
           rareSat,
         })
       )
@@ -81,6 +90,7 @@ describe('classifyOutpointVerdict', () => {
         runeNames: ['UNCOMMON•GOODS'],
         catIds: ['cafe'.repeat(16) + 'i0'],
         cats: [{ id: 'cafe'.repeat(16) + 'i0', number: 2121 }],
+        catSat: 1_234_567_890,
         rareSat,
       },
     });

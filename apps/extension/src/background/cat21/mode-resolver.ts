@@ -1,4 +1,4 @@
-import type { Cat21Intent } from './types';
+import type { Cat21Intent, Cat21ResolvedActionFacts } from './types';
 
 /**
  * Where the inbound Cat21 RPC call entered the background page.
@@ -90,14 +90,11 @@ export function resolveSigningMode(args: {
   transport: Cat21Transport;
   agentMode: AgentModeFlag;
   /**
-   * Resolution-derived spend for the cap gate, when the intent alone
-   * doesn't carry it. Today only `cat21_transfer` supplies it (the whole
-   * cat UTXO value, resolved from cat21-ord); the cap gate uses it as the
-   * action's `spendSats` so the amount caps see the real outflow instead of
-   * a placeholder. Omitted for every other kind (their spend is
-   * intent-derived).
+   * What the service resolved about the action that the intent does not
+   * carry (`Cat21ResolvedActionFacts`): transfer's real spend, the
+   * counterparties of accept-offer and buy. Forwarded to the cap gate.
    */
-  spendSatsOverride?: number;
+  resolved?: Cat21ResolvedActionFacts;
   /**
    * Callback into the per-account cap gate (the wallet wires it to the
    * SDK's `evaluateAgentPolicyCaps` over the stored policy). Passed in
@@ -108,14 +105,14 @@ export function resolveSigningMode(args: {
    */
   evaluateAgentPolicy(
     intent: Cat21Intent,
-    spendSatsOverride?: number
+    resolved?: Cat21ResolvedActionFacts
   ): { allowed: true } | { allowed: false; reason: string; detail?: string };
 }): 'autonomous' | 'manual' {
   // Caps bind BOTH modes. Enforce before the manual/autonomous split so a
   // misclicked amount or a pasted-wrong counterparty is caught even on a
   // human-confirmed manual action. No override: changing a cap means
   // changing the policy value, never a bypass here.
-  const decision = args.evaluateAgentPolicy(args.intent, args.spendSatsOverride);
+  const decision = args.evaluateAgentPolicy(args.intent, args.resolved);
   if (!decision.allowed) {
     throw new ModeResolverError('policy-denied', describePolicyDenial(decision));
   }

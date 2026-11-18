@@ -31,7 +31,8 @@ import type {
  * cat / rare sat is on the coin, not merely that assets are present. `runeNames`
  * are the keys of ord's `runes` map (ord's spelling, spacers included). `cats`
  * carries each cat with the number the SDK looked up (null when the lookup
- * failed), which is how the notice names a cat as "Cat #N".
+ * failed), which is how the notice names a cat as "Cat #N"; `catSat` is the sat
+ * the cats sit on (null when there are no cats or no sat ranges).
  */
 export function classifyOutpointVerdict(
   outpoint: string,
@@ -42,6 +43,7 @@ export function classifyOutpointVerdict(
     runes: Record<string, unknown> | null;
     catIds: string[];
     cats: CatOnOutpoint[];
+    catSat: number | null;
     rareSat: UtxoAssetDetail['rareSat'];
   }
 ): UtxoClassification {
@@ -53,6 +55,7 @@ export function classifyOutpointVerdict(
     runeNames: Object.keys(classification.runes ?? {}),
     catIds: classification.catIds,
     cats: classification.cats,
+    catSat: classification.catSat,
     rareSat: classification.rareSat,
   };
   return { verdict: classification.clean ? 'clean' : 'has-assets', assets };

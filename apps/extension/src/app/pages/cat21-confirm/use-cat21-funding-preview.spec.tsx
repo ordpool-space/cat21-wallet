@@ -59,7 +59,14 @@ const INSCRIPTION_ID = `${'ab'.repeat(32)}i0`;
 /** A coin carrying a NAMED inscription, in the production port's object form. */
 const NAMED: UtxoClassification = {
   verdict: 'has-assets',
-  assets: { inscriptionIds: [INSCRIPTION_ID], runeNames: [], catIds: [], rareSat: null },
+  assets: {
+    inscriptionIds: [INSCRIPTION_ID],
+    runeNames: [],
+    catIds: [],
+    cats: [],
+    catSat: null,
+    rareSat: null,
+  },
 };
 
 function ctx(): Cat21AccountContext {
