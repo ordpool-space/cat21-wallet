@@ -22,6 +22,7 @@
  */
 import type {
   FundingBlockedErrorJson,
+  FundingSelectionChangedErrorJson,
   Cat21AcceptOfferIntent as SdkCat21AcceptOfferIntent,
   Cat21BuyIntent as SdkCat21BuyIntent,
   Cat21CreateOfferIntent as SdkCat21CreateOfferIntent,
@@ -140,6 +141,7 @@ export type Cat21RpcDenyReason =
   | 'policy-denied'
   | 'transport-not-trusted-for-autonomous'
   | 'inbound-offer-mismatch'
+  | 'funding-selection-changed'
   | 'broadcast-failed';
 
 // HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
@@ -154,6 +156,15 @@ interface Cat21RpcDenied {
    * prose in `detail`. Mirrors the SDK's `FundingBlockedError.toJSON()`.
    */
   funding?: FundingBlockedErrorJson;
+  /**
+   * Structured facts for a `funding-selection-changed` denial: the pinned
+   * funding coin the preview showed is gone or no longer covers, so the flow
+   * stopped before signing rather than silently spending a coin the user never
+   * confirmed. Carries which pick was dropped (and why) plus the fresh
+   * recommendation, so the human re-confirms and an agent re-decides from data.
+   * Mirrors the SDK's `FundingSelectionChangedError.toJSON()`.
+   */
+  fundingSelectionChanged?: FundingSelectionChangedErrorJson;
 }
 
 export type Cat21RpcResult =

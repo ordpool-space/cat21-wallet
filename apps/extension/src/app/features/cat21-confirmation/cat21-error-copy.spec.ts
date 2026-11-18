@@ -12,6 +12,15 @@ describe('humanizeCat21Error', () => {
     );
   });
 
+  it('maps funding-selection-changed to a re-review step, not "add funds"', () => {
+    const copy = humanizeCat21Error('funding-selection-changed', 'the pinned funding coin is gone');
+    expect(copy).toBe(
+      'The funding coin changed since you reviewed it. Check the details and approve again.'
+    );
+    // It is NOT the generic add-funds or broadcast message.
+    expect(copy).not.toMatch(/Add funds/);
+  });
+
   // HARD RULE #8 spec stubs: the three SDK expert-required messages are not a
   // lack of funds, so none of them reads "Add funds".
   it.todo(

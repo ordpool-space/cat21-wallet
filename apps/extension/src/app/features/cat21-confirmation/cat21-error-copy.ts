@@ -20,6 +20,11 @@ export function humanizeCat21Error(reason: string, detail?: string): string {
   if (has('insufficient', 'funding-pick-failed', 'nothing covers', 'only asset coins')) {
     return 'Add funds to your wallet, then try again.';
   }
+  // The funding coin shown in the preview is no longer the one that would be
+  // spent, so nothing was signed: ask for a fresh look before approving.
+  if (has('funding-selection-changed')) {
+    return 'The funding coin changed since you reviewed it. Check the details and approve again.';
+  }
   // Wallet not ready.
   if (has('wallet-locked')) return 'Unlock your wallet, then try again.';
   if (has('wiring-pending', 'wiring pending')) {

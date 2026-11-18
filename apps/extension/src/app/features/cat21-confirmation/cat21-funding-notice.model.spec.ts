@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import {
   type FundingPreviewState,
   describeFundingNotice,
+  fundingPreviewCoin,
   isApproveBlocked,
   truncateMiddle,
   txidOfInscriptionId,
@@ -37,14 +38,14 @@ const INSCRIPTION_ID = `${'ab'.repeat(32)}i0`;
 const CAT_ID = `${'cd'.repeat(32)}i0`;
 
 function assetNotice(assets: Partial<UtxoAssetDetail>): FundingPreviewState {
-  return { status: 'asset-notice', assets: { ...empty, ...assets } };
+  return { status: 'asset-notice', assets: { ...empty, ...assets }, fundingUtxo: null };
 }
 
 describe('describeFundingNotice', () => {
   it('shows NOTHING and leaves the CTA live on a clean funding (ready)', () => {
     // Mutation: change this to anything but `none` and the safe screenshot grows
     // a scary asset box under a perfectly safe mint.
-    const model = describeFundingNotice({ status: 'ready', assets: null });
+    const model = describeFundingNotice({ status: 'ready', assets: null, fundingUtxo: null });
     expect(model).toEqual({ kind: 'none' });
     expect(isApproveBlocked(model)).toBe(false);
   });
@@ -73,7 +74,11 @@ describe('describeFundingNotice', () => {
   });
 
   it('HOLDS the CTA on expert-required (a scan miss — contents unknown)', () => {
-    const model = describeFundingNotice({ status: 'expert-required', assets: null });
+    const model = describeFundingNotice({
+      status: 'expert-required',
+      assets: null,
+      fundingUtxo: null,
+    });
     expect(model.kind).toBe('unavailable');
     if (model.kind === 'unavailable') expect(model.reason).toMatch(/content-checked/u);
     expect(isApproveBlocked(model)).toBe(true);
@@ -98,7 +103,11 @@ describe('describeFundingNotice', () => {
     // first. Disabling here would hide that more-actionable message AND break the
     // real-extension caps-manual-rejection proof, which clicks Approve on an
     // unfunded wallet. Flipping isApproveBlocked to true here is the regression.
-    const model = describeFundingNotice({ status: 'insufficient', assets: null });
+    const model = describeFundingNotice({
+      status: 'insufficient',
+      assets: null,
+      fundingUtxo: null,
+    });
     expect(model.kind).toBe('insufficient');
     if (model.kind === 'insufficient') expect(model.reason).toMatch(/Add funds/u);
     expect(isApproveBlocked(model)).toBe(false);
@@ -162,9 +171,34 @@ describe('describeFundingNotice', () => {
         catIds: [CAT_ID],
         rareSat: { sat: '1', block: 5, rarity: 'epic' },
       },
+      fundingUtxo: null,
     });
     if (model.kind !== 'assets') throw new Error('expected assets');
     expect(model.rows.map(r => r.label)).toEqual(['Inscription', 'Rune', 'Cat', 'Rare sat']);
+  });
+});
+
+describe('fundingPreviewCoin', () => {
+  const coin = { txid: 'a'.repeat(64), vout: 0, value: 50_000 };
+
+  it('returns the resolved coin on a preview state that produced a pick', () => {
+    const state: FundingPreviewState = { status: 'ready', assets: null, fundingUtxo: coin };
+    expect(fundingPreviewCoin(state)).toBe(coin);
+    // asset-notice also carries a spendable pick.
+    expect(fundingPreviewCoin({ status: 'asset-notice', assets: null, fundingUtxo: coin })).toBe(
+      coin
+    );
+  });
+
+  it('returns null when the preview has no pick (blocked) or is not a preview state', () => {
+    // Blocked / insufficient previews resolved no coin.
+    expect(
+      fundingPreviewCoin({ status: 'expert-required', assets: null, fundingUtxo: null })
+    ).toBeNull();
+    // The non-MintStatus states carry no coin, so a caller pins nothing.
+    expect(fundingPreviewCoin({ status: 'not-applicable' })).toBeNull();
+    expect(fundingPreviewCoin({ status: 'loading' })).toBeNull();
+    expect(fundingPreviewCoin({ status: 'error' })).toBeNull();
   });
 });
 

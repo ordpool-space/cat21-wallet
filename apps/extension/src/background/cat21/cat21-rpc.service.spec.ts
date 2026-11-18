@@ -481,6 +481,43 @@ describe('Cat21RpcService.mint', () => {
       if (!buy.ok) expect(buy.value.funding?.cause).toBe('unnamed-assets');
     });
 
+    it('MANUAL: a pinned preview coin that is gone denies funding-selection-changed, never signs (B2)', async () => {
+      // The pre-approve preview pinned coin A; at click A has left the wallet's
+      // coin set and only coin B covers. Execution must NOT substitute B (which
+      // the human never saw) and must NOT sign: it stops with the structured
+      // dropped-pick facts so the human re-confirms.
+      const pinnedA = { txid: 'a'.repeat(64), vout: 0, value: 50_000 };
+      deps = makeDeps({
+        spendableUtxos: vi.fn(() =>
+          Promise.resolve([{ txid: 'b'.repeat(64), vout: 0, value: 50_000 }])
+        ),
+      });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup', pinnedA);
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.value.reason).toBe('funding-selection-changed');
+        expect(result.value.fundingSelectionChanged?.droppedSelection.txid).toBe(pinnedA.txid);
+        expect(result.value.fundingSelectionChanged?.droppedSelection.reason).toBe('gone');
+        // The fresh recommendation names coin B as what it would otherwise spend.
+        expect(result.value.fundingSelectionChanged?.recommendation.recommended?.txid).toBe(
+          'b'.repeat(64)
+        );
+      }
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
+      expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+
+    it('MANUAL: a pinned preview coin still present and covering is spent, not re-decided (B2)', async () => {
+      // The happy path: the pinned coin is exactly the one spent, so no
+      // re-confirm fires and the mint goes through.
+      const pinned = { txid: defaultUtxo().txid, vout: 0, value: 50_000 };
+      const result = await service.mint(makeIntent(), 'popup', pinned);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value.kind).toBe('broadcast');
+      expect(deps.signWithConfirmation).toHaveBeenCalled();
+    });
+
     it('returns "intent-invariant-violated: no-payment-public-key" when the pubkey is absent', async () => {
       deps = makeDeps({
         getAccountContext: vi.fn(() => ({

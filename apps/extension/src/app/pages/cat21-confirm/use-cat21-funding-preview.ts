@@ -76,8 +76,13 @@ export function useCat21FundingPreview(
       );
       return {
         status: sim.status,
-        assets:
-          sim.status === 'asset-notice' ? (sim.recommendation.recommended?.assets ?? null) : null,
+        // B1-aligned: the assets of the coin that will ACTUALLY be spent
+        // (`fundingUtxo`), not the recommendation. They coincide on the wallet
+        // today (no picker), but reading the resolved pick is the correct
+        // source once an explicit override exists.
+        assets: sim.status === 'asset-notice' ? (sim.fundingUtxo?.assets ?? null) : null,
+        // The resolved coin, pinned into executeMint by the confirm route (B2).
+        fundingUtxo: sim.fundingUtxo,
       };
     },
   });

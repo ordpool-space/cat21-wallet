@@ -12,6 +12,7 @@ import {
   type CoreFundingUtxo,
   type CreateOfferArtifact,
   type FundingBlockedErrorJson,
+  type FundingSelectionChangedErrorJson,
   KnownOrdinalWalletType,
   Network,
   type OfferCreateSignPort,
@@ -26,6 +27,7 @@ import {
   executeMint,
   executeTransfer,
   isFundingBlockedError,
+  isFundingSelectionChangedError,
   isOneAddressWallet,
   toScureNetwork,
   validateCat21Operation,
@@ -378,7 +380,20 @@ export class Cat21RpcService {
    * ord only indexes cats. `executeMint` returns the realised fee for
    * the daily-cap accounting.
    */
-  async mint(intent: Cat21MintIntent, transport: Cat21Transport): Promise<Cat21RpcResult> {
+  async mint(
+    intent: Cat21MintIntent,
+    transport: Cat21Transport,
+    /**
+     * The funding coin the manual pre-approve preview showed and the human
+     * confirmed. Pinned into `executeMint` so execution spends exactly that
+     * coin; if it is gone or no longer covers at click time, the SDK throws
+     * `FundingSelectionChangedError` BEFORE signing rather than silently
+     * substituting the recommendation (which on a separate-address wallet can
+     * be an asset coin the user never saw). Only the manual confirm route
+     * supplies it; autonomous has no preview, so it pins nothing.
+     */
+    selectedFundingUtxo?: CoreFundingUtxo | null
+  ): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'mint', intent }, transport);
     if ('result' in opened) return opened.result;
     const { mode, accountCtx } = opened;
@@ -409,6 +424,9 @@ export class Cat21RpcService {
             mode === 'manual'
               ? resolveManualFundingTopology(accountCtx.paymentAddress, accountCtx.ordinalsAddress)
               : undefined,
+          // Pin the previewed coin on the manual path so execution cannot swap
+          // in an unshown coin (B2). Autonomous has no preview, so no pin.
+          selectedFundingUtxo: mode === 'manual' ? (selectedFundingUtxo ?? null) : null,
         },
         {
           utxos: this.utxosPort(),
@@ -868,6 +886,23 @@ function denied(
   return { ok: false, value: { reason, detail, ...(funding ? { funding } : {}) } };
 }
 
+/**
+ * Denial for a dropped pinned funding coin (B2). Carries the SDK's structured
+ * `FundingSelectionChangedError.toJSON()` (dropped pick + reason + the fresh
+ * recommendation with every candidate), so the human re-confirms the new
+ * situation and an agent re-decides from data instead of parsing prose.
+ */
+function deniedSelectionChanged(json: FundingSelectionChangedErrorJson): Cat21RpcResult {
+  return {
+    ok: false,
+    value: {
+      reason: 'funding-selection-changed',
+      detail: json.message,
+      fundingSelectionChanged: json,
+    },
+  };
+}
+
 function modeResolverReasonToRpcReason(
   rejection: 'transport-not-trusted-for-autonomous' | 'agent-disabled' | 'policy-denied'
 ): Cat21RpcDenyReason {
@@ -907,6 +942,15 @@ class BroadcastError extends Error {}
 function mapCoreError(err: unknown): Cat21RpcResult {
   if (err instanceof SignError) return denied('broadcast-failed', `sign-failed: ${err.message}`);
   if (err instanceof BroadcastError) return denied('broadcast-failed', err.message);
+  // A pinned preview coin the plan dropped (gone, or no longer covers at this
+  // rate): the execute path stopped BEFORE signing rather than substitute a coin
+  // the user never confirmed. Its own reason with the structured facts (dropped
+  // pick + why + fresh recommendation) so the human re-confirms and an agent
+  // re-decides from data. `isFundingSelectionChangedError` checks `code`, robust
+  // across the SDK's realm / serialisation boundary.
+  if (isFundingSelectionChangedError(err)) {
+    return deniedSelectionChanged(err.toJSON());
+  }
   // A funding expert-block carries a coin picker's worth of facts (cause,
   // recommended coin, every candidate with its assets). Surface them
   // structured in `funding` so an agent on the NMH bridge decides from data,

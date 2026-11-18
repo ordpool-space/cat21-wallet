@@ -19,6 +19,7 @@ import { humanizeCat21Error } from '@app/features/cat21-confirmation/cat21-error
 import { Cat21FundingNotice } from '@app/features/cat21-confirmation/cat21-funding-notice';
 import {
   describeFundingNotice,
+  fundingPreviewCoin,
   isApproveBlocked,
 } from '@app/features/cat21-confirmation/cat21-funding-notice.model';
 import { useCurrentNativeSegwitUtxos } from '@app/query/bitcoin/utxos/utxos.hooks';
@@ -170,7 +171,12 @@ export function Cat21ConfirmRoute() {
     if ('priceSats' in actionIntent) return service.createOffer(actionIntent, transport);
     if ('offerPsbt' in actionIntent) return service.acceptOffer(actionIntent, transport);
     if ('catId' in actionIntent) return service.transfer(actionIntent, transport);
-    return service.mint(actionIntent, transport);
+    // Mint: pin the funding coin the preview showed and the human confirmed, so
+    // execution cannot swap in a coin the preview never displayed (B2). On a
+    // dropped pin the service denies `funding-selection-changed` and nothing is
+    // signed. `fundingPreviewCoin` is null on the autonomous path (no preview),
+    // which pins nothing.
+    return service.mint(actionIntent, transport, fundingPreviewCoin(fundingState));
   }
 
   // Path 3 finalisation: post the rpc result onto the result bus so

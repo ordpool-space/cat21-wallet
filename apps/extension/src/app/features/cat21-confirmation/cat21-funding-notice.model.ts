@@ -1,14 +1,29 @@
-import type { MintStatus, UtxoAssetDetail } from 'ordpool-sdk/core';
+import type { CoreFundingUtxo, MintStatus, UtxoAssetDetail } from 'ordpool-sdk/core';
 
 /**
  * The funding preview state: the resolved `MintStatus`, plus `not-applicable`
  * (no preview wired), `loading` (simulate in flight), and `error` (scan failed).
+ *
+ * `fundingUtxo` is the coin the preview resolved: the one the confirm route
+ * pins into execution (B2), so a click cannot spend a coin the preview never
+ * showed. `null` when the preview produced no spendable pick (blocked /
+ * insufficient).
  */
 export type FundingPreviewState =
   | { status: 'not-applicable' }
   | { status: 'loading' }
   | { status: 'error' }
-  | { status: MintStatus; assets: UtxoAssetDetail | null };
+  | { status: MintStatus; assets: UtxoAssetDetail | null; fundingUtxo: CoreFundingUtxo | null };
+
+/**
+ * The coin the preview resolved, for the confirm route to pin into execution.
+ * `null` on every non-preview state, so a caller that forgot to wait for the
+ * preview pins nothing (and execution auto-selects as before) rather than
+ * pinning a stale coin.
+ */
+export function fundingPreviewCoin(state: FundingPreviewState): CoreFundingUtxo | null {
+  return 'fundingUtxo' in state ? state.fundingUtxo : null;
+}
 
 /**
  * What the notice renders, decided purely so it is unit-testable without a
