@@ -21,6 +21,7 @@
  * browser surface (`window.Cat21Provider`) never sees these types.
  */
 import type {
+  AssetSpendNotPermittedErrorJson,
   FundingBlockedErrorJson,
   FundingSelectionChangedErrorJson,
   Cat21AcceptOfferIntent as SdkCat21AcceptOfferIntent,
@@ -142,6 +143,7 @@ export type Cat21RpcDenyReason =
   | 'transport-not-trusted-for-autonomous'
   | 'inbound-offer-mismatch'
   | 'funding-selection-changed'
+  | 'asset-spend-not-permitted'
   | 'broadcast-failed';
 
 // HACK -- Cat21: removed `export` (pre-wired for iter 10/11 consumers (popup pages + agent-policy store); restore on wire-up). HARD RULE #5 — restore on consumer wire-up.
@@ -165,6 +167,15 @@ interface Cat21RpcDenied {
    * Mirrors the SDK's `FundingSelectionChangedError.toJSON()`.
    */
   fundingSelectionChanged?: FundingSelectionChangedErrorJson;
+  /**
+   * Structured facts for an `asset-spend-not-permitted` denial: the funding
+   * coin that would have been spent carries assets and the path's policy is
+   * `'refuse'` (autonomous, or a manual click whose notice named no coin).
+   * Carries that coin with its named assets and the recommendation with every
+   * candidate, so an agent sees exactly what a person's notice shows. Mirrors
+   * the SDK's `AssetSpendNotPermittedError.toJSON()`.
+   */
+  assetSpendNotPermitted?: AssetSpendNotPermittedErrorJson;
 }
 
 export type Cat21RpcResult =

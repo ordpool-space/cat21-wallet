@@ -1292,28 +1292,47 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
     expect(src).toMatch(/sellerPaymentAddress:\s*buy\.sellerPaymentAddress/);
     // The buy preview reads the BUYER's resolved coin, the one createOffer spends.
     expect(src).toMatch(/sim\.buyerFundingUtxo/);
-    expect(src).toMatch(/fundingTopology:\s*resolveManualFundingTopology\(/);
+    expect(src).toMatch(/fundingTopology:\s*resolveWalletFundingTopology\(/);
   });
 
-  it('every funding execute (mint, transfer, buy) takes topology + pin from ONE gate: manual AND a previewed coin', () => {
-    // A human who saw the notice may proceed on an asset coin, and only on the
-    // coin the notice named: the manual topology rides together with the pinned
-    // previewed coin. No previewed coin (e.g. an `insufficient` preview, CTA
-    // live) or an unattended agent keeps the blocking default, so an asset coin
-    // that no notice named is refused. Three funding executes exist
-    // (executeMint, executeTransfer, the buyer-side createOffer); each spreads
-    // the one helper, and no other `fundingTopology:` literal can bypass it.
+  // Audit step 1.5 (maintainer decision): the agent gets the same funding answer
+  // as a person, and the agent policy refuses to SPEND an asset coin, because
+  // the owner opt-in for that does not exist (HQ). The gate and its
+  // justification are two tests.
+  it('GATE: every funding execute takes topology, pin and assetSpend from ONE helper; after-notice only with a previewed coin', () => {
+    // Three funding executes exist (executeMint, executeTransfer, the
+    // buyer-side createOffer). Each spreads the helper's params and passes its
+    // options; no `assetSpend:` or `fundingTopology:` literal outside the
+    // helper can bypass it. `'after-notice'` (spend the asset coin the human
+    // was shown) only on the manual path WITH the previewed coin; every other
+    // path is `'refuse'`.
     const src = read(join(REPO_ROOT, SERVICE));
-    const spreads = src.match(
-      /\.\.\.manualFundingSelection\(mode,\s*accountCtx,\s*selectedFundingUtxo\)/g
-    );
-    expect(spreads).toHaveLength(3);
+    expect(
+      src.match(/const funding = fundingSelection\(mode,\s*accountCtx,\s*selectedFundingUtxo\)/g)
+    ).toHaveLength(3);
+    expect(src.match(/\.\.\.funding\.params,/g)).toHaveLength(3);
+    expect(src.match(/\n\s*funding\.options\n\s*\);/g)).toHaveLength(3);
     expect(src).toMatch(
-      /if \(mode !== 'manual' \|\| previewCoin == null\) \{\s*return \{ fundingTopology: undefined, selectedFundingUtxo: null \};/
+      /if \(mode === 'manual' && previewCoin != null\) \{\s*return \{\s*params: \{ fundingTopology, selectedFundingUtxo: previewCoin \},\s*options: \{ assetSpend: 'after-notice' \},/
     );
-    // Every `fundingTopology:` in the service is inside that helper (its return
-    // type and its two returns). A fourth is an execute bypassing the gate.
-    expect(src.match(/fundingTopology:/g)).toHaveLength(3);
+    expect(src).toMatch(
+      /params: \{ fundingTopology, selectedFundingUtxo: null \},\s*options: \{ assetSpend: 'refuse' \},/
+    );
+    // The helper's two returns are the only places a policy is chosen.
+    expect(src.match(/assetSpend: '/g)).toHaveLength(2);
+  });
+
+  it('JUSTIFICATION: an asset-spend refusal reaches the caller as its own typed reason with the coin and its assets', () => {
+    // A refusal that drops the facts would leave an agent unable to see what
+    // the notice shows a person, so mapCoreError maps the SDK error by `code`
+    // to `asset-spend-not-permitted` carrying its plain-JSON `toJSON()`.
+    const src = read(join(REPO_ROOT, SERVICE));
+    expect(src).toMatch(
+      /if \(isAssetSpendNotPermittedError\(err\)\) \{\s*return deniedAssetSpend\(err\.toJSON\(\)\);/
+    );
+    expect(src).toMatch(
+      /reason: 'asset-spend-not-permitted',[\s\S]{0,80}assetSpendNotPermitted: json/
+    );
   });
 
   it('the confirm route executes the action its route DECLARES, never one inferred from the payload shape (HARD RULE #6)', () => {

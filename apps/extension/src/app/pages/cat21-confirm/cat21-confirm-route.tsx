@@ -182,7 +182,8 @@ export function Cat21ConfirmRoute() {
     // confirmed, so execution spends exactly that coin and no other asset coin.
     // On a dropped pin the service denies `funding-selection-changed` and nothing
     // is signed. Every other preview state (ready, blocked, autonomous) pins
-    // nothing, so the service's blocking default refuses any asset coin.
+    // nothing, so the service runs under the `'refuse'` policy, which refuses
+    // any asset coin.
     const previewCoin = fundingPreviewCoin(fundingState);
     // The declared action, exhaustively: a sixth action is a compile error here.
     switch (action.kind) {

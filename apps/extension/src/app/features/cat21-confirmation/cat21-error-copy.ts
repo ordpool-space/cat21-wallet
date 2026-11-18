@@ -40,6 +40,12 @@ export function humanizeCat21Error(
     return needles.some(n => haystack.includes(n));
   }
 
+  // The coin that would pay carries assets and this path may not spend one
+  // (an agent, or a click whose check named no coin): nothing was signed.
+  if (has('asset-spend-not-permitted')) {
+    return 'The only coin that can pay for this carries assets, so it was not spent. Send plain Bitcoin to your wallet, then try again.';
+  }
+
   // The SDK's expert-required funding blocks (each text starts "Select a
   // funding UTXO"), for a denial without the structured cause. None of them is
   // a lack of funds, so none reads "Add funds"; they ride behind

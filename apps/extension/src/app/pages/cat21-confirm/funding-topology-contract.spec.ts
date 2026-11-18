@@ -172,8 +172,8 @@ describe('funding-topology contract (wallet <-> SDK simulate*)', () => {
 
     expect(sim.status).toBe('expert-required');
     expect(sim.fundingUtxo).toBeNull();
-    // Blocked, and the assets are still named: the autonomous path passes no
-    // topology, so this is the answer an agent stands on.
+    // Blocked, and the assets are still named: this is the answer for any
+    // caller that omits the topology.
     expect(expertRequiredCause(sim.recommendation)).toBe('named-assets');
     expect(sim.recommendation.recommended?.assets?.inscriptionIds).toEqual([INSCRIPTION_ID]);
   });

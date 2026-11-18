@@ -8,6 +8,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { type CoreFundingUtxo, type UtxoClassification, getDummyKeypair } from 'ordpool-sdk/core';
 import { describe, expect, it, vi } from 'vitest';
 
+import { fundingPreviewCoin } from '@app/features/cat21-confirmation/cat21-funding-notice.model';
 import type { Cat21AccountContext, Cat21RpcDeps } from '@background/cat21/cat21-rpc.service';
 import type {
   Cat21AcceptOfferIntent,
@@ -165,6 +166,27 @@ describe('simulateFundingPreview', () => {
     expect(d.resolveCatUtxo).toHaveBeenCalledWith(CAT_ID);
   });
 
+  it('SEAM: the coin the route pins carries what the notice showed (bucket + named assets), for mint, transfer and buy', async () => {
+    // The SDK honours a pin only while the coin carries nothing beyond the
+    // bucket and assets it was pinned with; a bare outpoint of an asset coin is
+    // refused `contents-changed`. So the preview must hand the ANNOTATED coin
+    // through `fundingPreviewCoin` to the route. If the annotation were lost
+    // (e.g. the preview copied only txid/vout/value), every manual
+    // notice-and-proceed would fail closed while each unit stayed green.
+    for (const intent of [MINT, TRANSFER, BUY]) {
+      const asset = coin('d', 100_000);
+      const state = await simulateFundingPreview(
+        intent,
+        previewDeps([asset], () => Promise.resolve(NAMED))
+      );
+      expect(fundingPreviewCoin(state)).toMatchObject({
+        txid: asset.txid,
+        bucket: 'assets',
+        assets: { inscriptionIds: [INSCRIPTION_ID] },
+      });
+    }
+  });
+
   it('transfer and buy: an unresolvable cat previews not-applicable, leaving the typed denial to the service', async () => {
     // The service resolves the same cat before any funding and refuses with
     // cat-utxo-resolve-failed ("This cat could not be loaded."), so no coin can
@@ -215,7 +237,7 @@ describe('simulateFundingPreview', () => {
   it('ONE-ADDRESS wallet: an asset-only coin previews expert-required with no coin to pin, for transfer and buy', async () => {
     // payment === ordinals: the HQ table's DISABLED row. The CTA is held
     // (`isApproveBlocked` on expert-required) and nothing is pinned, so the
-    // service keeps the blocking default too.
+    // service runs under the `'refuse'` policy too.
     const oneAddress: Cat21AccountContext = {
       ...ctx(),
       ordinalsAddress: PAYMENT_ADDR,

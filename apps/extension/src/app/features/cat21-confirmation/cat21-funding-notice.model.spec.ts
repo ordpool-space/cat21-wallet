@@ -234,6 +234,26 @@ describe('describeFundingNotice', () => {
     });
   });
 
+  it('NAMES a cat by its number when the scan looked it up, still linked to its tx', () => {
+    const model = describeFundingNotice(
+      assetNotice({ catIds: [CAT_ID], cats: [{ id: CAT_ID, number: 1234 }] })
+    );
+    if (model.kind !== 'assets') throw new Error('expected assets');
+    expect(model.rows[0]).toMatchObject({
+      label: 'Cat',
+      name: 'Cat #1234',
+      linkTxid: 'cd'.repeat(32),
+    });
+  });
+
+  it('falls back to the inscription id when the cat number lookup failed', () => {
+    const model = describeFundingNotice(
+      assetNotice({ catIds: [CAT_ID], cats: [{ id: CAT_ID, number: null }] })
+    );
+    if (model.kind !== 'assets') throw new Error('expected assets');
+    expect(model.rows[0].name).toBe(truncateMiddle(CAT_ID));
+  });
+
   it('NAMES a rare sat by rarity + block, with no link', () => {
     const model = describeFundingNotice(
       assetNotice({ rareSat: { sat: '123456', block: 840000, rarity: 'uncommon' } })
@@ -273,7 +293,7 @@ describe('fundingPreviewCoin', () => {
 
   it('does NOT pin a ready coin, so a later asset finding on it is refused, not spent', () => {
     // A pin lets execution spend the coin whatever a click-time scan says; a
-    // clean preview named nothing, so the blocking default must decide.
+    // clean preview named nothing, so the `'refuse'` policy must decide.
     const state: FundingPreviewState = {
       status: 'ready',
       assets: null,

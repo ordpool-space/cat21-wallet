@@ -1,6 +1,7 @@
 import type {
   CoreFundingUtxo,
   ExpertRequiredCause,
+  FundingPinContent,
   MintStatus,
   UtxoAssetDetail,
 } from 'ordpool-sdk/core';
@@ -24,20 +25,22 @@ export type FundingPreviewState =
   | {
       status: MintStatus;
       assets: UtxoAssetDetail | null;
-      fundingUtxo: CoreFundingUtxo | null;
+      fundingUtxo: (CoreFundingUtxo & FundingPinContent) | null;
       cause: ExpertRequiredCause | null;
     };
 
 /**
  * The coin the confirm route pins into execution: only an `asset-notice` coin,
  * the one the human was shown WITH the assets it carries, because pinning is
- * what lets execution spend an asset coin. Every other state pins nothing, so
- * execution keeps the blocking default: a clean coin is auto-selected and an
- * asset coin is refused. A `ready` coin is deliberately not pinned: if a later
- * scan finds assets on it, the default refuses it, where a pin would spend it
- * unshown.
+ * what lets execution spend an asset coin (`'after-notice'`). Every other state
+ * pins nothing, so execution runs under the `'refuse'` policy: a clean coin is
+ * auto-selected and an asset coin is refused. A `ready` coin needs no pin: under
+ * `'refuse'` no asset coin can be spent, and a clean coin chosen at click time
+ * carries nothing a notice should have named.
  */
-export function fundingPreviewCoin(state: FundingPreviewState): CoreFundingUtxo | null {
+export function fundingPreviewCoin(
+  state: FundingPreviewState
+): (CoreFundingUtxo & FundingPinContent) | null {
   return state.status === 'asset-notice' ? state.fundingUtxo : null;
 }
 
@@ -162,10 +165,14 @@ function assetRows(assets: UtxoAssetDetail | null): FundingAssetRow[] {
     rows.push({ key: `rune-${name}`, label: 'Rune', name, linkTxid: null, runeName: name });
   }
   for (const id of assets?.catIds ?? []) {
+    // "Cat #1234" when the scan looked the cat number up; the inscription id
+    // otherwise (no number, or a lookup that failed). `catIds` stays the source
+    // of truth for which cats are on the coin.
+    const number = assets?.cats?.find(cat => cat.id === id)?.number ?? null;
     rows.push({
       key: `cat-${id}`,
       label: 'Cat',
-      name: truncateMiddle(id),
+      name: number != null ? `Cat #${number}` : truncateMiddle(id),
       linkTxid: txidOfInscriptionId(id),
     });
   }

@@ -63,6 +63,16 @@ describe('humanizeCat21Error', () => {
     );
   });
 
+  it('maps asset-spend-not-permitted to its own step, not add funds', () => {
+    const copy = humanizeCat21Error(
+      'asset-spend-not-permitted',
+      'the coin to spend carries assets and the asset-spend policy is refuse'
+    );
+    expect(copy).toBe(
+      'The only coin that can pay for this carries assets, so it was not spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+  });
+
   it('keeps "Add funds" for Insufficient funds behind funding-pick-failed', () => {
     expect(blocked('Insufficient funds')).toBe('Add funds to your wallet, then try again.');
   });
@@ -102,6 +112,7 @@ describe('humanizeCat21Error', () => {
     // behaviour) makes this red: a hyphenated code is not a sentence.
     const reasons = [
       'agent-disabled',
+      'asset-spend-not-permitted',
       'broadcast-failed',
       'counterparty-not-allowlisted',
       'fee-rate-above-ceiling',

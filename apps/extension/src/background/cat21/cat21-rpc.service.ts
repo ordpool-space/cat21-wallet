@@ -1,6 +1,7 @@
 import { hex } from '@scure/base';
 import * as btc from '@scure/btc-signer';
 import {
+  type AssetSpendNotPermittedErrorJson,
   type BroadcastOutcome,
   type BroadcastPort,
   CAT21_POSTAGE_SATS,
@@ -11,7 +12,9 @@ import {
   type ContentScanPort,
   type CoreFundingUtxo,
   type CreateOfferArtifact,
+  type ExecuteFundingOptions,
   type FundingBlockedErrorJson,
+  type FundingPinContent,
   type FundingSelectionChangedErrorJson,
   KnownOrdinalWalletType,
   Network,
@@ -26,6 +29,7 @@ import {
   createOffer as createBuyOffer,
   executeMint,
   executeTransfer,
+  isAssetSpendNotPermittedError,
   isFundingBlockedError,
   isFundingSelectionChangedError,
   isOneAddressWallet,
@@ -51,6 +55,13 @@ import type {
   Cat21RpcResult,
   Cat21TransferIntent,
 } from './types';
+
+/**
+ * A pinned funding coin: its outpoint and value plus what the pre-approve
+ * notice showed on it (`bucket`, `assets`). The SDK honours the pin only while
+ * the coin carries nothing beyond that; a bare asset coin is refused.
+ */
+type FundingPinCoin = CoreFundingUtxo & FundingPinContent;
 
 /**
  * Alias for the SDK's cat-bearing-UTXO type. Kept under the wallet's
@@ -385,14 +396,15 @@ export class Cat21RpcService {
     transport: Cat21Transport,
     /**
      * The asset coin the manual pre-approve notice named and the human
-     * confirmed (see `manualFundingSelection`). Pinned into `executeMint` so
-     * execution spends exactly that coin; if it is gone or no longer covers at
-     * click time, the SDK throws `FundingSelectionChangedError` BEFORE signing
-     * rather than substituting another coin the user never saw. Omitted or
-     * `null` keeps the blocking default. Only the manual confirm route supplies
-     * it; autonomous has no preview, so it pins nothing.
+     * confirmed (see `fundingSelection`). Pinned into `executeMint` so
+     * execution spends exactly that coin; if it is gone, no longer covers, or
+     * now carries anything the notice did not name (`contents-changed`), the SDK
+     * throws `FundingSelectionChangedError` BEFORE signing rather than
+     * substituting another coin the user never saw. Omitted or `null` means the
+     * `'refuse'` policy: an asset coin is refused. Only the manual confirm route
+     * supplies it; autonomous has no preview, so it pins nothing.
      */
-    selectedFundingUtxo?: CoreFundingUtxo | null
+    selectedFundingUtxo?: FundingPinCoin | null
   ): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'mint', intent }, transport);
     if ('result' in opened) return opened.result;
@@ -404,6 +416,7 @@ export class Cat21RpcService {
     }
 
     const tipValue = intent.tip && intent.tip.value > 0 ? intent.tip.value : 0;
+    const funding = fundingSelection(mode, accountCtx, selectedFundingUtxo);
     let out: BroadcastOutcome & { feeSats: number };
     try {
       out = await executeMint(
@@ -418,14 +431,15 @@ export class Cat21RpcService {
             intent.tip && intent.tip.value > 0
               ? { address: intent.tip.address, valueSats: intent.tip.value }
               : undefined,
-          ...manualFundingSelection(mode, accountCtx, selectedFundingUtxo),
+          ...funding.params,
         },
         {
           utxos: this.utxosPort(),
           scan: this.contentScanPort(),
           sign: this.signPort(mode, intent),
           broadcast: this.broadcastPort(),
-        }
+        },
+        funding.options
       );
     } catch (err) {
       return mapCoreError(err);
@@ -450,7 +464,7 @@ export class Cat21RpcService {
      * confirmed; same contract as `mint`'s pin. Only the manual confirm route
      * supplies it; autonomous has no preview, so it pins nothing.
      */
-    selectedFundingUtxo?: CoreFundingUtxo | null
+    selectedFundingUtxo?: FundingPinCoin | null
   ): Promise<Cat21RpcResult> {
     // Resolve the cat UTXO up front (synchronous, cached): its value is the
     // transfer's real outflow (the whole UTXO moves to the recipient), and
@@ -493,6 +507,7 @@ export class Cat21RpcService {
       );
     }
 
+    const funding = fundingSelection(mode, accountCtx, selectedFundingUtxo);
     let out: BroadcastOutcome & { feeSats: number };
     try {
       out = await executeTransfer(
@@ -506,14 +521,15 @@ export class Cat21RpcService {
           catUtxo: { txid: catUtxo.txid, vout: catUtxo.vout, value: catUtxo.value },
           recipientAddress: intent.recipient,
           feeRatePerVbyte: intent.feeRate,
-          ...manualFundingSelection(mode, accountCtx, selectedFundingUtxo),
+          ...funding.params,
         },
         {
           utxos: this.utxosPort(),
           scan: this.contentScanPort(),
           sign: this.signPort(mode, intent),
           broadcast: this.broadcastPort(),
-        }
+        },
+        funding.options
       );
     } catch (err) {
       return mapCoreError(err);
@@ -676,7 +692,7 @@ export class Cat21RpcService {
      * confirmed; same contract as `mint`'s pin. Only the manual confirm
      * route supplies it; autonomous has no preview, so it pins nothing.
      */
-    selectedFundingUtxo?: CoreFundingUtxo | null
+    selectedFundingUtxo?: FundingPinCoin | null
   ): Promise<Cat21RpcResult> {
     const opened = this.openPipeline({ kind: 'buy', intent }, transport);
     if ('result' in opened) return opened.result;
@@ -716,6 +732,7 @@ export class Cat21RpcService {
     // funding selection, two-pass fee, buy-offer PSBT, and buyer-input
     // signing (SIGHASH_ALL on inputs 1..N; input 0 stays for the seller).
     // No broadcast — the artifact is a bid.
+    const funding = fundingSelection(mode, accountCtx, selectedFundingUtxo);
     let artifact: CreateOfferArtifact;
     try {
       artifact = await createBuyOffer(
@@ -734,13 +751,14 @@ export class Cat21RpcService {
           },
           priceSats: intent.bidSats,
           feeRatePerVbyte: intent.feeRate,
-          ...manualFundingSelection(mode, accountCtx, selectedFundingUtxo),
+          ...funding.params,
         },
         {
           utxos: this.utxosPort(),
           scan: this.contentScanPort(),
           signOffer: this.offerCreateSignPort(),
-        }
+        },
+        funding.options
       );
     } catch (err) {
       return mapCoreError(err);
@@ -877,10 +895,12 @@ export function walletNetworkToSdkNetwork(net: 'mainnet' | 'testnet' | 'regtest'
  * that coin behind the `expert-required` block. A covering coin whose assets
  * are unnamed, or whose scan failed, is `expert-required` on either layout
  * (`expertRequiredCause`). Derived via `isOneAddressWallet`; no ordinals
- * address falls back to separate-address. Thread onto the MANUAL execute path
- * only; autonomous passes nothing.
+ * address falls back to separate-address. Every funding execute and the
+ * preview pass it (HQ: topology is passed by every caller), so a person and an
+ * agent get the same answer; whether an asset coin may then be SPENT is the
+ * separate `assetSpend` policy (`fundingSelection`).
  */
-export function resolveManualFundingTopology(
+export function resolveWalletFundingTopology(
   paymentAddress: string,
   ordinalsAddress: string | undefined
 ): WalletAddressTopology {
@@ -891,34 +911,48 @@ export function resolveManualFundingTopology(
 }
 
 /**
- * The funding-selection fields every funding execute (mint, transfer, buy)
- * spreads into its SDK params, decided in one place so the three cannot drift.
+ * The funding fields every funding execute (mint, transfer, buy) passes the
+ * SDK: the params it spreads and the execute options, decided in one place so
+ * the three cannot drift.
  *
- * The relaxation that lets a human proceed on an asset coin (the manual
- * topology) applies ONLY together with the asset coin the pre-approve notice
- * named, pinned so execution spends exactly that coin. Without one (the preview
- * was `ready`, or resolved no coin such as `insufficient`, and the coin set
- * changed before the click) the blocking default stands: a clean coin is still
- * auto-selected, an asset coin is refused, because the dialog named nothing.
- * Autonomous has no preview, so it never gets the relaxation or a pin.
+ * Every path passes the wallet's topology, so a person and an agent get the
+ * same funding answer (an asset coin on a separate-payment-address wallet is
+ * `asset-notice` for both). Whether that coin may be SPENT is the SDK's
+ * `assetSpend` policy:
+ *   - `'after-notice'` only on the manual path, together with the coin the
+ *     pre-approve notice named WITH its assets, pinned (its bucket and assets
+ *     ride along, so the SDK refuses it with `contents-changed` if it now
+ *     carries anything the notice did not name).
+ *   - `'refuse'` everywhere else: autonomous (no owner opt-in for spending
+ *     asset coins exists, HQ), and a manual click whose preview named no coin
+ *     (ready, insufficient). An asset coin then throws
+ *     `AssetSpendNotPermittedError` before anything is signed; a clean coin is
+ *     still auto-selected.
  */
-function manualFundingSelection(
+function fundingSelection(
   mode: 'autonomous' | 'manual',
   accountCtx: Cat21AccountContext,
-  previewCoin: CoreFundingUtxo | null | undefined
+  previewCoin: FundingPinCoin | null | undefined
 ): {
-  fundingTopology: WalletAddressTopology | undefined;
-  selectedFundingUtxo: CoreFundingUtxo | null;
+  params: {
+    fundingTopology: WalletAddressTopology;
+    selectedFundingUtxo: FundingPinCoin | null;
+  };
+  options: ExecuteFundingOptions;
 } {
-  if (mode !== 'manual' || previewCoin == null) {
-    return { fundingTopology: undefined, selectedFundingUtxo: null };
+  const fundingTopology = resolveWalletFundingTopology(
+    accountCtx.paymentAddress,
+    accountCtx.ordinalsAddress
+  );
+  if (mode === 'manual' && previewCoin != null) {
+    return {
+      params: { fundingTopology, selectedFundingUtxo: previewCoin },
+      options: { assetSpend: 'after-notice' },
+    };
   }
   return {
-    fundingTopology: resolveManualFundingTopology(
-      accountCtx.paymentAddress,
-      accountCtx.ordinalsAddress
-    ),
-    selectedFundingUtxo: previewCoin,
+    params: { fundingTopology, selectedFundingUtxo: null },
+    options: { assetSpend: 'refuse' },
   };
 }
 
@@ -943,6 +977,25 @@ function deniedSelectionChanged(json: FundingSelectionChangedErrorJson): Cat21Rp
       reason: 'funding-selection-changed',
       detail: json.message,
       fundingSelectionChanged: json,
+    },
+  };
+}
+
+/**
+ * Denial for a funding coin that carries assets under the `'refuse'` policy
+ * (audit step 1.5): no owner opt-in for spending asset coins exists, so an
+ * agent, and a manual click whose notice named no coin, are refused before
+ * signing. Carries the SDK's `AssetSpendNotPermittedError.toJSON()`: the coin
+ * that would have been spent with its named assets, and the recommendation with
+ * every candidate, the same facts a person's notice shows.
+ */
+function deniedAssetSpend(json: AssetSpendNotPermittedErrorJson): Cat21RpcResult {
+  return {
+    ok: false,
+    value: {
+      reason: 'asset-spend-not-permitted',
+      detail: json.message,
+      assetSpendNotPermitted: json,
     },
   };
 }
@@ -994,6 +1047,11 @@ function mapCoreError(err: unknown): Cat21RpcResult {
   // across the SDK's realm / serialisation boundary.
   if (isFundingSelectionChangedError(err)) {
     return deniedSelectionChanged(err.toJSON());
+  }
+  // An asset coin under the `'refuse'` policy: stopped before signing, with the
+  // coin and its named assets as data. Checked by `code`, like the others.
+  if (isAssetSpendNotPermittedError(err)) {
+    return deniedAssetSpend(err.toJSON());
   }
   // A funding expert-block carries a coin picker's worth of facts (cause,
   // recommended coin, every candidate with its assets). Surface them

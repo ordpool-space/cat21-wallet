@@ -14,7 +14,7 @@ import {
 import type { FundingPreviewState } from '@app/features/cat21-confirmation/cat21-funding-notice.model';
 import {
   type Cat21RpcDeps,
-  resolveManualFundingTopology,
+  resolveWalletFundingTopology,
   walletNetworkToSdkNetwork,
 } from '@background/cat21/cat21-rpc.service';
 import type {
@@ -123,7 +123,7 @@ export async function simulateFundingPreview(
     network: walletNetworkToSdkNetwork(ctx.network),
     paymentPublicKey: hex.decode(ctx.paymentPublicKey),
     paymentAddress: ctx.paymentAddress,
-    fundingTopology: resolveManualFundingTopology(ctx.paymentAddress, ctx.ordinalsAddress),
+    fundingTopology: resolveWalletFundingTopology(ctx.paymentAddress, ctx.ordinalsAddress),
   };
 
   if (classified.kind === 'buy') {

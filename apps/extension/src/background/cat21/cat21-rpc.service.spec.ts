@@ -133,8 +133,24 @@ const NAMED_ASSETS: UtxoClassification = {
   },
 };
 
-/** The default funding coin, as the confirm route passes it when previewed. */
+/** The default funding coin's outpoint and value, with no notice content. */
 const FUNDING_COIN = { txid: defaultUtxo().txid, vout: 0, value: 50_000 };
+
+/** The named inscription NAMED_ASSETS reports, as the notice shows it. */
+const NAMED_DETAIL = {
+  inscriptionIds: [`${'ab'.repeat(32)}i0`],
+  runeNames: [],
+  catIds: [],
+  rareSat: null,
+};
+
+/**
+ * The default funding coin pinned the way the confirm route pins it: the
+ * preview's resolved coin WITH what the notice showed on it (bucket + named
+ * assets). The SDK honours a pin only while the coin carries nothing beyond
+ * that, so a bare outpoint of an asset coin would be refused.
+ */
+const ANNOTATED_ASSET_PIN = { ...FUNDING_COIN, bucket: 'assets' as const, assets: NAMED_DETAIL };
 
 /**
  * Two clean covering coins. Auto-select takes SMALL_COIN (ord's smallest
@@ -345,17 +361,47 @@ describe('Cat21RpcService.mint', () => {
       }
     });
 
-    it('AUTONOMOUS: "funding-pick-failed" when only a named-asset coin covers', async () => {
-      // Autonomous passes no funding topology, so an asset-only coin is
-      // expert-required and execute refuses it. No consent, no spend.
+    // Audit step 1.5: the agent gets the same funding answer as a person (the
+    // topology is passed, so an asset coin is asset-notice) and the `'refuse'`
+    // policy stops it before signing with its own typed reason. GATE and
+    // JUSTIFICATION are separate tests.
+    it('AUTONOMOUS gate: a named-asset-only coin is refused asset-spend-not-permitted, never signed', async () => {
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
       const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.value.reason).toBe('asset-spend-not-permitted');
+      expect(deps.signSilently).not.toHaveBeenCalled();
+      expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+
+    it('AUTONOMOUS justification: the refusal names the coin and its assets, as the notice would', async () => {
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      if (result.ok) throw new Error('expected a denial');
+      const facts = result.value.assetSpendNotPermitted;
+      expect(facts?.coin.txid).toBe(FUNDING_COIN.txid);
+      expect(facts?.coin.assets?.inscriptionIds).toEqual(NAMED_DETAIL.inscriptionIds);
+      expect(facts?.recommendation.candidates.map(c => c.txid)).toContain(FUNDING_COIN.txid);
+    });
+
+    it('MANUAL: a BARE pin (outpoint only) of an asset coin is refused contents-changed, never signed', async () => {
+      // The pin must carry what the notice showed. A bare outpoint says "shown
+      // clean", so the SDK refuses a coin that carries assets rather than spend
+      // something the notice never named; this is why the route pins the
+      // annotated preview coin.
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.mint(makeIntent(), 'popup', FUNDING_COIN);
+      expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.value.reason).toBe('intent-invariant-violated');
-        expect(result.value.detail).toContain('funding-pick-failed');
+        expect(result.value.reason).toBe('funding-selection-changed');
+        expect(result.value.fundingSelectionChanged?.droppedSelection.reason).toBe(
+          'contents-changed'
+        );
       }
+      expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
     it('MANUAL: proceeds on the previewed named-asset coin (notice-and-proceed)', async () => {
@@ -364,7 +410,7 @@ describe('Cat21RpcService.mint', () => {
       // proceeds on exactly that coin; the service trusts that consent.
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
-      const result = await service.mint(makeIntent(), 'popup', FUNDING_COIN);
+      const result = await service.mint(makeIntent(), 'popup', ANNOTATED_ASSET_PIN);
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.value.kind).toBe('broadcast');
     });
@@ -372,14 +418,16 @@ describe('Cat21RpcService.mint', () => {
     it('MANUAL without a previewed coin: an asset-only coin is refused (the dialog named nothing)', async () => {
       // The preview resolved no coin (e.g. `insufficient`, CTA still live) and
       // an asset coin arrived before the click. No notice named it, so the
-      // blocking default stands and nothing is signed.
+      // path runs under the `'refuse'` policy and nothing is signed.
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
       const result = await service.mint(makeIntent(), 'popup', null);
       expect(result.ok).toBe(false);
       if (!result.ok) {
-        expect(result.value.reason).toBe('intent-invariant-violated');
-        expect(result.value.funding?.cause).toBe('named-assets');
+        expect(result.value.reason).toBe('asset-spend-not-permitted');
+        expect(result.value.assetSpendNotPermitted?.coin.assets?.inscriptionIds).toEqual(
+          NAMED_DETAIL.inscriptionIds
+        );
       }
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
@@ -837,7 +885,7 @@ describe('Cat21RpcService.transfer', () => {
       // Without the pin (see the next test) this coin is refused.
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
-      const result = await service.transfer(makeTransferIntent(), 'popup', FUNDING_COIN);
+      const result = await service.transfer(makeTransferIntent(), 'popup', ANNOTATED_ASSET_PIN);
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.value.kind).toBe('broadcast');
       expect(deps.signWithConfirmation).toHaveBeenCalledTimes(1);
@@ -848,25 +896,29 @@ describe('Cat21RpcService.transfer', () => {
       service = new Cat21RpcService(deps);
       const result = await service.transfer(makeTransferIntent(), 'popup', null);
       expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.value.reason).toBe('intent-invariant-violated');
-        expect(result.value.funding?.cause).toBe('named-assets');
-      }
+      if (!result.ok) expect(result.value.reason).toBe('asset-spend-not-permitted');
       expect(deps.signWithConfirmation).not.toHaveBeenCalled();
     });
 
-    it('AUTONOMOUS: a named-asset-only fee coin still denies funding-pick-failed with the facts', async () => {
-      // No human saw a notice, so no topology: the blocking default stands and
-      // the agent gets the structured facts instead of a spend.
+    it('AUTONOMOUS gate: a named-asset-only fee coin is refused asset-spend-not-permitted, never signed', async () => {
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
       const result = await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.value.reason).toBe('intent-invariant-violated');
-        expect(result.value.funding?.cause).toBe('named-assets');
-      }
+      if (!result.ok) expect(result.value.reason).toBe('asset-spend-not-permitted');
       expect(deps.signSilently).not.toHaveBeenCalled();
+      expect(deps.broadcast).not.toHaveBeenCalled();
+    });
+
+    it('AUTONOMOUS justification: the transfer refusal names the fee coin and its assets', async () => {
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.transfer(makeTransferIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      if (result.ok) throw new Error('expected a denial');
+      expect(result.value.assetSpendNotPermitted?.coin.txid).toBe(FUNDING_COIN.txid);
+      expect(result.value.assetSpendNotPermitted?.coin.assets?.inscriptionIds).toEqual(
+        NAMED_DETAIL.inscriptionIds
+      );
     });
 
     it('MANUAL: a pinned preview coin that is gone denies funding-selection-changed, never signs', async () => {
@@ -1558,7 +1610,7 @@ describe('Cat21RpcService.buy', () => {
     it('MANUAL: bids on the previewed named-asset buyer coin (notice-and-proceed)', async () => {
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
-      const result = await service.buy(makeBuyIntent(), 'popup', FUNDING_COIN);
+      const result = await service.buy(makeBuyIntent(), 'popup', ANNOTATED_ASSET_PIN);
       expect(result.ok).toBe(true);
       if (result.ok) expect(result.value.kind).toBe('bid');
       expect(deps.signBuyOfferInputs).toHaveBeenCalledTimes(1);
@@ -1569,25 +1621,30 @@ describe('Cat21RpcService.buy', () => {
       service = new Cat21RpcService(deps);
       const result = await service.buy(makeBuyIntent(), 'popup', null);
       expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.value.reason).toBe('intent-invariant-violated');
-        expect(result.value.funding?.cause).toBe('named-assets');
-      }
+      if (!result.ok) expect(result.value.reason).toBe('asset-spend-not-permitted');
       expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
       expect(deps.postBid).not.toHaveBeenCalled();
     });
 
-    it('AUTONOMOUS: a named-asset-only buyer coin still denies funding-pick-failed with the facts', async () => {
+    it('AUTONOMOUS gate: a named-asset-only buyer coin is refused asset-spend-not-permitted, never signed or posted', async () => {
       deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
       service = new Cat21RpcService(deps);
       const result = await service.buy(makeBuyIntent({ mode: 'autonomous' }), 'mcp-nmh');
       expect(result.ok).toBe(false);
-      if (!result.ok) {
-        expect(result.value.reason).toBe('intent-invariant-violated');
-        expect(result.value.funding?.cause).toBe('named-assets');
-      }
+      if (!result.ok) expect(result.value.reason).toBe('asset-spend-not-permitted');
       expect(deps.signBuyOfferInputs).not.toHaveBeenCalled();
       expect(deps.postBid).not.toHaveBeenCalled();
+    });
+
+    it('AUTONOMOUS justification: the bid refusal names the buyer coin and its assets', async () => {
+      deps = makeDeps({ classifyOutpoint: vi.fn(() => Promise.resolve(NAMED_ASSETS)) });
+      service = new Cat21RpcService(deps);
+      const result = await service.buy(makeBuyIntent({ mode: 'autonomous' }), 'mcp-nmh');
+      if (result.ok) throw new Error('expected a denial');
+      expect(result.value.assetSpendNotPermitted?.coin.txid).toBe(FUNDING_COIN.txid);
+      expect(result.value.assetSpendNotPermitted?.coin.assets?.inscriptionIds).toEqual(
+        NAMED_DETAIL.inscriptionIds
+      );
     });
 
     it('MANUAL: a pinned preview coin that is gone denies funding-selection-changed, never signs or posts', async () => {
