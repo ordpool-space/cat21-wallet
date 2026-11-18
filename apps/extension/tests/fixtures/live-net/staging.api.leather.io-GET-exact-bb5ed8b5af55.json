@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://staging.api.leather.io/v1/tokens/sip10s/SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.RALEX",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.872Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"principal\":\"SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.RALEX\",\"assetIdentifier\":\"SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.RALEX::rALEX\",\"name\":\"rALEX\",\"symbol\":\"alexdao.org\",\"decimals\":0,\"image\":\"\"}"
+}

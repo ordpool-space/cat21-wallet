@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://70cnou7r.apicdn.sanity.io/v2024-01-01/data/query/production?query=*%5B_type+%3D%3D+%22learnSection%22+%26%26+key+%3D%3D+%24key%5D%5B0%5D%7B+key%2C+items%5B%5D%7B+label%2C+iconKey%2C+linkType%2C+guideSlug%2C+externalUrl+%7D+%7D&%24key=%22extension-tokens%22&returnQuery=false",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.058Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"result\":null,\"syncTags\":[\"s1:v1iimA\"],\"ms\":2}"
+}

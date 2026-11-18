@@ -31,20 +31,24 @@ export function usePsbtRequestSearchParams() {
 
 export function useRpcSignPsbtParams() {
   const { origin, tabId } = useDefaultRequestParams();
+  const allowedSighash = initialSearchParams.getAll('allowedSighash');
   const broadcast = initialSearchParams.get('broadcast');
+  const descriptor = initialSearchParams.get('descriptor');
   const psbtHex = initialSearchParams.get('hex');
   const requestId = initialSearchParams.get('requestId');
   const signAtIndex = initialSearchParams.getAll('signAtIndex');
 
   return useMemo(
     () => ({
+      allowedSighash: undefinedIfLengthZero(ensureArray(allowedSighash).map(h => Number(h))),
       broadcast: broadcast === 'true',
+      descriptor: descriptor ?? undefined,
       origin,
       psbtHex,
       requestId,
       signAtIndex: undefinedIfLengthZero(ensureArray(signAtIndex).map(h => Number(h))),
       tabId: tabId ?? 0,
     }),
-    [broadcast, origin, psbtHex, requestId, signAtIndex, tabId]
+    [allowedSighash, broadcast, descriptor, origin, psbtHex, requestId, signAtIndex, tabId]
   );
 }

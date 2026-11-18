@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://gamma.io/api/get-stacks-nft?id=SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.ALEX-voucher_2599",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.473Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"item\":{\"id\":\"SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.ALEX-voucher_2599\",\"chain\":\"stacks\",\"name\":\"ALEX-voucher\",\"description\":\"ALEX Airdrop Campaign. Join us at https://alexlabs.org\",\"asset_content\":{\"content_url\":\"https://stxnft.mypinata.cloud/ipfs/bafkreie4mb3gwkjv3rq64ouu4wkpstumzgtccd6fg25xewptq4ukj326se\",\"content_type\":\"image/png\"},\"location_url\":\"/stacks/nfts/SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.ALEX-voucher_2599\",\"collection\":{\"id\":\"SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.ALEX-voucher\",\"type\":\"collection\",\"name\":\"Alex Voucher\",\"is_verified\":false,\"location_url\":\"/stacks/collections/SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.ALEX-voucher\",\"total_items\":245433},\"owner\":{\"address\":\"SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE\",\"chain\":\"stacks\",\"id\":\"\",\"display_name\":\"SPS8…WSFE\",\"slug\":\"SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE\",\"avatar_url\":null,\"avatar_content_type\":null,\"profile_url\":\"/SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE\",\"bio\":null,\"is_verified\":false},\"market_summary\":{\"item_id\":{\"id\":\"SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.ALEX-voucher_2599\",\"chain\":\"stacks\"},\"meta\":{\"can_list\":false,\"can_unlist\":false,\"can_purchase\":false,\"can_make_offer\":false,\"can_withdraw_offer\":false,\"can_accept_offer\":false,\"can_change_offer\":false,\"can_place_auction_bid\":false,\"can_change_price\":false,\"can_transfer\":true}},\"rarity_rank\":0,\"creator\":null,\"is_original\":false},\"attribute_groups\":[{\"title\":\"Attributes\",\"attributes\":[{\"type\":\"simple\",\"label\":\"ticket\",\"value\":\"9000\"}]}],\"marketplace_events\":[]}\n"
+}

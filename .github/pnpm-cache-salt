@@ -1,0 +1,8 @@
+v2
+Bump this value to evict the CI pnpm store without touching the
+lockfile. It participates in actions/setup-node's cache key via
+cache-dependency-path in .github/actions/provision/action.yml.
+
+v2 (2026-07-26): evict the store poisoned by the d3cdfbcda run,
+which packed ordpool-sdk without its prepare-built dist-core/
+(provision still passed --ignore-scripts at that commit).

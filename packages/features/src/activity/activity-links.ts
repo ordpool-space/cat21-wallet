@@ -1,4 +1,4 @@
-import { HIRO_EXPLORER_URL, MEMPOOL_BASE_URL } from '@leather.io/constants';
+import { HIRO_EXPLORER_URL, MEMPOOL_BASE_URL, ORDPOOL_BASE_URL } from '@leather.io/constants';
 import {
   type BitcoinNetwork,
   type BitcoinNetworkModes,
@@ -64,7 +64,8 @@ export function getBitcoinExplorerLink({
 }: GetMempoolExplorerLinkArgs) {
   switch (networkPreference) {
     case 'mainnet':
-      return `${MEMPOOL_BASE_URL}/${type}/${id}`;
+      return `${ORDPOOL_BASE_URL}/${type}/${id}`;
+    // Testnet stays on mempool.space: ordpool v2 is mainnet-only.
     case 'testnet3':
       return `${MEMPOOL_BASE_URL}/testnet/${type}/${id}`;
     case 'testnet4':

@@ -16,6 +16,20 @@
       "pinVersion": "workspace:*"
     },
     {
+      "label": "ordpool-sdk uses link: protocol (sibling-of-cat21-wallet checkout); syncpack treats link: as unsupported but it's intentional. See apps/extension/scripts/check-sdk-fresh.cjs.",
+      "packages": [
+        "**"
+      ],
+      "dependencyTypes": [
+        "prod",
+        "dev"
+      ],
+      "dependencies": [
+        "ordpool-sdk"
+      ],
+      "isIgnored": true
+    },
+    {
       "label": "use exact version numbers",
       "packages": [
         "**"

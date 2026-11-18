@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "POST",
+  "url": "https://api.hiro.so/v2/contracts/call-read/SP2QEZ06AGJ3RKJPBV14SY1V5BBFNAW33D96YPGZF/BNS-V2/get-primary?tip=latest",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.261Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"okay\":true,\"result\":\"0x080100000000000000000000000000000083\"}"
+}

@@ -71,6 +71,7 @@ describe(makeNativeSegwitAddressIndexDerivationPath.name, () => {
       })
     ).toEqual("m/84'/0'/42'/1/5");
   });
+  // HACK -- Cat21: see equivalent rationale in p2tr-address-gen.spec.ts.
   it('creates testnet change path', () => {
     expect(
       makeNativeSegwitAddressIndexDerivationPath({
@@ -79,6 +80,6 @@ describe(makeNativeSegwitAddressIndexDerivationPath.name, () => {
         changeIndex: 1,
         addressIndex: 1,
       })
-    ).toEqual("m/84'/1'/0'/1/1");
+    ).toEqual("m/84'/0'/0'/1/1");
   });
 });

@@ -1,0 +1,171 @@
+import { describe, expect, it } from 'vitest';
+
+import { humanizeCat21Error } from './cat21-error-copy';
+
+describe('humanizeCat21Error', () => {
+  it('maps insufficient-funds to an actionable "add funds" step', () => {
+    expect(
+      humanizeCat21Error('intent-invariant-violated', 'funding-pick-failed: Insufficient funds')
+    ).toBe('Add funds to your wallet, then try again.');
+    expect(humanizeCat21Error('funding-pick-failed')).toBe(
+      'Add funds to your wallet, then try again.'
+    );
+  });
+
+  it('maps funding-selection-changed to a re-review step, not "add funds"', () => {
+    const copy = humanizeCat21Error('funding-selection-changed', 'the pinned funding coin is gone');
+    expect(copy).toBe(
+      'The funding coin changed since you reviewed it. Check the details and approve again.'
+    );
+    // It is NOT the generic add-funds or broadcast message.
+    expect(copy).not.toMatch(/Add funds/);
+  });
+
+  // The three SDK expert-required messages are not a lack of funds, so none of
+  // them reads "Add funds". They arrive as the service renders them: the
+  // `funding-pick-failed:` prefix plus the SDK message.
+  function blocked(sdkMessage: string): string {
+    return humanizeCat21Error('intent-invariant-violated', `funding-pick-failed: ${sdkMessage}`);
+  }
+
+  it('maps "Select a funding UTXO (what the covering coins hold could not be checked)" to a try-again-later step', () => {
+    expect(
+      blocked('Select a funding UTXO (what the covering coins hold could not be checked)')
+    ).toBe('A funding coin could not be checked for assets right now. Try again in a moment.');
+  });
+
+  it('maps "Select a funding UTXO (the covering coins carry assets the scan could not name)" to its own step, not add funds', () => {
+    expect(
+      blocked('Select a funding UTXO (the covering coins carry assets the scan could not name)')
+    ).toBe(
+      'The only coins that can pay for this carry assets that could not be identified, so none was spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+  });
+
+  it('maps "Select a funding UTXO (the available coins carry assets)" to its own step, not add funds', () => {
+    expect(blocked('Select a funding UTXO (the available coins carry assets)')).toBe(
+      'The only coins that can pay for this carry assets, so none was spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+  });
+
+  it('follows the structured funding cause even when the SDK message wording changes', () => {
+    // The SDK documents branching on `cause`, not on message text. A reworded
+    // message must not fall through to the generic "Add funds".
+    const reworded = 'funding-pick-failed: Select a funding UTXO (some future wording)';
+    expect(humanizeCat21Error('intent-invariant-violated', reworded, 'unknown-content')).toBe(
+      'A funding coin could not be checked for assets right now. Try again in a moment.'
+    );
+    expect(humanizeCat21Error('intent-invariant-violated', reworded, 'unnamed-assets')).toBe(
+      'The only coins that can pay for this carry assets that could not be identified, so none was spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+    expect(humanizeCat21Error('intent-invariant-violated', reworded, 'named-assets')).toBe(
+      'The only coins that can pay for this carry assets, so none was spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+  });
+
+  it('maps asset-spend-not-permitted to its own step, not add funds', () => {
+    const copy = humanizeCat21Error(
+      'asset-spend-not-permitted',
+      'the coin to spend carries assets and the asset-spend policy is refuse'
+    );
+    expect(copy).toBe(
+      'The only coin that can pay for this carries assets, so it was not spent. Send plain Bitcoin to your wallet, then try again.'
+    );
+  });
+
+  it('keeps "Add funds" for Insufficient funds behind funding-pick-failed', () => {
+    expect(blocked('Insufficient funds')).toBe('Add funds to your wallet, then try again.');
+  });
+
+  it('maps a locked wallet to an unlock step', () => {
+    expect(humanizeCat21Error('agent-disabled', 'wallet-locked')).toBe(
+      'Unlock your wallet, then try again.'
+    );
+  });
+
+  it('maps policy limits to a settings step, per limit', () => {
+    expect(humanizeCat21Error('spend-above-action-cap')).toMatch(/spending limit/);
+    expect(humanizeCat21Error('fee-rate-above-ceiling')).toMatch(/fee is above your limit/);
+    expect(humanizeCat21Error('counterparty-not-allowlisted')).toMatch(/allowed list/);
+  });
+
+  it('maps a missing cat to a refresh step', () => {
+    expect(humanizeCat21Error('intent-invariant-violated', 'cat-not-found')).toBe(
+      'This cat could not be loaded. Refresh and try again.'
+    );
+  });
+
+  it('maps a broadcast failure to a wait-and-retry step', () => {
+    expect(humanizeCat21Error('broadcast-failed', 'mempool rejected')).toBe(
+      'The network did not accept this. Wait a moment, then try again.'
+    );
+  });
+
+  it('falls back to a plain sentence for an unknown reason, never the code', () => {
+    const out = humanizeCat21Error('some-brand-new-reason', 'weird detail');
+    expect(out).toBe('This could not be completed. Refresh and try again.');
+  });
+
+  describe('no raw code or engineering vocabulary ever reaches the user', () => {
+    // Every reason the rpc layer can emit, plus the details that ride inside
+    // intent-invariant-violated. Returning the raw `reason` (the old
+    // behaviour) makes this red: a hyphenated code is not a sentence.
+    const reasons = [
+      'agent-disabled',
+      'asset-spend-not-permitted',
+      'broadcast-failed',
+      'counterparty-not-allowlisted',
+      'fee-rate-above-ceiling',
+      'floor-price-violation',
+      'intent-invariant-violated',
+      'payment-output-wrong-address',
+      'policy-denied',
+      'price-below-floor',
+      'sighash-not-all',
+      'spend-above-action-cap',
+      'transport-not-trusted-for-autonomous',
+      'wiring-pending',
+      'wrong-price',
+      // Unlisted reasons — the real risk (a lookup + guard can both pass while
+      // the FALLBACK is the thing that leaks). Including these makes the
+      // fallback path itself subject to the no-raw-code guard: mutating the
+      // fallback to `return reason` turns this red on exactly these rows.
+      'a-brand-new-unmapped-reason-code',
+      'some-future-sdk-error-nobody-has-yet',
+    ];
+    const details = [
+      undefined,
+      'wallet-locked',
+      'user-rejected',
+      'funding-pick-failed',
+      'cat-not-found',
+      'cat-utxo-resolve-failed',
+      'cat-data-not-loaded',
+      'Insufficient funds',
+      'funding-pick-failed: Select a funding UTXO (what the covering coins hold could not be checked)',
+      'funding-pick-failed: Select a funding UTXO (the covering coins carry assets the scan could not name)',
+      'funding-pick-failed: Select a funding UTXO (the available coins carry assets)',
+    ];
+    // Code-shaped fragments no sentence should contain. The strongest guard
+    // is `not.toContain(reason)` below (returning the raw code fails); these
+    // catch a stray engineering token leaking through a detail passthrough.
+    const bannedFragments = ['psbt', 'sighash', 'nlocktime', 'regtest', 'utxo', 'invariant'];
+
+    it('every (reason, detail) yields a second-person sentence with no raw token', () => {
+      for (const reason of reasons) {
+        for (const detail of details) {
+          const out = humanizeCat21Error(reason, detail);
+          // A finished sentence: ends with a period, starts capitalised.
+          expect(out.endsWith('.')).toBe(true);
+          expect(out[0]).toBe(out[0].toUpperCase());
+          // Never the raw reason itself, nor any code-shaped fragment.
+          const lower = out.toLowerCase();
+          expect(lower).not.toContain(reason);
+          for (const frag of bannedFragments) {
+            expect(lower).not.toContain(frag);
+          }
+        }
+      }
+    });
+  });
+});

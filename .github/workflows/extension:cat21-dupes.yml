@@ -1,0 +1,56 @@
+name: extension:cat21-dupes
+
+# Duplicate gate for the CAT-21 code added on top of the Leather fork. Scoped by
+# .jscpd.json to the cat21* directories and files only (our code); Leather
+# upstream is never scanned, so this cannot conflict with an upstream merge.
+# Runs via npx on Node 22 (jscpd@4 needs Node >= 20; no pnpm devDep, so the large
+# monorepo lockfile is untouched).
+#
+# .jscpd.json's ignore list excludes six deliberately parallel plumbing files,
+# so the gate holds the rest of the cat21 code at zero while accepting these:
+#   - common/cat21-bazaar/cat21-bazaar-client.ts: mapBidHttpError mirrors
+#     mapHttpError as a per-endpoint error contract (distinct bid-rejection code
+#     set and error type).
+#   - background/cat21/cat21-rpc.service.ts: per-operation RPC handlers share a
+#     build/validate/dispatch shape; each cat21 action stays its own typed method.
+#   - background/cat21/{attach-native-host-to-popup-relay,install-cat21-nmh-agent,
+#     make-read-only-probe-wires,connect-native-host}.ts: the same NMH transport
+#     plumbing wired per consumer lifecycle (agent install, popup relay, read-only
+#     probe, direct connect).
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/extension/src/background/cat21/**'
+      - 'apps/extension/src/app/features/cat21-confirmation/**'
+      - 'apps/extension/src/app/common/cat21-bazaar/**'
+      - 'apps/extension/src/app/pages/cat21-mint/**'
+      - 'apps/extension/src/app/pages/cat21-agent-policy-wizard/**'
+      - 'apps/extension/src/app/pages/cat21-shared/**'
+      - 'apps/extension/src/app/pages/cat21-transfer/**'
+      - 'apps/extension/src/app/pages/cat21-list/**'
+      - 'packages/services/src/collectibles/cat21-asset.service.ts'
+      - 'packages/utils/src/assets/cat21-helpers.ts'
+      - '.jscpd.json'
+      - '.github/workflows/extension:cat21-dupes.yml'
+
+# Harden installs against transient registry blips like ECONNRESET.
+env:
+  npm_config_fetch_retries: "5"
+  npm_config_fetch_retry_mintimeout: "20000"
+  npm_config_fetch_retry_maxtimeout: "120000"
+  npm_config_fetch_timeout: "600000"
+
+jobs:
+  dupes:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - uses: actions/setup-node@1e60f620b9541d16bece96c5465dc8ee9832be0b # v4.0.3 # zizmor: ignore[cache-poisoning]
+      with:
+        node-version: 22
+    - name: duplicate-check-jscpd
+      run: npx --yes jscpd@4.3.0

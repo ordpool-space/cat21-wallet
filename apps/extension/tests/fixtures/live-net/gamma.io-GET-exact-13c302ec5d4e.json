@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://gamma.io/api/get-stacks-nft?id=SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1_749544",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.387Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"item\":{\"id\":\"SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1_749544\",\"chain\":\"stacks\",\"name\":\"aibtcdev-1\",\"description\":\"Hackers Uniting AI with Bitcoin. First Edition. Join us at https://aibtc.dev\",\"asset_content\":{\"content_url\":\"https://nft-ad-1.aibtc.dev/aibtcdev-1.png\",\"content_type\":\"image/png\"},\"location_url\":\"/stacks/nfts/SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1_749544\",\"collection\":{\"id\":\"SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1\",\"type\":\"collection\",\"name\":\"Aibtcdev 1\",\"is_verified\":false,\"location_url\":\"/stacks/collections/SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1\",\"total_items\":792097},\"owner\":{\"address\":\"SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE\",\"chain\":\"stacks\",\"id\":\"\",\"display_name\":\"SPS8…WSFE\",\"slug\":\"SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE\",\"avatar_url\":null,\"avatar_content_type\":null,\"profile_url\":\"/SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE\",\"bio\":null,\"is_verified\":false},\"market_summary\":{\"item_id\":{\"id\":\"SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1_749544\",\"chain\":\"stacks\"},\"meta\":{\"can_list\":false,\"can_unlist\":false,\"can_purchase\":false,\"can_make_offer\":false,\"can_withdraw_offer\":false,\"can_accept_offer\":false,\"can_change_offer\":false,\"can_place_auction_bid\":false,\"can_change_price\":false,\"can_transfer\":true}},\"rarity_rank\":0,\"creator\":null,\"is_original\":false},\"attribute_groups\":[{\"title\":\"Attributes\",\"attributes\":[{\"type\":\"simple\",\"label\":\"generation\",\"value\":\"first\"}]}],\"marketplace_events\":[]}\n"
+}

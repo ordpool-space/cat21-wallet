@@ -1,6 +1,10 @@
 import { useQueries } from '@tanstack/react-query';
-import axios from 'axios';
 
+/* HACK -- Cat21: the Chainalysis address check is switched off, so nothing here
+   sends an address to api.chainalysis.com; the axios import and the two request
+   functions are kept commented out to keep the upstream Leather diff small.
+import axios from 'axios';
+*/
 import { makeComplianceQuery } from '@leather.io/query';
 import { ensureArray, isEmptyString, uniqueArray } from '@leather.io/utils';
 
@@ -9,6 +13,7 @@ import { analytics } from '@shared/utils/analytics';
 import { useCurrentAccountNativeSegwitIndexZeroPayerNullable } from '@app/store/accounts/blockchain/bitcoin/native-segwit-account.hooks';
 import { useCurrentNetwork } from '@app/store/networks/networks.selectors';
 
+/* HACK -- Cat21: Chainalysis switched off (see the import above).
 const checkApi = 'https://api.chainalysis.com/api/risk/v2/entities';
 
 const headers = {
@@ -25,6 +30,7 @@ async function checkEntityAddressComplianceCheck(address: string) {
   const resp = await axios.get(checkApi + '/' + address, { headers });
   return resp.data;
 }
+*/
 
 type ComplianceReportSeverity = 'None' | 'Low' | 'Moderate' | 'Severe';
 
@@ -32,6 +38,15 @@ interface ComplianceReport {
   risk: ComplianceReportSeverity;
   isOnSanctionsList: boolean;
 }
+
+/* HACK -- Cat21: the Chainalysis address check is switched off. This answers
+   "not on a sanctions list" without any request, so the form validators and
+   every caller keep their flow. It resolves rather than throws on purpose: a
+   caller that maps an error to "not compliant" would otherwise block every send. */
+export function checkEntityAddressIsCompliant(_address: string): Promise<ComplianceReport> {
+  return Promise.resolve({ risk: 'None', isOnSanctionsList: false });
+}
+/* HACK -- Cat21: the upstream body, kept for the quarterly upstream sync.
 export async function checkEntityAddressIsCompliant(address: string): Promise<ComplianceReport> {
   await registerEntityAddressComplianceCheck(address);
   const entityReport = await checkEntityAddressComplianceCheck(address);
@@ -42,6 +57,7 @@ export async function checkEntityAddressIsCompliant(address: string): Promise<Co
 
   return { ...entityReport, isOnSanctionsList };
 }
+*/
 
 function useCheckAddressComplianceQueries(addresses: string[]) {
   const network = useCurrentNetwork();

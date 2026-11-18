@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://staging.api.leather.io/v1/tokens/sip10s/SPWECF3XYVRBRCN23CJJCX9XKSF8RFWQPAQMWXT.blockstack",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.872Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "{\"principal\":\"SPWECF3XYVRBRCN23CJJCX9XKSF8RFWQPAQMWXT.blockstack\",\"assetIdentifier\":\"SPWECF3XYVRBRCN23CJJCX9XKSF8RFWQPAQMWXT.blockstack::BLOCKSTACK\",\"name\":\"BLOCKSTACK\",\"symbol\":\"BLOCKSTACK\",\"decimals\":6,\"image\":\"https://i.ibb.co/cxpGQ3q/blockstack.png\"}"
+}

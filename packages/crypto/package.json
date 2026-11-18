@@ -2,7 +2,7 @@
   "name": "@leather.io/crypto",
   "author": "leather.io",
   "description": "Generic crypto utils package for Leather",
-  "version": "1.12.22",
+  "version": "1.12.23",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -21,6 +21,7 @@
     ".": "./dist/index.js"
   },
   "dependencies": {
+    "@leather.io/constants": "workspace:*",
     "@leather.io/utils": "workspace:*",
     "@scure/bip32": "1.6.2",
     "@scure/bip39": "1.5.4",

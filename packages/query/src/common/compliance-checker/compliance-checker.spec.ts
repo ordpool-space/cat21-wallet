@@ -1,10 +1,14 @@
 import axios from 'axios';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+/* HACK -- Cat21: the upstream import; TEST_ACCOUNT_2_TAPROOT_ADDRESS is used only by
+   a test commented out below (Chainalysis off).
 import {
   TEST_ACCOUNT_1_NATIVE_SEGWIT_ADDRESS,
   TEST_ACCOUNT_2_TAPROOT_ADDRESS,
 } from '@leather.io/bitcoin';
+*/
+import { TEST_ACCOUNT_1_NATIVE_SEGWIT_ADDRESS } from '@leather.io/bitcoin';
 
 import { checkEntityAddressIsCompliant, isAddressCompliant } from './compliance-checker';
 
@@ -17,6 +21,10 @@ beforeEach(() => {
   vi.mocked(axios.get).mockClear().mockResolvedValue({ data: {} });
 });
 
+/* HACK -- Cat21: the Chainalysis address check is switched off (no request to
+   api.chainalysis.com, every address answers "not on a sanctions list"). These
+   four tests assert the requests and the Severe -> sanctioned mapping, which hold
+   for no input; kept commented out for the quarterly upstream sync.
 describe('compliance-checker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -109,6 +117,7 @@ describe('compliance-checker', () => {
     );
   });
 });
+*/
 
 describe('isAddressCompliant', () => {
   it('should return true for a compliant address', async () => {
@@ -119,6 +128,8 @@ describe('isAddressCompliant', () => {
     expect(result).toBe(true);
   });
 
+  /* HACK -- Cat21: Chainalysis switched off (see above). Asserts behaviour that
+     holds for no input: no address is reported as sanctioned.
   it('should return false for an address on the sanctions list', async () => {
     // Mock the API responses
     vi.mocked(axios.post).mockResolvedValueOnce({ data: { success: true } });
@@ -145,6 +156,7 @@ describe('isAddressCompliant', () => {
       expect.any(Object)
     );
   });
+  */
 
   it('should return true for a non-mainnet chain', async () => {
     const result = await isAddressCompliant({
@@ -156,6 +168,8 @@ describe('isAddressCompliant', () => {
     expect(axios.get).not.toHaveBeenCalled();
   });
 
+  /* HACK -- Cat21: Chainalysis switched off (see above). Asserts behaviour that
+     holds for no input: the check makes no request that could fail.
   it('should return false if the compliance check fails', async () => {
     // Mock the API responses
     vi.mocked(axios.post).mockRejectedValueOnce(new Error('API Error'));
@@ -173,5 +187,33 @@ describe('isAddressCompliant', () => {
       expect.any(Object)
     );
     expect(axios.get).not.toHaveBeenCalled();
+  });
+  */
+});
+
+/* HACK -- Cat21: the Chainalysis address check is switched off. These pin it:
+   on mainnet no address reaches api.chainalysis.com (no axios call at all), and
+   every address answers "not on a sanctions list". With the upstream request
+   functions restored they fail: the mocked axios is called, and its empty
+   response has no `risk: 'None'`. */
+describe('Chainalysis switched off', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('checkEntityAddressIsCompliant answers not-sanctioned on mainnet without any request', async () => {
+    const result = await checkEntityAddressIsCompliant({
+      address: TEST_ACCOUNT_1_NATIVE_SEGWIT_ADDRESS,
+    });
+    expect(result).toEqual({ risk: 'None', isOnSanctionsList: false });
+    expect(axios.post).toHaveBeenCalledTimes(0);
+    expect(axios.get).toHaveBeenCalledTimes(0);
+  });
+
+  it('isAddressCompliant (the mobile send path) answers compliant on mainnet without any request', async () => {
+    const result = await isAddressCompliant({ address: '1AnyAddressSample', chain: 'mainnet' });
+    expect(result).toBe(true);
+    expect(axios.post).toHaveBeenCalledTimes(0);
+    expect(axios.get).toHaveBeenCalledTimes(0);
   });
 });

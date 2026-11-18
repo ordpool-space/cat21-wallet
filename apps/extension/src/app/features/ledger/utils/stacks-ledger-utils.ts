@@ -19,6 +19,7 @@ import {
   versionObjectToVersionString,
 } from './generic-ledger-utils';
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export function requestPublicKeyForStxAccount(app: StacksApp) {
   return async (index: number) =>
     app.getAddressAndPubKey(

@@ -1,0 +1,11 @@
+{
+  "match": "template",
+  "method": "GET",
+  "url": "https://leather.mempool.space/api/address/<btc-address>/utxo",
+  "source": "CI run 44324166558 (extension:cat21-chain-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:34:42.513Z",
+  "status": 200,
+  "contentType": "application/json",
+  "bodyEncoding": "utf8",
+  "body": "[]"
+}

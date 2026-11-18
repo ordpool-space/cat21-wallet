@@ -1,10 +1,6 @@
-import { Utxo, UtxoId } from '@leather.io/models';
+import { OwnedUtxo, Utxo, UtxoId } from '@leather.io/models';
 import { initBigNumber } from '@leather.io/utils';
 
-import {
-  BisInscription,
-  BisRuneValidOutput,
-} from '../infrastructure/api/best-in-slot/best-in-slot-api.client';
 import {
   LeatherApiBitcoinTransaction,
   LeatherApiUtxo,
@@ -15,38 +11,16 @@ import {
   fallbackUtxoHeight,
   filterMatchesAnyUtxoId,
   filterOutMatchesAnyUtxoId,
-  getInscriptionProtectedUtxoIds,
   getKeyOrigin,
   getOutboundUtxos,
-  getRuneProtectedUtxoIds,
   getUtxoIdFromOutpoint,
-  getUtxoIdFromSatpoint,
+  getUtxoTotals,
   isDustUtxo,
   isUnconfirmedUtxo,
   selectUniqueUtxoIds,
   sumUtxoValues,
   utxoToId,
 } from './utxos.utils';
-
-describe(getUtxoIdFromSatpoint.name, () => {
-  it('splits a valid satpoint and produces a corresponding utxo id', () => {
-    const txid = 'abcdef12345';
-    const vout = '0';
-    const offset = '0';
-    const satpoint = `${txid}:${vout}:${offset}`;
-    const utxoId = getUtxoIdFromSatpoint(satpoint);
-    expect(utxoId?.txid).toEqual(txid);
-    expect(utxoId?.vout).toEqual(Number(vout));
-  });
-
-  it('returns undefined for invalid satpoints', () => {
-    expect(getUtxoIdFromSatpoint('abcdef12345:0')).toEqual(undefined);
-    expect(getUtxoIdFromSatpoint('abcdef:abcdef')).toEqual(undefined);
-    expect(getUtxoIdFromSatpoint('')).toEqual(undefined);
-    expect(getUtxoIdFromSatpoint(null!)).toEqual(undefined);
-    expect(getUtxoIdFromSatpoint(undefined!)).toEqual(undefined);
-  });
-});
 
 describe(getUtxoIdFromOutpoint.name, () => {
   it('splits a valid outpoint and produces a corresponding utxo id', () => {
@@ -432,88 +406,29 @@ describe(getKeyOrigin.name, () => {
   });
 });
 
-describe(getInscriptionProtectedUtxoIds.name, () => {
-  const inscriptions = [
-    {
-      satpoint: 'txn:0:0',
-    },
-    {
-      satpoint: 'txn:1:0',
-    },
-    {
-      satpoint: 'txn:2:0',
-    },
-    {
-      satpoint: 'txn:3:0',
-    },
-    {
-      satpoint: 'txn:3:1',
-    },
-    {
-      satpoint: 'txn:4:0',
-    },
-    {
-      satpoint: 'txn:4:1',
-    },
-  ] as BisInscription[];
+describe(getUtxoTotals.name, () => {
+  // A cat lives on a 546-sat UTXO, which the dust filter (< dustSatThreshold)
+  // does NOT catch: the `protected` routing is the only thing that keeps the
+  // BTC send flow off it (WAL HARD RULE #2).
+  function owned(txid: string, vout: number, value: number, height?: number): OwnedUtxo {
+    return {
+      txid,
+      vout,
+      value,
+      height,
+      address: 'bc1qtest',
+      path: 'm/84/0/0/0/0',
+      keyOrigin: 'f/84/0/0/0/0',
+    };
+  }
+  const cat = owned('c'.repeat(64), 0, 546, 840_000);
+  const plain = owned('a'.repeat(64), 1, 50_000, 840_000);
 
-  it('should return unique id list of inscribed utxos', () => {
-    expect(getInscriptionProtectedUtxoIds(inscriptions, [])).toEqual([
-      getUtxoIdFromOutpoint('txn:0'),
-      getUtxoIdFromOutpoint('txn:1'),
-      getUtxoIdFromOutpoint('txn:2'),
-      getUtxoIdFromOutpoint('txn:3'),
-      getUtxoIdFromOutpoint('txn:4'),
-    ]);
-  });
-
-  it('should filter out utxos if ALL inscriptions are discarded', () => {
-    const discardedInscriptions = ['txn:2:0', 'txn:1:0', 'txn:3:0', 'txn:4:1'];
-    const result = getInscriptionProtectedUtxoIds(inscriptions, discardedInscriptions);
-    expect(result).toEqual([
-      getUtxoIdFromOutpoint('txn:0'),
-      getUtxoIdFromOutpoint('txn:3'),
-      getUtxoIdFromOutpoint('txn:4'),
-    ]);
-  });
-});
-
-describe(getRuneProtectedUtxoIds.name, () => {
-  const runeOutputs = [
-    {
-      output: 'txn:0',
-    },
-    {
-      output: 'txn:1',
-    },
-    {
-      output: 'txn:2',
-    },
-    {
-      output: 'txn:3',
-    },
-    {
-      output: 'txn:3',
-    },
-    {
-      output: 'txn:4',
-    },
-    {
-      output: 'txn:4',
-    },
-  ] as BisRuneValidOutput[];
-
-  it('should return a list of unique utxo ids corresponding to rune outputs', () => {
-    expect(getRuneProtectedUtxoIds(runeOutputs, false)).toEqual([
-      getUtxoIdFromOutpoint('txn:0'),
-      getUtxoIdFromOutpoint('txn:1'),
-      getUtxoIdFromOutpoint('txn:2'),
-      getUtxoIdFromOutpoint('txn:3'),
-      getUtxoIdFromOutpoint('txn:4'),
-    ]);
-  });
-
-  it('should return an empty array when all runes are discarded', () => {
-    expect(getRuneProtectedUtxoIds(runeOutputs, true)).toEqual([]);
+  it('routes a confirmed 546-sat cat UTXO into protected and unspendable, never available', () => {
+    expect(cat.value).toBeGreaterThanOrEqual(dustSatThreshold);
+    const totals = getUtxoTotals('f', [cat, plain], [], [{ txid: cat.txid, vout: cat.vout }]);
+    expect(totals.protected).toEqual([cat]);
+    expect(totals.unspendable).toContainEqual(expect.objectContaining({ txid: cat.txid, vout: 0 }));
+    expect(totals.available).toEqual([plain]);
   });
 });

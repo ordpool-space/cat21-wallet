@@ -10,20 +10,14 @@ export function getAssetDisplayName(asset: CryptoAsset) {
       return 'bitcoin';
     case 'nativeStx':
       return 'stacks';
-    case 'brc20':
-      return 'brc-20';
-    case 'inscription':
-      return 'inscription';
-    case 'rune':
-      return 'rune';
     case 'sip10':
       return asset.name;
     case 'sip9':
       return asset.name;
-    case 'stamp':
-      return 'stamp';
-    case 'src20':
-      return 'src-20';
+    /* HACK -- Cat21: cat protocol branch per ADR-12. Cats display by their
+     * canonical title (e.g. "Cat #21"). */
+    case 'cat21':
+      return asset.title;
     default:
       assertUnreachable(protocol);
   }

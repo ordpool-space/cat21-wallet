@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://api.hiro.so/extended/v2/addresses/SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE/balances/ft",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.060Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"limit\":100,\"offset\":0,\"total\":7,\"results\":[{\"token\":\"SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.token-alex::alex\",\"balance\":\"13825174488\"},{\"token\":\"SP102V8P0F7JX67ARQ77WEA3D3CFB5XW39REDT0AM.token-special-vote::special-vote\",\"balance\":\"2579839300\"},{\"token\":\"SP265WBWD4NH7TVPYQTVD23X3607NNK4484DTXQZ3.longcoin::longcoin\",\"balance\":\"1888887999992\"},{\"token\":\"SP32AEEF6WW5Y0NMJ1S8SBSZDAY8R5J32NBZFPKKZ.nope::NOT\",\"balance\":\"10000\"},{\"token\":\"SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.RALEX::rALEX\",\"balance\":\"14000\"},{\"token\":\"SP3K8BC0PPEVCV7NZ6QSRWPQ2JE9E5B6N3PA0KBR9.age000-governance-token::alex\",\"balance\":\"2579839299\"},{\"token\":\"SPWECF3XYVRBRCN23CJJCX9XKSF8RFWQPAQMWXT.blockstack::BLOCKSTACK\",\"balance\":\"60000000000\"}]}"
+}

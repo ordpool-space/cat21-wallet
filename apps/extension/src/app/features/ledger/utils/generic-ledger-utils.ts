@@ -14,6 +14,7 @@ import { getStacksAppVersion } from './stacks-ledger-utils';
 
 export enum LedgerConnectionErrors {
   AppNotOpen = 'AppNotOpen',
+  // HACK -- Cat21: enum member kept; consumer is ledger Stacks code, dead per ADR-1.
   MasterkeyFingerprintNotSupported = 'MasterkeyFingerprintNotSupported',
   DeviceLocked = 'DeviceLocked',
 }

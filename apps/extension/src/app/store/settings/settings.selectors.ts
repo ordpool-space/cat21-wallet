@@ -52,6 +52,7 @@ const selectNetworkBadgeAlwaysOn = createSelector(
   state => state.networkBadgeAlwaysOn ?? false
 );
 
+/** @knipignore -- HACK Cat21: consumer file is knip-ignored, retain export for typecheck. */
 export function useNetworkBadgeAlwaysOn() {
   return useSelector(selectNetworkBadgeAlwaysOn);
 }

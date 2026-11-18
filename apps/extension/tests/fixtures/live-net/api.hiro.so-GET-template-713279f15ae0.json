@@ -1,0 +1,11 @@
+{
+  "match": "template",
+  "method": "GET",
+  "url": "https://api.hiro.so/extended/v1/tokens/nft/holdings?principal=<stx-address>&limit=200&offset=0",
+  "source": "CI run 44324166558 (extension:cat21-chain-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:34:26.367Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"limit\":200,\"offset\":0,\"total\":0,\"results\":[]}"
+}

@@ -69,7 +69,10 @@ async function handleRpcSignStacksMessage(
   const { id } = await triggerRequestPopupWindowOpen(RouteUrls.RpcStacksSignature, urlParams);
   sendErrorResponseOnUserPopupClose({ tabId, id, request });
 }
-export const stxSignMessageHandler = defineRpcRequestHandler(
+// HACK -- Cat21: removed `export` (upstream Stacks/Ledger/Network/Swap surface unrouted by ADR-1 BTC-L1-only scope). HARD RULE #5 — restore on consumer wire-up.
+// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
+const stxSignMessageHandler = defineRpcRequestHandler(
   stxSignMessage.method,
   async (request, port) => {
     const requestParams: RequestParams = [
@@ -93,7 +96,10 @@ export const stxSignMessageHandler = defineRpcRequestHandler(
   }
 );
 
-export const stxSignStructuredMessageHandler = defineRpcRequestHandler(
+// HACK -- Cat21: removed `export` (upstream Stacks/Ledger/Network/Swap surface unrouted by ADR-1 BTC-L1-only scope). HARD RULE #5 — restore on consumer wire-up.
+// @ts-expect-error TS6133 -- HACK keeps declaration alive; remove with the `export` restore.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- HACK companion to the @ts-expect-error above.
+const stxSignStructuredMessageHandler = defineRpcRequestHandler(
   stxSignStructuredMessage.method,
   async (request, port) => {
     const requestParams: RequestParams = [

@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://api.hiro.so/extended/v1/tx/mempool?address=SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE&limit=50",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.060Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"limit\":50,\"offset\":0,\"total\":0,\"results\":[]}"
+}

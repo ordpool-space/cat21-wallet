@@ -1,0 +1,11 @@
+{
+  "match": "exact",
+  "method": "GET",
+  "url": "https://api.hiro.so/extended/v1/tokens/nft/holdings?principal=SPS8CKF63P16J28AYF7PXW9E5AACH0NZNTEFWSFE&limit=200&offset=0",
+  "source": "CI run 44324166588 (extension:cat21-e2e) on cb8753ca1",
+  "capturedAt": "2026-11-18T14:28:46.240Z",
+  "status": 200,
+  "contentType": "application/json; charset=utf-8",
+  "bodyEncoding": "utf8",
+  "body": "{\"limit\":200,\"offset\":0,\"total\":3,\"results\":[{\"asset_identifier\":\"SP37WN2BYHKZ90T1ATHTCNG8EFYHS3B49KNGS02ZK.ALEX-voucher::ALEX-voucher\",\"value\":{\"hex\":\"0x0100000000000000000000000000000a27\",\"repr\":\"u2599\"},\"block_height\":895350,\"tx_id\":\"0x410a2e2d0078a0b36ef1feda72fb7b42f43403ac7b69540dc5fe49cacddd4f82\"},{\"asset_identifier\":\"SPVD6CE8RW90BGGKJZTKCSMGKS7HP0K8364TFR48.bitcoin-faces-airdrop::bitcoin-faces\",\"value\":{\"hex\":\"0x01000000000000000000000000000b6fe8\",\"repr\":\"u749544\"},\"block_height\":169196,\"tx_id\":\"0x128e5d91d1c9c1f846f090c80be77f53b04b16144b048c4c2c2106ca1899cd16\"},{\"asset_identifier\":\"SP97M6Z0T8MHKJ6NZE0GS6TRERCG3GW1WVJ4NVGT.aibtcdev-airdrop-1::aibtcdev-1\",\"value\":{\"hex\":\"0x01000000000000000000000000000b6fe8\",\"repr\":\"u749544\"},\"block_height\":168909,\"tx_id\":\"0x22049b3e169c485f0edaeaa17dd3f69f8c342102f0fc0d6441453e7502b0e2d9\"}]}"
+}

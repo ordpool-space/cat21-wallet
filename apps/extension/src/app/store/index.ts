@@ -29,6 +29,7 @@ import { walletSlice } from '@leather.io/state/wallet';
 import { persistConfig } from '@shared/storage/redux-persist';
 
 import { activeSlice } from './active/active.slice';
+import { agentPolicySlice } from './agent-policy/agent-policy.slice';
 import { appPermissionsSlice } from './app-permissions/app-permissions.slice';
 import { stxChainSlice } from './chains/stx-chain.slice';
 import { inMemoryKeySlice } from './in-memory-key/in-memory-key.slice';
@@ -42,6 +43,7 @@ import { broadcastActionTypeToOtherFramesMiddleware } from './utils/broadcast-ac
 
 export interface LocalRootState {
   active: ReturnType<typeof activeSlice.reducer>;
+  agentPolicy: ReturnType<typeof agentPolicySlice.reducer>;
   appPermissions: ReturnType<typeof appPermissionsSlice.reducer>;
   chains: {
     stx: ReturnType<typeof stxChainSlice.reducer>;
@@ -61,6 +63,7 @@ export type RootState = LocalRootState & PersistedState;
 
 const appReducer = combineReducers({
   active: activeSlice.reducer,
+  agentPolicy: agentPolicySlice.reducer,
   appPermissions: appPermissionsSlice.reducer,
   chains: combineReducers({
     stx: stxChainSlice.reducer,

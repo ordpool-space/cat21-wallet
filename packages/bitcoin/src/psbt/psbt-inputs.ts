@@ -1,7 +1,8 @@
 import { bytesToHex } from '@noble/hashes/utils';
+import { SigHash } from '@scure/btc-signer';
 import type { TransactionInput } from '@scure/btc-signer/psbt';
 
-import type { BitcoinAddress, BitcoinNetworkModes, InscriptionAsset } from '@leather.io/models';
+import type { BitcoinAddress, BitcoinNetworkModes } from '@leather.io/models';
 import { isDefined, isUndefined } from '@leather.io/utils';
 
 import { getBtcSignerLibNetworkConfigByMode } from '../utils/bitcoin.network';
@@ -10,8 +11,6 @@ import { getBitcoinInputAddress, getBitcoinInputValue } from '../utils/bitcoin.u
 export interface PsbtInput {
   address: BitcoinAddress;
   index?: number;
-  // TODO: inject inscription later on. getParsedInputs should be a pure function
-  inscription?: InscriptionAsset;
   isMutable: boolean;
   toSign: boolean;
   txid: string;
@@ -61,7 +60,6 @@ export function getParsedInputs({
       index: input.index,
       bip32Derivation: input.bip32Derivation,
       tapBip32Derivation: input.tapBip32Derivation,
-      // inscription: inscriptions[i],
       isMutable: canChange,
       toSign: toSignAll || toSignIndex,
       txid: input.txid ? bytesToHex(input.txid) : '',
@@ -72,4 +70,41 @@ export function getParsedInputs({
   const isPsbtMutable = psbtInputs.some(input => input.isMutable);
 
   return { isPsbtMutable, parsedInputs: psbtInputs };
+}
+
+export const defaultAllowedSighashTypes: number[] = [SigHash.DEFAULT, SigHash.ALL];
+
+export function isDisallowedSighash(
+  sighashType: number | undefined,
+  allowedSighash: number[] = []
+): boolean {
+  if (isUndefined(sighashType)) return false;
+  return !defaultAllowedSighashTypes.includes(sighashType) && !allowedSighash.includes(sighashType);
+}
+
+interface GetInputsToSignWithDisallowedSighashArgs {
+  inputs: TransactionInput[];
+  indexesToSign?: number[];
+  networkMode: BitcoinNetworkModes;
+  psbtAddresses: BitcoinAddress[];
+  allowedSighash?: number[];
+}
+
+export function getInputsToSignWithDisallowedSighash({
+  inputs,
+  indexesToSign,
+  networkMode,
+  psbtAddresses,
+  allowedSighash,
+}: GetInputsToSignWithDisallowedSighashArgs): number[] {
+  const bitcoinNetwork = getBtcSignerLibNetworkConfigByMode(networkMode);
+  const signAll = isUndefined(indexesToSign);
+
+  return inputs.reduce<number[]>((disallowedIndexes, input, i) => {
+    if (!signAll && !indexesToSign.includes(i)) return disallowedIndexes;
+    if (!isDisallowedSighash(input.sighashType, allowedSighash)) return disallowedIndexes;
+    const address = isDefined(input.index) ? getBitcoinInputAddress(input, bitcoinNetwork) : null;
+    if (address === null || !psbtAddresses.includes(address)) return disallowedIndexes;
+    return [...disallowedIndexes, i];
+  }, []);
 }
