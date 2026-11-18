@@ -206,11 +206,18 @@ jobs:
       # cross-check, BACKEND_NETWORK=regtest so the regtest listing passes the
       # network-mismatch gate. Its pinned ordpool-sdk (712b9a9) carries the
       # BIP-322 regtest verify fix.
+      # The cat21-indexer backend is pinned HERE, not in the SDK's
+      # build-pins.env: no SDK lane builds or boots the indexer (an SDK pin
+      # would be unproven), and the indexer itself pins the SDK, so an SDK pin
+      # would be circular. This lane is where the indexer is booted, so this is
+      # where its sha is proven. Initial value: the commit the last green run
+      # checked out (run 44313244659, `git log -1` after checkout). Bump only as
+      # a deliberate wallet change, after this lane boots the new sha green.
       - name: checkout-cat21-indexer-backend
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           repository: ordpool-space/cat21-indexer
-          ref: main
+          ref: be15b8e5b142f4369e6d7ceb0026ed5813ff0adf
           path: cat21-indexer-src
           persist-credentials: false
 
