@@ -18,6 +18,11 @@ on:
     branches: [main]
     paths:
       - 'apps/extension/tests/specs/cat21-chain/**'
+      # Shared by every chain spec (the browser-context fixture, page objects).
+      - 'apps/extension/tests/fixtures/**'
+      - 'apps/extension/tests/page-object-models/**'
+      - 'apps/extension/tests/selectors/**'
+      - 'apps/extension/tests/mocks/**'
       - 'apps/extension/playwright.config.chain.ts'
       - 'apps/extension/src/**'
       - 'apps/extension/package.json'
