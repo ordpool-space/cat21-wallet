@@ -15,7 +15,7 @@ export interface Cat21OutputProbe {
 
 /**
  * Phase 3.0 safety helper: returns the subset of given UTXOs that hold cats.
- * Used by `UtxosService.getDescriptorProtectedUtxos` to ensure the BTC send
+ * Used by `UtxosService.getDescriptorUtxos` (mainnet) to ensure the BTC send
  * flow never picks a cat-bearing UTXO as a payment input.
  *
  * On the wire this is one `/output/<txid>:<vout>` query per UTXO, queued
@@ -38,7 +38,7 @@ export interface Cat21OutputProbe {
  *
  * Failure mode: if cat21-ord cannot be reached, the per-UTXO probe throws, or
  * the output is not yet indexed, the safe answer is "treat the UTXO as
- * cat-bearing" — i.e. the BTC send flow won't touch it. This is the right
+ * cat-bearing", so the BTC send flow will not touch it. This is the right
  * default: if we cannot verify a UTXO is cat-free, we don't risk spending a cat
  * by mistake.
  */

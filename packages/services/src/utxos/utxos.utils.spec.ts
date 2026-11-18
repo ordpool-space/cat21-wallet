@@ -1,4 +1,4 @@
-import { Utxo, UtxoId } from '@leather.io/models';
+import { OwnedUtxo, Utxo, UtxoId } from '@leather.io/models';
 import { initBigNumber } from '@leather.io/utils';
 
 import {
@@ -14,6 +14,7 @@ import {
   getKeyOrigin,
   getOutboundUtxos,
   getUtxoIdFromOutpoint,
+  getUtxoTotals,
   isDustUtxo,
   isUnconfirmedUtxo,
   selectUniqueUtxoIds,
@@ -402,5 +403,32 @@ describe(getKeyOrigin.name, () => {
     const path = "m/84'/0'/0'/0/0";
     const keyOrigin = getKeyOrigin(fingerprint, path);
     expect(keyOrigin).toEqual("deadbeef/84'/0'/0'/0/0");
+  });
+});
+
+describe(getUtxoTotals.name, () => {
+  // A cat lives on a 546-sat UTXO, which the dust filter (< dustSatThreshold)
+  // does NOT catch: the `protected` routing is the only thing that keeps the
+  // BTC send flow off it (WAL HARD RULE #2).
+  function owned(txid: string, vout: number, value: number, height?: number): OwnedUtxo {
+    return {
+      txid,
+      vout,
+      value,
+      height,
+      address: 'bc1qtest',
+      path: 'm/84/0/0/0/0',
+      keyOrigin: 'f/84/0/0/0/0',
+    };
+  }
+  const cat = owned('c'.repeat(64), 0, 546, 840_000);
+  const plain = owned('a'.repeat(64), 1, 50_000, 840_000);
+
+  it('routes a confirmed 546-sat cat UTXO into protected and unspendable, never available', () => {
+    expect(cat.value).toBeGreaterThanOrEqual(dustSatThreshold);
+    const totals = getUtxoTotals('f', [cat, plain], [], [{ txid: cat.txid, vout: cat.vout }]);
+    expect(totals.protected).toEqual([cat]);
+    expect(totals.unspendable).toContainEqual(expect.objectContaining({ txid: cat.txid, vout: 0 }));
+    expect(totals.available).toEqual([plain]);
   });
 });

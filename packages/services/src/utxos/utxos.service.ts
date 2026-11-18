@@ -56,7 +56,7 @@ export class UtxosService {
     private readonly bitcoinTransactionsService: BitcoinTransactionsService,
     @inject(Types.SettingsService) private readonly settings: SettingsService,
     /* HACK -- Cat21: Cat21OrdApiClient injected for per-UTXO cat probing per
-     * Phase 3.0 safety. Skipped on regtest (no cat21-ord there). */
+     * Phase 3.0 safety. Used on mainnet only; on every other network no probe runs. */
     private readonly cat21OrdClient: Cat21OrdApiClient
   ) {}
   /**

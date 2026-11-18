@@ -108,12 +108,13 @@ export function getUtxoTotals(
   accountFingerprint: string,
   totalUtxos: OwnedUtxo[],
   btcTxs: BitcoinTransaction[],
-  /* HACK -- Cat21: optional `catBearingUtxoIds` per ADR-12 + Phase 3.0 safety.
+  /* HACK -- Cat21: required `catBearingUtxoIds` per ADR-12 + Phase 3.0 safety.
    * UTXOs identified by cat21-ord as holding a cat are routed into the
    * `protected` bucket and removed from `available`, so the BTC send flow
-   * cannot accidentally spend a cat. When omitted, the bucket stays empty
-   * (legacy/test behaviour). */
-  catBearingUtxoIds: UtxoId[] = []
+   * cannot accidentally spend a cat. Required, not defaulted: a 546-sat cat is
+   * above the dust threshold, so a caller that forgot the ids would leave
+   * every cat spendable. Pass `[]` only where no cat probe applies. */
+  catBearingUtxoIds: UtxoId[]
 ): UtxoTotals {
   const outboundUtxos = getOutboundUtxos(btcTxs, accountFingerprint);
   const unconfirmedUtxos = totalUtxos.filter(isUnconfirmedUtxo);
