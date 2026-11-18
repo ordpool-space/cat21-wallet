@@ -28,23 +28,25 @@ import { useCurrentNetworkState } from '@app/store/networks/networks.hooks';
 import { postCat21Result } from '@background/cat21/cat21-result-bus';
 import { Cat21RpcService } from '@background/cat21/cat21-rpc.service';
 import type { Cat21Transport } from '@background/cat21/mode-resolver';
-import { clearCat21Request } from '@background/cat21/popup-bridge';
+import { cat21ActionForRoute, clearCat21Request } from '@background/cat21/popup-bridge';
 import type { Cat21Intent, Cat21RpcBidSuccess, Cat21RpcResult } from '@background/cat21/types';
 
 import { usePublishToBazaar } from '../cat21-create-offer/use-publish-to-bazaar';
 import { Cat21BazaarPublishStatus } from './cat21-bazaar-publish-status';
+import { type DeclaredCat21Intent, declaredCat21Intent } from './declared-cat21-intent';
 import { extractCatIdHint } from './extract-cat-id-hint';
 import { useCat21FundingPreview } from './use-cat21-funding-preview';
 import { useCat21RequestFromUrl } from './use-cat21-request-from-url';
 import { useCat21RpcDeps } from './use-cat21-rpc-deps';
 
 /**
- * Generic container for the four Cat21 confirmation popups
- * (mint / transfer / create-offer / accept-offer). The four routes
- * registered in `app-routes.tsx` all point at this single component —
- * the intent kind is detected by structural narrowing on the intent's
- * fields (`priceSats` → createOffer, `offerPsbt` → acceptOffer,
- * `catId` → transfer, else mint).
+ * Generic container for the five Cat21 confirmation popups
+ * (mint / transfer / create-offer / accept-offer / buy). The five routes
+ * registered in `app-routes.tsx` all point at this single component, and
+ * the route itself declares the action (`cat21ActionForRoute`). The payload
+ * is bound to that action only when it has the action's shape
+ * (`declaredCat21Intent`); otherwise it is refused, never re-routed to the
+ * action it resembles.
  *
  * Two paths reach this route, distinguished by where the intent lives:
  *
@@ -118,9 +120,18 @@ export function Cat21ConfirmRoute() {
   // it under `?cat21RequestId=<id>` via popup-bridge). URL wins when
   // present so a stray location.state from a previous navigation
   // can't override a fresh agent-driven request.
-  const intent: Cat21Intent | undefined =
+  const requestedIntent: Cat21Intent | undefined =
     urlRequest.status === 'ready' ? urlRequest.intent : stateIntent;
   const transport: Cat21Transport = urlRequest.status === 'ready' ? urlRequest.transport : 'popup';
+
+  // The action is the one this route DECLARES (the background opened the route
+  // for the NMH method name; each Path-2 page navigates to its own route), never
+  // the one the payload's shape suggests (HARD RULE #6). A payload that does not
+  // have the declared action's shape binds to nothing and is refused below.
+  const declaredAction = cat21ActionForRoute(location.pathname);
+  const declared =
+    requestedIntent && declaredAction ? declaredCat21Intent(declaredAction, requestedIntent) : null;
+  const intent = declared?.intent;
 
   // catId for the deps' cat21-ord pre-fetch (used by `resolveCatUtxo`).
   // Transfer/createOffer carry it as `catId`; acceptOffer as `expectedCatId`;
@@ -140,8 +151,9 @@ export function Cat21ConfirmRoute() {
   const fundingQueryLoading = useCurrentNativeSegwitUtxos().isLoading;
   const intentNeedsFunding =
     urlRequest.status === 'ready' &&
-    !('priceSats' in urlRequest.intent) &&
-    !('offerPsbt' in urlRequest.intent);
+    declared != null &&
+    declared.kind !== 'create_offer' &&
+    declared.kind !== 'accept_offer';
 
   // Path-3 cat-resolution gate. transfer / acceptOffer resolve a cat UTXO
   // synchronously in the deps' `resolveCatUtxo`, backed by the cached
@@ -164,7 +176,7 @@ export function Cat21ConfirmRoute() {
   // transfer and buy resolve their cat inside the preview.
   const fundingState = useCat21FundingPreview(intent, deps, fundingQueryLoading, catQueryLoading);
 
-  async function runService(actionIntent: Cat21Intent): Promise<Cat21RpcResult> {
+  async function runService(action: DeclaredCat21Intent): Promise<Cat21RpcResult> {
     const service = new Cat21RpcService(deps);
     // mint, transfer and buy pin the asset coin the notice named and the human
     // confirmed, so execution spends exactly that coin and no other asset coin.
@@ -172,13 +184,23 @@ export function Cat21ConfirmRoute() {
     // is signed. Every other preview state (ready, blocked, autonomous) pins
     // nothing, so the service's blocking default refuses any asset coin.
     const previewCoin = fundingPreviewCoin(fundingState);
-    // `bidSats` is unique to the buy intent — check it before `catId`
-    // (buy also carries `catId`, so the transfer branch would swallow it).
-    if ('bidSats' in actionIntent) return service.buy(actionIntent, transport, previewCoin);
-    if ('priceSats' in actionIntent) return service.createOffer(actionIntent, transport);
-    if ('offerPsbt' in actionIntent) return service.acceptOffer(actionIntent, transport);
-    if ('catId' in actionIntent) return service.transfer(actionIntent, transport, previewCoin);
-    return service.mint(actionIntent, transport, previewCoin);
+    // The declared action, exhaustively: a sixth action is a compile error here.
+    switch (action.kind) {
+      case 'mint':
+        return service.mint(action.intent, transport, previewCoin);
+      case 'transfer':
+        return service.transfer(action.intent, transport, previewCoin);
+      case 'buy':
+        return service.buy(action.intent, transport, previewCoin);
+      case 'create_offer':
+        return service.createOffer(action.intent, transport);
+      case 'accept_offer':
+        return service.acceptOffer(action.intent, transport);
+      default: {
+        const exhaustive: never = action;
+        return exhaustive;
+      }
+    }
   }
 
   // Path 3 finalisation: post the rpc result onto the result bus so
@@ -213,11 +235,11 @@ export function Cat21ConfirmRoute() {
   // renders the publish state machine (resolving → signing-session →
   // posting → success | error). Path 3 keeps the return-the-payload
   // contract — the agent forwards the listing itself.
-  function confirm(actionIntent: Cat21Intent) {
+  function confirm(action: DeclaredCat21Intent) {
     setIsSubmitting(true);
     setError(null);
     void (async () => {
-      const result = await runService(actionIntent);
+      const result = await runService(action);
       setIsSubmitting(false);
       if (urlRequest.status === 'ready') {
         // Deliver the result to the agent's result bus (Path 3), FIRE-AND-
@@ -232,7 +254,7 @@ export function Cat21ConfirmRoute() {
         if (
           transport === 'popup' &&
           result.value.kind === 'listing' &&
-          'priceSats' in actionIntent
+          action.kind === 'create_offer'
         ) {
           const { listing } = result.value;
           bazaar.publish({
@@ -276,6 +298,24 @@ export function Cat21ConfirmRoute() {
   // above) which TypeScript can index safely.
   useEffect(() => {
     if (urlRequest.status !== 'ready') return;
+    // A stashed request whose payload does not have the declared action's shape
+    // is answered once with a typed denial, in any mode, and never confirmed:
+    // the agent learns why instead of waiting on a dialog that cannot proceed.
+    const declaredRequest = declared;
+    if (declaredRequest == null) {
+      if (autoConfirmedRef.current) return;
+      autoConfirmedRef.current = true;
+      // Fire-and-forget, like the confirm path below: the NMH relay listens for
+      // the post, so the popup must not wait on a response that may never come.
+      void finalisePath3(urlRequest.requestId, {
+        ok: false,
+        value: {
+          reason: 'intent-shape-invalid',
+          detail: `declared-action-mismatch: the payload is not a ${declaredAction ?? 'known'} intent`,
+        },
+      }).catch(() => undefined);
+      return;
+    }
     if (urlRequest.transport !== 'mcp-nmh') return;
     // Only an explicit `mode: 'autonomous'` request may auto-sign without a
     // human click. `mode` omitted (or `'manual'`) resolves to manual, which
@@ -322,7 +362,7 @@ export function Cat21ConfirmRoute() {
     // still reaches a real rejection once the query settles with an error.
     if (catIdHint != null && catQueryLoading) return;
     autoConfirmedRef.current = true;
-    confirm(urlRequest.intent);
+    confirm(declaredRequest);
     // `deps` and `confirm` close over many things that re-render-thrash
     // (the React-Query cache snapshot, the redux store reference,
     // etc.). The `autoConfirmedRef` guard keeps this at-most-once;
@@ -358,7 +398,16 @@ export function Cat21ConfirmRoute() {
     );
   }
 
-  if (!intent) {
+  if (requestedIntent && !declared) {
+    return (
+      <div data-testid="cat21-confirm-intent-mismatch">
+        This request does not match the action it was opened for, so nothing was signed. Issue it
+        again from the agent or the wallet.
+      </div>
+    );
+  }
+
+  if (!declared || !intent) {
     return (
       <div data-testid="cat21-confirm-missing-intent">
         Missing intent. Re-open from the wallet UI.
@@ -434,7 +483,7 @@ export function Cat21ConfirmRoute() {
       approveDisabled={approveDisabled}
       isSubmitting={isSubmitting}
       submitError={error}
-      onApprove={() => confirm(intent)}
+      onApprove={() => confirm(declared)}
       onReject={() => {
         if (urlRequest.status === 'ready') {
           void finalisePath3(urlRequest.requestId, {

@@ -199,3 +199,31 @@ export function routeForCat21IntentType(
     }
   }
 }
+
+/** The five typed actions, named as the SDK gate names its operation kinds. */
+export type Cat21ActionKind = 'mint' | 'transfer' | 'create_offer' | 'accept_offer' | 'buy';
+
+/**
+ * The action a confirmation route DECLARES: the inverse of
+ * `routeForCat21IntentType`. The background opens the route that matches the
+ * NMH method name (Path 3) and each action's own page navigates to its own
+ * route (Path 2), so the route carries the declared action and the popup
+ * executes exactly that one, never the action the payload's shape suggests
+ * (HARD RULE #6). `null` for any other path.
+ */
+export function cat21ActionForRoute(pathname: string): Cat21ActionKind | null {
+  switch (pathname) {
+    case RouteUrls.Cat21MintConfirm:
+      return 'mint';
+    case RouteUrls.Cat21TransferConfirm:
+      return 'transfer';
+    case RouteUrls.Cat21CreateOfferConfirm:
+      return 'create_offer';
+    case RouteUrls.Cat21AcceptOfferConfirm:
+      return 'accept_offer';
+    case RouteUrls.Cat21BuyConfirm:
+      return 'buy';
+    default:
+      return null;
+  }
+}

@@ -1316,6 +1316,20 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
     expect(src.match(/fundingTopology:/g)).toHaveLength(3);
   });
 
+  it('the confirm route executes the action its route DECLARES, never one inferred from the payload shape (HARD RULE #6)', () => {
+    // The background opens the route for the NMH method name and each Path-2
+    // page navigates to its own route, so the route is the declaration. The
+    // payload is bound to it (`declaredCat21Intent`) and dispatched on the
+    // declared kind; a shape that is not the declared action is refused.
+    const src = read(join(REPO_ROOT, ROUTE));
+    expect(src).toMatch(/cat21ActionForRoute\(location\.pathname\)/);
+    expect(src).toMatch(/declaredCat21Intent\(declaredAction,\s*requestedIntent\)/);
+    expect(src).toMatch(/switch \(action\.kind\)/);
+    expect(src).toMatch(/reason: 'intent-shape-invalid'/);
+    // No shape sniffing picks the service method.
+    expect(src).not.toMatch(/'(bidSats|priceSats|offerPsbt|catId)' in action/);
+  });
+
   it('the confirm route renders a funding-block denial from its structured cause, not the SDK wording', () => {
     // The SDK documents branching on `cause`; the text match in the copy is only
     // the fallback for a denial without it.
@@ -1326,9 +1340,9 @@ describe('funding-safety notice — the manual pre-approve funding preview', () 
   it('the confirm route pins the previewed coin into mint, transfer AND buy', () => {
     const src = read(join(REPO_ROOT, ROUTE));
     expect(src).toMatch(/const previewCoin = fundingPreviewCoin\(fundingState\)/);
-    expect(src).toMatch(/service\.buy\(actionIntent,\s*transport,\s*previewCoin\)/);
-    expect(src).toMatch(/service\.transfer\(actionIntent,\s*transport,\s*previewCoin\)/);
-    expect(src).toMatch(/service\.mint\(actionIntent,\s*transport,\s*previewCoin\)/);
+    expect(src).toMatch(/service\.buy\(action\.intent,\s*transport,\s*previewCoin\)/);
+    expect(src).toMatch(/service\.transfer\(action\.intent,\s*transport,\s*previewCoin\)/);
+    expect(src).toMatch(/service\.mint\(action\.intent,\s*transport,\s*previewCoin\)/);
   });
 });
 

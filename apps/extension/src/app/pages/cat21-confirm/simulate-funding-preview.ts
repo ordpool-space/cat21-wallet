@@ -33,9 +33,10 @@ import type {
  * execute. create-offer (a listing) and accept-offer (the buyer funded it) spend
  * no funding coin, so they have no preview.
  *
- * Intent kinds are told apart in the same order the confirm route dispatches
- * them: `bidSats` → buy, `priceSats` → create-offer, `offerPsbt` →
- * accept-offer, `catId` → transfer, else mint.
+ * The confirm route hands over only an intent already bound to its declared
+ * action (`declaredCat21Intent`), so telling the kinds apart by shape here
+ * (`bidSats` → buy, `priceSats` / `offerPsbt` → no funding coin, `catId` →
+ * transfer, else mint) agrees with that declaration.
  */
 
 type FundingPreviewIntent =

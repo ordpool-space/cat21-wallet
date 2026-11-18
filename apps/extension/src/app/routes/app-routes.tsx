@@ -332,9 +332,9 @@ function useAppRoutes() {
             }
           />
 
-          {/* Cat21 manual-flow confirmation popups — iter 11c. All four
-              point at the same Cat21ConfirmRoute container; the
-              intent kind is detected from location.state.intent. */}
+          {/* Cat21 confirmation popups. All five point at the same
+              Cat21ConfirmRoute container; each route declares its action
+              (cat21ActionForRoute) and the intent must have that shape. */}
           <Route
             path={RouteUrls.Cat21MintConfirm}
             element={

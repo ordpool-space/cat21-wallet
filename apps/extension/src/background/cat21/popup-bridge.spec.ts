@@ -4,6 +4,7 @@ import { RouteUrls } from '@shared/route-urls';
 
 import {
   type SessionStorageLike,
+  cat21ActionForRoute,
   cat21RequestStorageKey,
   clearCat21Request,
   fetchCat21Request,
@@ -122,8 +123,29 @@ describe('routeForCat21IntentType', () => {
     ['cat21_transfer', RouteUrls.Cat21TransferConfirm],
     ['cat21_create_offer', RouteUrls.Cat21CreateOfferConfirm],
     ['cat21_accept_offer', RouteUrls.Cat21AcceptOfferConfirm],
+    ['cat21_buy', RouteUrls.Cat21BuyConfirm],
   ] as const)('routes %s → %s', (type, route) => {
     expect(routeForCat21IntentType(type)).toBe(route);
+  });
+});
+
+describe('cat21ActionForRoute', () => {
+  // The popup executes the action its route DECLARES. The route is chosen from
+  // the NMH method name (Path 3) or by the action's own page (Path 2), so the
+  // inverse must give back exactly the method's action.
+  it.each([
+    ['cat21_mint', 'mint'],
+    ['cat21_transfer', 'transfer'],
+    ['cat21_create_offer', 'create_offer'],
+    ['cat21_accept_offer', 'accept_offer'],
+    ['cat21_buy', 'buy'],
+  ] as const)('the %s route declares %s', (method, action) => {
+    expect(cat21ActionForRoute(routeForCat21IntentType(method))).toBe(action);
+  });
+
+  it('declares nothing for any other path', () => {
+    expect(cat21ActionForRoute('/home')).toBeNull();
+    expect(cat21ActionForRoute(`${RouteUrls.Cat21MintConfirm}/extra`)).toBeNull();
   });
 });
 
